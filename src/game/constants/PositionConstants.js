@@ -1,4 +1,4 @@
-define(['ash'], function (Ash) {
+define(['ash', 'game/vos/PositionVO'], function (Ash, PositionVO) {
 
     var PositionConstants = {
     
@@ -71,12 +71,68 @@ define(['ash'], function (Ash) {
             return this.DIRECTION_NONE;
         },
         
+        getDirectionsFrom: function (sectorPosFrom, sectorPosTo, includeDiagonals) {
+            var result = [];
+            var dx = sectorPosFrom.sectorX - sectorPosTo.sectorX;
+            var dy = sectorPosFrom.sectorY - sectorPosTo.sectorY;
+
+            if (dx < 0) result.push(this.DIRECTION_EAST);
+            if (dx > 0) result.push(this.DIRECTION_WEST);
+            if (dy < 0) result.push(this.DIRECTION_SOUTH);
+            if (dy > 0) result.push(this.DIRECTION_NORTH);
+            if (includeDiagonals) {
+                if (dx > 0 && dy > 0) result.push(this.DIRECTION_NW);
+                if (dx < 0 && dy > 0) result.push(this.DIRECTION_NE);
+                if (dx > 0 && dy < 0) result.push(this.DIRECTION_SW);
+                if (dx < 0 && dy < 0) result.push(this.DIRECTION_SE);
+            }
+            return result;
+        },
+        
         getDistanceTo: function (sectorPosFrom, sectorPosTo) {
             var xs = sectorPosFrom.sectorX - sectorPosTo.sectorX;
             xs = xs * xs;
             var ys = sectorPosFrom.sectorY - sectorPosTo.sectorY;
             ys = ys * ys;
             return Math.sqrt(xs + ys);
+        },
+        
+        getDistanceInDirection: function (sectorPosFrom, sectorPosTo, direction) {
+            var dx = Math.abs(sectorPosFrom.sectorX - sectorPosTo.sectorX);
+            var dy = Math.abs(sectorPosFrom.sectorY - sectorPosTo.sectorY);
+            var dl = Math.abs(sectorPosFrom.level - sectorPosTo.level);
+            switch (direction) {
+                case this.DIRECTION_WEST:
+                case this.DIRECTION_EAST:
+                    return dx;
+                case this.DIRECTION_NORTH:
+                case this.DIRECTION_SOUTH:
+                    return dy;
+                case this.DIRECTION_NE:
+                case this.DIRECTION_SE:
+                case this.DIRECTION_SW:
+                case this.DIRECTION_NW:
+                    return Math.min(dx, dy);
+                case this.DIRECTION_UP:
+                case this.DIRECTION_DOWN:
+                    return dl;
+            }
+            return 0;
+        },
+        
+        getMiddlePoint: function (positions) {
+            var result = new PositionVO(0, 0, 0);
+            if (positions && positions.length > 0) {
+                for (var i = 0; i < positions.length; i++) {
+                    result.level += positions[i].level;
+                    result.sectorX += positions[i].sectorX;
+                    result.sectorY += positions[i].sectorY;
+                }
+                result.level /= positions.length;
+                result.sectorX /= positions.length;
+                result.sectorY /= positions.length;
+            }
+            return result;
         },
         
         getOppositeDirection: function (direction) {
@@ -115,7 +171,7 @@ define(['ash'], function (Ash) {
                     return includeDiagonalSteps ? this.DIRECTION_NORTH : this.DIRECTION_NE;
                 default:
                     return this.DIRECTION_NONE;
-            }            
+            }
         },
 
         getNextCounterClockWise: function (direction, includeDiagonalSteps) {
@@ -138,6 +194,18 @@ define(['ash'], function (Ash) {
                     return includeDiagonalSteps ? this.DIRECTION_WEST : this.DIRECTION_SW;
                 default:
                     return this.DIRECTION_NONE;
+            }
+        },
+        
+        isDiagonal: function (direction) {
+            switch (direction) {
+                case this.DIRECTION_WEST:
+                case this.DIRECTION_NORTH:
+                case this.DIRECTION_SOUTH:
+                case this.DIRECTION_EAST:
+                    return false;
+                default:
+                    return true;
             }
         },
         
@@ -183,7 +251,7 @@ define(['ash'], function (Ash) {
                 case this.DIRECTION_NW:
                 case this.DIRECTION_SE:
                     return true;
-                default: 
+                default:
                     return false;
             }
         }

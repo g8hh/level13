@@ -5,15 +5,19 @@ define(['ash',], function (Ash) {
         exceptionCallback: null,
 
         // ui events
+        pageSetUpSignal:new Ash.Signals.Signal(),
         gameShownSignal: new Ash.Signals.Signal(),
         tabChangedSignal: new Ash.Signals.Signal(),
         actionButtonClickedSignal: new Ash.Signals.Signal(),
         calloutsGeneratedSignal: new Ash.Signals.Signal(),
         popupOpenedSignal: new Ash.Signals.Signal(),
+        popupClosingSignal: new Ash.Signals.Signal(),
         popupClosedSignal: new Ash.Signals.Signal(),
         elementToggledSignal: new Ash.Signals.Signal(),
         elementCreatedSignal: new Ash.Signals.Signal(),
         windowResizedSignal: new Ash.Signals.Signal(),
+        popupResizedSignal: new Ash.Signals.Signal(),
+        updateButtonsSignal: new Ash.Signals.Signal(),
         clearBubblesSignal: new Ash.Signals.Signal(),
 
         // player actions
@@ -21,7 +25,9 @@ define(['ash',], function (Ash) {
         playerMovedSignal: new Ash.Signals.Signal(),
         sectorScoutedSignal: new Ash.Signals.Signal(),
         improvementBuiltSignal: new Ash.Signals.Signal(),
+        itemUsedSignal: new Ash.Signals.Signal(),
         campBuiltSignal: new Ash.Signals.Signal(),
+        movementBlockerClearedSignal: new Ash.Signals.Signal(),
         blueprintsChangedSignal: new Ash.Signals.Signal(),
         upgradeUnlockedSignal: new Ash.Signals.Signal(),
         inventoryChangedSignal: new Ash.Signals.Signal(),
@@ -37,9 +43,15 @@ define(['ash',], function (Ash) {
         visionChangedSignal: new Ash.Signals.Signal(),
         healthChangedSignal: new Ash.Signals.Signal(),
         populationChangedSignal: new Ash.Signals.Signal(),
+        perksChangedSignal: new Ash.Signals.Signal(),
+        tribeStatsChangedSignal: new Ash.Signals.Signal(),
+        
+        // other
+        fightUpdateSignal: new Ash.Signals.Signal(),
 
         // game events
         worldReadySignal: new Ash.Signals.Signal(),
+        gameStateReadySignal: new Ash.Signals.Signal(),
         gameStartedSignal: new Ash.Signals.Signal(),
         saveGameSignal: new Ash.Signals.Signal(),
         restartGameSignal: new Ash.Signals.Signal(),

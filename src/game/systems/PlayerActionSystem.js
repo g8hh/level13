@@ -26,17 +26,21 @@ define([
 
         update: function (time) {
             if (GameGlobals.gameState.isPaused) return;
+            var extraUpdateTime = GameGlobals.gameState.frameExtraUpdateTime;
             for (var node = this.playerActionNodes.head; node; node = node.next) {
-                this.updateNode(node, this.engine.extraUpdateTime);
+                this.updateNode(node, extraUpdateTime);
             }
         },
 
-        updateNode: function (node, extraTime) {
+        updateNode: function (node, extraUpdateTime) {
+            extraUpdateTime = extraUpdateTime || 0;
             var now = new Date().getTime();
             var newDict = {};
             var newList = [];
             
-            node.playerActions.applyExtraTime(extraTime);
+            if (extraUpdateTime != 0) {
+                node.playerActions.applyExtraTime(extraUpdateTime);
+            }
             
             var timeStamp;
 			var action;

@@ -20,8 +20,10 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 		lostResources: null,
         lostCurrency: null,
 		lostItems: [],
+        lostFollowers: [],
 		gainedInjuries: [],
         
+        // inventory management selection
         // gained resources and items must be manually picked up; status saved here; this is the final change to the player bag
         selectedItems: [],
         selectedResources: null,
@@ -44,6 +46,7 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 			this.lostResources = new ResourcesVO();
             this.lostCurrency = 0;
             this.lostItems = [];
+            this.lostFollowers = [];
             this.gainedInjuries = [];
             
             this.selectedItems = [];
@@ -51,6 +54,10 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
             this.discardedItems = [];
             this.discardedResources = new ResourcesVO();
 		},
+        
+        hasSelectable: function () {
+            return this.gainedResources.getTotal() > 0 || this.gainedItems.length > 0;
+        },
         
         clone: function () {
             var result = new ResultVO(this.action);
@@ -61,6 +68,7 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
             result.gainedItems = this.gainedItems.concat();
             result.gainedFollowers = this.gainedFollowers.concat();
             result.lostItems = this.lostItems.concat();
+            result.lostFollowers = this.lostFollowers.concat();
             result.gainedInjuries = this.gainedInjuries.concat();
             result.gainedBlueprintPiece = this.gainedBlueprintPiece;
             result.gainedPopulation = this.gainedPopulation;

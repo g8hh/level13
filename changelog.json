@@ -1,5 +1,87 @@
 {
-	"versions": [{
+	"versions": [
+        {
+            "version": "0.2.7",
+            "phase": "alpha",
+            "final": true,
+            "updated": "2020-02-13",
+            "released": "2020-02-13",
+            "requiredVersion": "0.2.5",
+            "changes": [
+                {
+                    "type": "GB",
+                    "summary": "Adjust upgrade unlocking order (Block Knife from being unlocked on Level 13)"
+                },
+                {
+                    "type": "DEV",
+                    "summary": "Bugfixes"
+                }
+            ]
+        },
+        {
+            "version": "0.2.6",
+            "phase": "alpha",
+            "final": true,
+            "updated": "2020-02-06",
+            "released": "2020-02-06",
+            "requiredVersion": "0.2.5",
+            "changes": [
+                {
+                    "type": "DEV",
+                    "summary": "Bugfixes"
+                }
+            ]
+        },
+        {
+            "version": "0.2.5",
+            "phase": "alpha",
+            "final": true,
+            "updated": "2020-02-01",
+            "released": "2020-02-01",
+            "changes": [
+                {
+                    "type": "GD",
+                    "summary": "Add possibility to improve (some) buildings for small effect boosts"
+                },
+                {
+                    "type": "GD",
+                    "summary": "Add active and passive rumour generation to markets"
+                },
+                {
+                    "type": "GD",
+                    "summary": "Add a new movement blocker: debris"
+                },
+                {
+                    "type": "GB",
+                    "summary": "Adjust level sizes and structure"
+                },
+                {
+                    "type": "GB",
+                    "summary": "Adjust balancing (raids, rumours, upgrades, reputation)"
+                },
+                {
+                    "type": "GB",
+                    "summary": "Add more items, equipment and crafting materials"
+                },
+                {
+                    "type": "GB",
+                    "summary": "Add more enemies and make enemy difficulty more dynamic"
+                },
+                {
+                    "type": "UI",
+                    "summary": "Improve fight UI"
+                },
+                {
+                    "type": "DEV",
+                    "summary": "Refactor CSS styles and color themes for easier maintanability"
+                },
+                {
+                    "type": "DEV",
+                    "summary": "Bugfixes and testing tools"
+                }
+            ]
+        },
+        {
             "version": "0.2.4",
             "phase": "alpha",
             "final": true,

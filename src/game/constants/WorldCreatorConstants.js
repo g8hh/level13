@@ -2,12 +2,26 @@ define(['ash', 'utils/MathUtils'], function (Ash, MathUtils) {
     
     var WorldCreatorConstants = {
         
-        CRITICAL_PATH_TYPE_CAMP_TO_WORKSHOP: "camp_to_workshop",
-        CRITICAL_PATH_TYPE_CAMP_TO_LOCALE_1: "camp_to_locale_1",
-        CRITICAL_PATH_TYPE_CAMP_TO_LOCALE_2: "camp_to_locale_2",
+        CRITICAL_PATH_TYPE_PASSAGE_TO_CAMP: "passage_to_camp",
         CRITICAL_PATH_TYPE_CAMP_TO_PASSAGE: "camp_to_passage",
         CRITICAL_PATH_TYPE_PASSAGE_TO_PASSAGE: "passage_to_passage",
-        CRITICAL_PATH_TYPE_CAMP_TO_CAMP: "camp_to_camp",
+        CRITICAL_PATH_TYPE_CAMP_TO_POI_1: "camp_to_poi_1",
+        CRITICAL_PATH_TYPE_CAMP_TO_POI_2: "camp_to_poi_2",
+        
+        ZONE_ENTRANCE: "z_e",
+        ZONE_PASSAGE_TO_CAMP: "z_p2c",
+        ZONE_PASSAGE_TO_PASSAGE: "z_p2p",
+        ZONE_POI_1: "z_poi1",
+        ZONE_POI_2: "z_poi2",
+        ZONE_CAMP_TO_PASSAGE: "z_c2p",
+        ZONE_EXTRA_CAMPABLE: "z_extra_c",
+        ZONE_EXTRA_UNCAMPABLE: "z_extra_u",
+        ZONE_POI_TEMP: "z_poi_temp",
+        
+        CAMP_STEP_PREVIOUS: 0,  // passage to level sector
+        CAMP_STEP_START: 1,     // zones up to and including POI_1
+        CAMP_STEP_POI_2: 2,     // zone POI_2
+        CAMP_STEP_END: 3,       // zones after POI_2
         
         // Sector features
         SECTOR_TYPE_RESIDENTIAL: "residential",
@@ -48,16 +62,15 @@ define(['ash', 'utils/MathUtils'], function (Ash, MathUtils) {
         
         CAMP_ORDINAL_LIMIT: 7,
         
-        MIN_LEVEL_ORDINAL_HAZARD_RADIATION: 10,
-        MIN_LEVEL_HAZARD_POISON: 15,
+        MIN_LEVEL_ORDINAL_HAZARD_RADIATION: 5,
+        MIN_LEVEL_ORDINAL_HAZARD_POISON: 3,
         
         MAX_SCOUT_LOCALE_STAMINA_COST: 500,
         
-        LEVEL_ORDINAL_BAG_2: 2,
-        LEVEL_ORDINAL_BAG_3: 6,
-        LEVEL_ORDINAL_BAG_4: 10,
-        LEVEL_ORDINAL_BAG_5: 14,
-        LEVEL_ORDINAL_BAG_6: 18,
+        CAMP_ORDINAL_BAG_2: 3,
+        CAMP_ORDINAL_BAG_3: 6,
+        CAMP_ORDINAL_BAG_4: 10,
+        CAMP_ORDINAL_BAG_5: 14,
         
         BAG_BONUS_1: 30,
         BAG_BONUS_2: 40,
@@ -66,18 +79,23 @@ define(['ash', 'utils/MathUtils'], function (Ash, MathUtils) {
         BAG_BONUS_5: 100,
         BAG_BONUS_6: 150,
         
-        getNumSectors: function (levelOrdinal) {
-            return Math.round(this.getNumSectorsCentral(levelOrdinal) * 1.15);
+        isStartPosition: function (pos) {
+            return pos.level === 13 && pos.sectorX === this.FIRST_CAMP_X && pos.sectorY == this.FIRST_CAMP_Y;
         },
         
-        getNumSectorsCentral: function (levelOrdinal) {
-            if (levelOrdinal < 2)
-                return 100;
-            if (levelOrdinal < 10)
-                return 150;
-            if (levelOrdinal < 15)
-                return 200;
-            return 300;
+        getNumSectors: function (campOrdinal, isSmall) {
+            if (isSmall) return 80;
+            if (campOrdinal < 2)
+                return 110;
+            if (campOrdinal < WorldCreatorConstants.CAMPS_BEFORE_GROUND)
+                return 170;
+            if (campOrdinal < 12)
+                return 190;
+            return 200;
+        },
+        
+        getNumSectorsCentral: function (campOrdinal, isSmall) {
+            return Math.round(this.getNumSectors(campOrdinal, isSmall) * 0.8);
         },
         
         // max length of a path (limited by stamina) on the given camp ordinal
@@ -89,41 +107,31 @@ define(['ash', 'utils/MathUtils'], function (Ash, MathUtils) {
             if (campOrdinal > 7) movementCost = 8;
             var maxStamina = 1000;
             if (campOrdinal > 12) maxStamina = 1250;
+            var movementCostLevel = movementCost * 10;
             var maxLength = maxStamina / movementCost;
             
             var deductScouts = true;
             var deductScavenges = true;
 
             switch (pathType) {
-                case this.CRITICAL_PATH_TYPE_CAMP_TO_LOCALE_1:
-                case this.CRITICAL_PATH_TYPE_CAMP_TO_LOCALE_2:
-                    // there, scout and back (these paths have a lot of points so less strict -> faster world creation)
+                case this.CRITICAL_PATH_TYPE_CAMP_TO_POI_1:
+                case this.CRITICAL_PATH_TYPE_CAMP_TO_POI_2:
+                    // there, scout/fight and back (these paths have a lot of points so less strict -> faster world creation)
                     var maxScoutCost = WorldCreatorConstants.MAX_SCOUT_LOCALE_STAMINA_COST;
-                    maxLength = (maxLength - maxScoutCost / movementCost) / 2;
+                    var fightCost = 10 * 3;
+                    var actionCost = Math.max(fightCost, maxScoutCost);
+                    maxLength = (maxLength - actionCost / movementCost) / 2;
                     deductScouts = false;
                     deductScavenges = false;
                     break;
-                case this.CRITICAL_PATH_TYPE_CAMP_TO_WORKSHOP:
-                    // there, fight and back
-                    var fightCost = 10 * 3;
-                    maxLength = (maxLength - fightCost / movementCost) / 2;
-                    deductScouts = false;
-                    break;
                 case this.CRITICAL_PATH_TYPE_CAMP_TO_PASSAGE:
-                    // there and back
-                    // must be smaller than CAMP_TO_CAMP because that one can me CAMP_TO_PASSAGE + PASSAGE_TO_PASSAGE + CAMP_TO_PASSAGE
-                    maxLength = maxLength / 3;
-                    break;
-                case this.CRITICAL_PATH_TYPE_CAMP_TO_CAMP:
-                    // only need to make it there
-                    break;
+                case this.CRITICAL_PATH_TYPE_PASSAGE_TO_CAMP:
                 case this.CRITICAL_PATH_TYPE_PASSAGE_TO_PASSAGE:
-                    // there and back
-                    // must be smaller than CAMP_TO_CAMP because that one can me CAMP_TO_PASSAGE + PASSAGE_TO_PASSAGE + CAMP_TO_PASSAGE
-                    maxLength = maxLength / 3;
+                    // one there, but the whole route can be CRITICAL_PATH_TYPE_CAMP_TO_PASSAGE  + CRITICAL_PATH_TYPE_PASSAGE_TO_PASSAGE + CRITICAL_PATH_TYPE_PASSAGE_TO_CAMP
+                    maxLength = maxLength / 3 - movementCostLevel / movementCost;
                     break;
                 default:
-                    console.log("WARN: Unknown path type: " + pathType);
+                    log.w("Unknown path type: " + pathType);
                     break;
             }
             
@@ -146,22 +154,19 @@ define(['ash', 'utils/MathUtils'], function (Ash, MathUtils) {
         },
         
         getBagBonus: function (levelOrdinal) {
-            if (levelOrdinal < this.LEVEL_ORDINAL_BAG_2) {
+            if (levelOrdinal < this.CAMP_ORDINAL_BAG_2) {
                 return this.BAG_BONUS_1;
             }
-            if (levelOrdinal < this.LEVEL_ORDINAL_BAG_3) {
+            if (levelOrdinal < this.CAMP_ORDINAL_BAG_3) {
                 return this.BAG_BONUS_2;
             }
-            if (levelOrdinal < this.LEVEL_ORDINAL_BAG_4) {
+            if (levelOrdinal < this.CAMP_ORDINAL_BAG_4) {
                 return this.BAG_BONUS_3;
             }
-            if (levelOrdinal < this.LEVEL_ORDINAL_BAG_5) {
+            if (levelOrdinal < this.CAMP_ORDINAL_BAG_5) {
                 return this.BAG_BONUS_4;
             }
-            if (levelOrdinal < this.LEVEL_ORDINAL_BAG_6) {
-                return this.BAG_BONUS_5;
-            }
-            return this.BAG_BONUS_6;
+            return this.BAG_BONUS_5;
         },
         
         getPopulationGrowthFactor: function (campOrdinal) {
@@ -185,8 +190,61 @@ define(['ash', 'utils/MathUtils'], function (Ash, MathUtils) {
                 default:
                     return 1;
             }
+        },
+        
+        getZoneOrdinal: function (zone) {
+            switch (zone) {
+                // all levels
+                case WorldCreatorConstants.ZONE_ENTRANCE: return 0;
+                // campable levels
+                case WorldCreatorConstants.ZONE_PASSAGE_TO_CAMP: return 1;
+                case WorldCreatorConstants.ZONE_POI_1: return 2;
+                case WorldCreatorConstants.ZONE_POI_2: return 3;
+                case WorldCreatorConstants.ZONE_CAMP_TO_PASSAGE: return 4;
+                case WorldCreatorConstants.ZONE_EXTRA_CAMPABLE: return 5;
+                case WorldCreatorConstants.ZONE_POI_TEMP: return 6;
+                // uncampable levels
+                case WorldCreatorConstants.ZONE_PASSAGE_TO_PASSAGE: return 1;
+                case WorldCreatorConstants.ZONE_EXTRA_UNCAMPABLE: return 2;
+                default:
+                    log.w("no ordinal defined for zone: " + zone);
+                    return 5;
+            }
+        },
+        
+        isEarlierZone: function (zone1, zone2) {
+            return this.getZoneOrdinal(zone1) < this.getZoneOrdinal(zone2);
+        },
+        
+        getCampStep: function (zone) {
+            switch (zone) {
+                // all levels
+                case WorldCreatorConstants.ZONE_ENTRANCE: return WorldCreatorConstants.CAMP_STEP_PREVIOUS;
+                // campable levels
+                case WorldCreatorConstants.ZONE_PASSAGE_TO_CAMP: return WorldCreatorConstants.CAMP_STEP_START;
+                case WorldCreatorConstants.ZONE_POI_1: return WorldCreatorConstants.CAMP_STEP_START;
+                case WorldCreatorConstants.ZONE_POI_2: return WorldCreatorConstants.CAMP_STEP_POI_2;
+                case WorldCreatorConstants.ZONE_CAMP_TO_PASSAGE: return WorldCreatorConstants.CAMP_STEP_END;
+                case WorldCreatorConstants.ZONE_EXTRA_CAMPABLE: return WorldCreatorConstants.CAMP_STEP_END;
+                case WorldCreatorConstants.ZONE_POI_TEMP: return WorldCreatorConstants.CAMP_STEP_END;
+                // uncampable levels
+                case WorldCreatorConstants.ZONE_PASSAGE_TO_PASSAGE: return WorldCreatorConstants.CAMP_STEP_END;
+                case WorldCreatorConstants.ZONE_EXTRA_UNCAMPABLE: return WorldCreatorConstants.CAMP_STEP_END;
+                default:
+                    log.i("no camp step defined for zone: " + zone);
+                    return 5;
+            }
         }
+
     };
+    
+    WorldCreatorConstants.CRITICAL_PATHS_BY_ORDER = [
+            WorldCreatorConstants.CRITICAL_PATH_TYPE_PASSAGE_TO_CAMP,
+            WorldCreatorConstants.CRITICAL_PATH_TYPE_PASSAGE_TO_PASSAGE,
+            WorldCreatorConstants.CRITICAL_PATH_TYPE_CAMP_TO_POI_1,
+            WorldCreatorConstants.CRITICAL_PATH_TYPE_CAMP_TO_POI_2,
+            WorldCreatorConstants.CRITICAL_PATH_TYPE_CAMP_TO_PASSAGE,
+    ];
     
     return WorldCreatorConstants;
 });

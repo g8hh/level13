@@ -29,7 +29,7 @@ function (Ash, GameConstants, WorldCreatorConstants, PositionConstants, Movement
         },
 		
 		getSectorDescription: function (hasLight, sunlit, sectorType, density, repair) {
-			if (!hasLight) {
+			if (!hasLight && !sunlit) {
 				sectorType = SECTOR_TYPE_NOLIGHT;
 			}
 			 
@@ -58,6 +58,8 @@ function (Ash, GameConstants, WorldCreatorConstants, PositionConstants, Movement
                         else
                             return "There is a massive sinkhole here. Only vast emptiness is visible below.";
                     }
+                case MovementConstants.PASSAGE_TYPE_BLOCKED:
+                    return "There seems to have been a staircase here once but it has been destroyed beyond repair.";
                 default:
                     return "There used to be " + TextConstants.addArticle(passageVO.name.toLowerCase()) + " here.";
             }
@@ -73,7 +75,7 @@ function (Ash, GameConstants, WorldCreatorConstants, PositionConstants, Movement
                 case MovementConstants.PASSAGE_TYPE_STAIRWELL:
                     return "Stairwell " + directionName + " repaired at " + sectorPosVO.getInGameFormat(true);
                 default:
-                    console.log("WARN: Unknown passage type: [" + passageType + "]")
+                    log.w("Unknown passage type: [" + passageType + "]")
                     return "Passage " + directionName + " ready at " + sectorPosVO.getInGameFormat(true);
             }
         },
@@ -82,29 +84,48 @@ function (Ash, GameConstants, WorldCreatorConstants, PositionConstants, Movement
         There is a hole in the level ceiling here. An elevator has been built,
         /**/
         
-        getPassageDescription: function (passageVO, direction, isBuilt) {
+        getPassageDescription: function (passageVO, direction, isBuilt, isShort) {
             var makeHighlight = function (content) { return "<span class='hl-functionality'>" + content + "</span>"; };
             var directionName = (direction === PositionConstants.DIRECTION_UP ? " up" : " down");
-            switch (passageVO.type) {
-                case MovementConstants.PASSAGE_TYPE_HOLE:
-                    if (isBuilt) {
-                        return "A brand new " + makeHighlight("elevator " + directionName) + " has been built here.";
-                    } else {
-                        return "There is a " + makeHighlight("hole") + " in the level " + (direction === PositionConstants.DIRECTION_UP ? "ceiling" : "floor") + " here.";
-                    }
-                default:
-                    var name = passageVO.name.toLowerCase() + " " + directionName;
-                    var article = TextConstants.getArticle(name);
-                    var span = article + " " + makeHighlight(name);
-                    var state;
-                    if (isBuilt) {
-                        state = "and it has been repaired";
-                    } else if (passageVO.type === MovementConstants.PASSAGE_TYPE_ELEVATOR) {
-                        state = "but it is broken";
-                    } else {
-                        state = "but it needs to be repaired";
-                    }
-                    return "There is " + span + " here, " + state + ".";
+            if (isShort) {
+                switch (passageVO.type) {
+                    case MovementConstants.PASSAGE_TYPE_HOLE:
+                        if (isBuilt) {
+                            return "passage " + directionName + " (elevator) (built)";
+                        } else {
+                            return "hole in the level " + (direction === PositionConstants.DIRECTION_UP ? "ceiling" : "floor");
+                        }
+                    default:
+                        var status = isBuilt ? "repaired" : "broken";
+                        if (passageVO.type === MovementConstants.PASSAGE_TYPE_BLOCKED) {
+                            status = "unrepairable"
+                        }
+                        return "passage " + directionName + " (" + passageVO.name.toLowerCase() + ") (" + status + ")";
+                }
+            } else {
+                switch (passageVO.type) {
+                    case MovementConstants.PASSAGE_TYPE_HOLE:
+                        if (isBuilt) {
+                            return "A brand new " + makeHighlight("elevator " + directionName) + " has been built here.";
+                        } else {
+                            return "There is a " + makeHighlight("hole") + " in the level " + (direction === PositionConstants.DIRECTION_UP ? "ceiling" : "floor") + " here.";
+                        }
+                    default:
+                        var name = passageVO.name.toLowerCase() + " " + directionName;
+                        var article = TextConstants.getArticle(name);
+                        var span = article + " " + makeHighlight(name);
+                        var state;
+                        if (isBuilt) {
+                            state = "and it has been repaired";
+                        } else if (passageVO.type === MovementConstants.PASSAGE_TYPE_ELEVATOR) {
+                            state = "but it is broken";
+                        } else if (passageVO.type === MovementConstants.PASSAGE_TYPE_BLOCKED) {
+                            state = "but it is unrepairable";
+                        } else {
+                            state = "but it needs to be repaired";
+                        }
+                        return "There is " + span + " here, " + state + ".";
+                }
             }
         },
         
@@ -294,11 +315,11 @@ function (Ash, GameConstants, WorldCreatorConstants, PositionConstants, Movement
 			return this.getCommonText(enemyList, "activeV", "", "occupied by", false);
 		},
 		
-		getEnemeyDefeatedVerb: function(enemyList) {
+		getEnemeyDefeatedVerb: function (enemyList) {
 			return this.getCommonText(enemyList, "defeatedV", "", "defeated", false);
 		},
         
-        getMovementBlockerName: function(blockerVO, enemiesComponent) {
+        getMovementBlockerName: function (blockerVO, enemiesComponent) {
 			switch (blockerVO.type) {
                 case MovementConstants.BLOCKER_TYPE_GANG:
                     var groupNoun = this.getEnemyGroupNoun(enemiesComponent.possibleEnemies);
@@ -307,6 +328,7 @@ function (Ash, GameConstants, WorldCreatorConstants, PositionConstants, Movement
                 default:
                     return blockerVO.name;
             }
+            return "";
         },
         
         getMovementBlockerAction: function (blockerVO, enemiesComponent) {
@@ -322,6 +344,7 @@ function (Ash, GameConstants, WorldCreatorConstants, PositionConstants, Movement
 				case MovementConstants.BLOCKER_TYPE_GAP: return "bridged";
 				case MovementConstants.BLOCKER_TYPE_WASTE: return "cleared";
 				case MovementConstants.BLOCKER_TYPE_GANG: return "defeated";
+				case MovementConstants.BLOCKER_TYPE_DEBRIS: return "cleared";
 	 	 	}
 		},
 		
@@ -391,8 +414,8 @@ function (Ash, GameConstants, WorldCreatorConstants, PositionConstants, Movement
 				}
 			}
 			
-            // console.log("getCommonText " + objectAttribute + " | " + validDetail + " | " + validWords.join(",") + " | " + minimumWords.join(",") + " | " + defaultWord);
-            // console.log(objectList)
+            // log.i("getCommonText " + objectAttribute + " | " + validDetail + " | " + validWords.join(",") + " | " + minimumWords.join(",") + " | " + defaultWord);
+            // log.i(objectList)
             
 			if (validDetail.length > 0) {
 				return this.pluralify(validDetail);

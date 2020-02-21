@@ -4,15 +4,18 @@ define([
     'game/GameGlobals',
     'game/GlobalSignals',
     'game/constants/ItemConstants',
+    'game/constants/UpgradeConstants',
     'game/nodes/sector/CampNode',
+	'game/nodes/tribe/TribeUpgradesNode',
     'game/components/sector/improvements/SectorImprovementsComponent',
     'game/components/player/ItemsComponent',
     'game/vos/ResourcesVO'
-], function (Ash, GameGlobals, GlobalSignals, ItemConstants, CampNode, SectorImprovementsComponent, ItemsComponent, ResourcesVO) {
+], function (Ash, GameGlobals, GlobalSignals, ItemConstants, UpgradeConstants, CampNode, TribeUpgradesNode, SectorImprovementsComponent, ItemsComponent, ResourcesVO) {
     var UnlockedFeaturesSystem = Ash.System.extend({
 	    
 		gameState: null,
 		campNodes: null,
+        tribeUpgradesNodes: null,
 	
         constructor: function () {
         },
@@ -20,6 +23,7 @@ define([
         addToEngine: function (engine) {
             this.engine = engine;
 			this.campNodes = engine.getNodeList(CampNode);
+            this.tribeUpgradesNodes = engine.getNodeList(TribeUpgradesNode);
         },
 
         removeFromEngine: function (engine) {
@@ -31,7 +35,7 @@ define([
 			var numCamps = 0;
 			var numTradePostCamps = 0;
             
-            GameGlobals.gameState.gamePlayedSeconds += time + this.engine.extraUpdateTime;
+            GameGlobals.gameState.gamePlayedSeconds += time;
 			
 			// Global improvements
 			for (var node = this.campNodes.head; node; node = node.next) {
@@ -62,6 +66,12 @@ define([
                 gtag('set', { 'max_camp': GameGlobals.gameState.numCamps });
             }
 			GameGlobals.gameState.numTradePostCamps = numTradePostCamps;
+            
+            if (!GameGlobals.gameState.unlockedFeatures.projects) {
+                GameGlobals.gameState.unlockedFeatures.projects = this.tribeUpgradesNodes.head.upgrades.hasUpgrade(UpgradeConstants.upgradeIds.unlock_building_passage_staircase);
+                if (GameGlobals.gameState.unlockedFeatures.projects)
+                    GlobalSignals.featureUnlockedSignal.dispatch();
+            }
 		}
         
     });

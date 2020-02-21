@@ -6,15 +6,11 @@ define(['ash', 'game/GameGlobals', 'game/vos/ImprovementVO'], function (Ash, Gam
         buildingSpots: [],
 
         constructor: function () {
-            this.initImprovements();
-        },
-
-        initImprovements: function() {
             this.improvements = {};
             this.buildingSpots = [];
         },
 
-        add: function(type, amount) {
+        add: function (type, amount) {
             var vo = this.improvements[type];
             if (!vo) {
                 this.improvements[type] = new ImprovementVO(type);
@@ -22,20 +18,42 @@ define(['ash', 'game/GameGlobals', 'game/vos/ImprovementVO'], function (Ash, Gam
             }
 
             if (!amount) amount = 1;
+            
             for (var i = 0; i < amount; i++) {
-                var visCount = vo.getVisCount();
-                for (var j = 0; j < visCount; j++) {
-                    var spotIndex = this.getNextFreeCampBuildingSpot(vo);
-                    this.setSelectedCampBuildingSpot(vo, vo.count, spotIndex, j);
-                }
                 vo.count++;
             }
         },
+        
+        improve: function (type) {
+            var vo = this.improvements[type];
+            if (!vo) return;
+            if (!vo.level) vo.level = 1;
+            if (vo.level < 1) vo.level = 1;
+            vo.level++;
+        },
 
-        getCount: function(type) {
+        getCount: function (type) {
             var vo = this.improvements[type];
             if (vo) {
                 return vo.count || 0;
+            } else {
+                return 0;
+            }
+        },
+        
+        getTotalCount: function () {
+            var result = 0;
+            for (var key in this.improvements) {
+				var val = this.improvements[key];
+				if (val) result += val.count;
+			}
+            return result;
+        },
+        
+        getLevel: function (type) {
+            var vo = this.improvements[type];
+            if (vo) {
+                return vo.level || 1;
             } else {
                 return 0;
             }
@@ -76,21 +94,16 @@ define(['ash', 'game/GameGlobals', 'game/vos/ImprovementVO'], function (Ash, Gam
             return this.getCount(improvementNames.collector_food) > 0 || this.getCount(improvementNames.collector_water) > 0;
         },
 
-        getSelectedCampBuildingSpot: function (building, i, j, assignIfNotSet) {
-            for (var spotIndex = 0; spotIndex < this.buildingSpots.length; spotIndex++) {
+        getSelectedCampBuildingSpot: function (building, i, j) {
+            var id = this.getBuildingID(building, i, j);
+            for (var spotIndex = 1; spotIndex < this.buildingSpots.length; spotIndex++) {
                 var contents = this.buildingSpots[spotIndex];
-                if (contents && contents.id === this.getBuildingID(building, i, j)) {
+                if (contents && contents.id == id) {
                     return spotIndex;
                 }
             }
 
-            if (assignIfNotSet) {
-                var nextAvailable = this.getNextFreeCampBuildingSpot(building);
-                this.setSelectedCampBuildingSpot(building, i, j, nextAvailable);
-                return this.getSelectedCampBuildingSpot(building, i, j);
-            } else {
-                return -1;
-            }
+            return -1;
         },
 
         setSelectedCampBuildingSpot: function (building, i, j, spotIndex) {
@@ -103,6 +116,12 @@ define(['ash', 'game/GameGlobals', 'game/vos/ImprovementVO'], function (Ash, Gam
                 this.buildingSpots[previous] = null;
             }
         },
+        
+        assignSelectedCampBuildingSpot: function (campOrdinal, building, i, j) {
+            var newSpot = this.getNextCampBuildingSpot(campOrdinal, building);
+            this.setSelectedCampBuildingSpot(building, i, j, newSpot);
+            return this.getSelectedCampBuildingSpot(building, i, j);
+        },
 
         getMaxSelectedCampBuildingSpot: function () {
             var result = 0;
@@ -112,9 +131,8 @@ define(['ash', 'game/GameGlobals', 'game/vos/ImprovementVO'], function (Ash, Gam
             return result;
         },
 
-        // TODO move this kind of logic out of the component
-        getNextFreeCampBuildingSpot: function (building) {
-            return GameGlobals.campVisHelper.getNextValidCampBuildingSpot(this, building);
+        getNextCampBuildingSpot: function (campOrdinal, building) {
+            return GameGlobals.campVisHelper.getNextCampBuildingSpot(campOrdinal, this, building);
         },
         
         resetBuildingSpots: function () {
@@ -142,6 +160,7 @@ define(['ash', 'game/GameGlobals', 'game/vos/ImprovementVO'], function (Ash, Gam
                 if (key == "undefined") continue;
                 this.improvements[key] = new ImprovementVO(key);
                 this.improvements[key].count = componentValues.i[key].count;
+                this.improvements[key].level = componentValues.i[key].level;
                 if (componentValues.i[key].storedResources) {
                     for (var res in componentValues.i[key].storedResources) {
                         this.improvements[key].storedResources[res] = componentValues.i[key].storedResources[res];

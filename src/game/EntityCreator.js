@@ -6,6 +6,7 @@ define([
 	'game/constants/PositionConstants',
 	'game/constants/WorldCreatorConstants',
 	'game/components/player/BagComponent',
+	'game/components/player/ExcursionComponent',
 	'game/components/player/VisionComponent',
 	'game/components/player/StaminaComponent',
 	'game/components/sector/ReputationComponent',
@@ -14,6 +15,7 @@ define([
 	'game/components/player/DeityComponent',
 	'game/components/player/ItemsComponent',
 	'game/components/player/PerksComponent',
+	'game/components/type/GangComponent',
 	'game/components/type/PlayerComponent',
 	'game/components/type/TribeComponent',
 	'game/components/type/LevelComponent',
@@ -52,6 +54,7 @@ define([
 	PositionConstants,
 	WorldCreatorConstants,
 	BagComponent,
+    ExcursionComponent,
 	VisionComponent,
 	StaminaComponent,
 	ReputationComponent,
@@ -60,6 +63,7 @@ define([
 	DeityComponent,
 	ItemsComponent,
 	PerksComponent,
+    GangComponent,
 	PlayerComponent,
 	TribeComponent,
 	LevelComponent,
@@ -130,7 +134,8 @@ define([
 					RumoursComponent,
 					EvidenceComponent,
 					LogMessagesComponent,
-					PlayerActionComponent
+					PlayerActionComponent,
+                    ExcursionComponent
 				]));
 
 			this.engine.addEntity(player);
@@ -149,7 +154,7 @@ define([
 
 		createSector: function (saveKey, level, posX, posY, passageOptions, movementBlockers, sectorFeatures, locales, criticalPaths, enemies, hasRegularEnemies, localeEnemyNum) {
 			var sector = new Ash.Entity()
-				.add(new SectorComponent(criticalPaths))
+				.add(new SectorComponent())
 				.add(new ResourcesComponent(0))
 				.add(new ResourceAccumulationComponent(saveKey))
 				.add(new EnemiesComponent(hasRegularEnemies, enemies))
@@ -164,6 +169,8 @@ define([
 					movementBlockers))
 				.add(new SectorFeaturesComponent(
 					level,
+                    sectorFeatures.criticalPaths,
+                    sectorFeatures.zone,
 					sectorFeatures.buildingDensity,
 					sectorFeatures.stateOfRepair,
 					sectorFeatures.sectorType,
@@ -213,6 +220,15 @@ define([
 			this.engine.addEntity(tribe);
 			return tribe;
 		},
+        
+        createGang: function (saveKey, level, posX, posY, gangVO) {
+            var gang = new Ash.Entity()
+                .add(new PositionComponent(level, posX, posY))
+                .add(new GangComponent(gangVO))
+                .add(new SaveComponent(saveKey, [GangComponent]));
+            this.engine.addEntity(gang);
+            return gang;
+        },
 
 		initPlayer: function (entity) {
 			var defaultInjury = PerkConstants.perkDefinitions.injury[0];
@@ -222,6 +238,13 @@ define([
 			var logComponent = entity.get(LogMessagesComponent);
 			logComponent.addMessage(LogConstants.MSG_ID_START, "You are alone in a massive dark corridor, far below sunlight.");
 		},
+        
+        syncPlayer: function (entity) {
+            var inCamp = entity.get(PositionComponent).inCamp;
+			if (!inCamp && !entity.has(ExcursionComponent)) {
+				entity.add(new ExcursionComponent());
+			}
+        },
 
 		syncSector: function (entity) {
 			if (entity.has(CampComponent) && !entity.has(CampEventTimersComponent)) {

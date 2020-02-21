@@ -11,6 +11,8 @@ define(['ash', 'game/constants/TextConstants', 'game/constants/ItemConstants'], 
         MSG_ID_SCOUT_FOUND_SOMETHING: "MSG_ID_SCOUT_FOUND_SOMETHING",
         MSG_ID_USE_SPRING: "MSG_ID_USE_SPRING",
         MSG_ID_CLEAR_WASTE: "MSG_ID_CLEAR_WASTE",
+        MSG_ID_CLEAR_DEBRIS: "MSG_ID_CLEAR_DEBRIS",
+        MSG_ID_BRIDGED_GAP: "BRIDGED_GAP",
         MSG_ID_SCOUT_LOCALE: "SCOUT_LOCALE",
         MSG_ID_WORKSHOP_CLEARED: "WORKSHOP_CLEARED",
         MSG_ID_GANG_DEFEATED: "GANG_DEFEATED",
@@ -22,6 +24,7 @@ define(['ash', 'game/constants/TextConstants', 'game/constants/ItemConstants'], 
         MSG_ID_LEAVE_CAMP: "LEAVE_CAMP",
         MSG_ID_USE_CAMPFIRE_SUCC: "USE_CAMPFIRE_SUCC",
         MSG_ID_USE_CAMPFIRE_FAIL: "USE_CAMPFIRE_FAIL",
+        MSG_ID_USE_MARKET: "USE_MARKET",
         MSG_ID_USE_HOSPITAL: "USE_HOSPITAL",
         MSG_ID_USE_HOSPITAL2: "USE_HOSPITAL2",
         MSG_ID_BOUGHT_UPGRADE: "MSG_ID_BOUGHT_UPGRADE",
@@ -36,6 +39,7 @@ define(['ash', 'game/constants/TextConstants', 'game/constants/ItemConstants'], 
         MSG_ID_FOUND_BLUEPRINT_FIRST: "MSG_ID_FOUND_BLUEPRINT_FIRST",
         MSG_ID_FOUND_ITEM_FIRST: "MSG_ID_FOUND_ITEM_FIRST",
         MSG_ID_LOST_ITEM: "MSG_ID_LOST_ITEM",
+        MSG_ID_LOST_FOLLOWER: "MSG_ID_LOST_FOLLOWER",
         MSG_ID_GOT_INJURED: "MSG_ID_GOT_INJURED",
         MSG_ID_FAINTED: "MSG_ID_FAINTED",
         MSG_ID_DESPAIR_AVAILABLE: "MSG_ID_DESPAIR_AVAILABLE",
@@ -77,6 +81,14 @@ define(['ash', 'game/constants/TextConstants', 'game/constants/ItemConstants'], 
         MSG_ID_BUILT_INN: "BUILT_INN",
         MSG_ID_BUILT_SQUARE: "MSG_ID_BUILT_SQUARE",
         MSG_ID_BUILT_GARDEN: "MSG_ID_BUILT_GARDEN",
+        
+        MSG_ID_IMPROVED_CAMPFIRE: "MSG_ID_IMPROVED_CAMPFIRE",
+        MSG_ID_IMPROVED_LIBRARY: "MSG_ID_IMPROVED_LIBRARY",
+        MSG_ID_IMPROVED_SQUARE: "MSG_ID_IMPROVED_SQUARE",
+        MSG_ID_IMPROVED_GENERATOR: "MSG_ID_IMPROVED_GENERATOR",
+        MSG_ID_IMPROVED_APOTHECARY: "MSG_ID_IMPROVED_APOTHECARY",
+        MSG_ID_IMPROVED_SMITHY: "MSG_ID_IMPROVED_SMITHY",
+        MSG_ID_IMPROVED_CEMENTMILL: "MSG_ID_IMPROVED_CEMENTMILL",
 
         // out buildings
         MSG_ID_BUILT_PASSAGE: "BUILT_PASSAGE",
@@ -124,7 +136,7 @@ define(['ash', 'game/constants/TextConstants', 'game/constants/ItemConstants'], 
                     return "Continued exploring.";
 
                 default:
-                    console.log("WARN: text not defined for merged log message: " + mergedId);
+                    log.w("text not defined for merged log message: " + mergedId);
                     return String(mergedId);
             }
         },

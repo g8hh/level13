@@ -11,6 +11,7 @@ define([
     'game/constants/WorldCreatorConstants',
     'game/nodes/level/LevelNode',
     'game/nodes/sector/SectorNode',
+    'game/nodes/GangNode',
     'game/components/common/PositionComponent',
     'game/components/common/RevealedComponent',
     'game/components/common/CampComponent',
@@ -39,6 +40,7 @@ define([
     WorldCreatorConstants,
 	LevelNode,
     SectorNode,
+    GangNode,
 	PositionComponent,
     RevealedComponent,
     CampComponent,
@@ -61,6 +63,7 @@ define([
 		engine: null,
 		levelNodes: null,
 		sectorNodes: null,
+        gangNodes: null,
 
         // todo check using VOCache for these (compare performance)
         sectorEntitiesByPosition: {}, // int (level) -> int (x) -> int (y) -> entity
@@ -70,7 +73,7 @@ define([
 			this.engine = engine;
 			this.levelNodes = engine.getNodeList(LevelNode);
 			this.sectorNodes = engine.getNodeList(SectorNode);
-
+            this.gangNodes = engine.getNodeList(GangNode);
             VOCache.create("LevelHelper-SectorNeighboursMap", 300);
 		},
 
@@ -86,7 +89,7 @@ define([
 				levelPosition = node.entity.get(PositionComponent);
 				if (levelPosition.level === sectorPosition.level) return node.entity;
 			}
-			console.log("WARN: No level entity found for sector with position " + sectorPosition);
+			log.w("No level entity found for sector with position " + sectorPosition);
 			return null;
 		},
 
@@ -128,6 +131,22 @@ define([
 
 			return null;
 		},
+        
+        getGang: function (position, direction) {
+            // TODO do some caching here
+            var level = position.level;
+            var neighbourPosition = PositionConstants.getNeighbourPosition(position, direction);
+            var sectorX = (position.sectorX + neighbourPosition.sectorX) / 2;
+            var sectorY = (position.sectorY + neighbourPosition.sectorY) / 2;
+            var gangPosition;
+			for (var node = this.gangNodes.head; node; node = node.next) {
+				gangPosition = node.entity.get(PositionComponent);
+				if (gangPosition.level === level && gangPosition.sectorX === sectorX && gangPosition.sectorY === sectorY) {
+                    return node.entity;
+                }
+			}
+            return null;
+        },
 
         // todo use neighboursmap so we benefit from the same cache
         getSectorNeighboursList: function (sector) {
@@ -179,6 +198,13 @@ define([
             }
 
 			return result;
+        },
+
+        getCampStep: function (pos) {
+            var sector = this.getSectorByPosition(pos.level, pos.sectorX, pos.sectorY);
+            if (!sector) return 1;
+            var featuresComponent = sector.get(SectorFeaturesComponent);
+            return WorldCreatorConstants.getCampStep(featuresComponent.zone);
         },
 
         findPathTo: function (startSector, goalSector, settings) {
@@ -360,16 +386,25 @@ define([
 				return levelOrdinalB - levelOrdinalA;
 			});
 
-			// filter duplicates (corresponding up and down)
+			// filter duplicates
 			for (var i = 0; i < projects.length; i++) {
 				project = projects[i];
 				projectExists = false;
 				for (var j = 0; j < result.length; j++) {
 					existingProject = result[j];
+                    // corresponding up and down passages
 					if (existingProject.sector === project.sector && (existingProject.level - 1 === project.level || existingProject.level + 1 === project.level)) {
 						projectExists = true;
 						break;
 					}
+                    // neighbouring movement blockers
+                    var dist = PositionConstants.getDistanceTo(existingProject.position, project.position);
+                    if (dist < 2) {
+                        if (PositionConstants.getOppositeDirection(project.direction) == existingProject.direction) {
+                            projectExists = true;
+                            break;
+                        }
+                    }
 				}
 				if (!projectExists)
                     result.push(project);
@@ -504,21 +539,30 @@ define([
                         actionName = "build_out_passage_down_stairs";
                         actionLabel = "repair";
                         break;
+                    case MovementConstants.PASSAGE_TYPE_BLOCKED:
+                        break;
                 }
-
+                
                 if (GameGlobals.playerActionsHelper.checkRequirements(actionName, false, sectorEntity).value > 0) {
                     actionName = actionName + "_" + levelOrdinal;
                     projects.push(new LevelProjectVO(new ImprovementVO(improvementName), actionName, sectorPosition, PositionConstants.DIRECTION_DOWN, null, actionLabel));
                 }
             }
 
-            // bridges
+            // movement blockers (bridges and debris)
             for (var i in PositionConstants.getLevelDirections()) {
                 var direction = PositionConstants.getLevelDirections()[i];
                 var directionBlocker = sectorPassagesComponent.getBlocker(direction);
-                if (directionBlocker && directionBlocker.bridgeable) {
-                    actionName = actionName + "_" + levelOrdinal;
-                    projects.push(new LevelProjectVO(new ImprovementVO(improvementNames.bridge), "build_out_bridge", sectorPosition, direction));
+                if (directionBlocker) {
+                    if (!GameGlobals.movementHelper.isBlocked(sectorEntity, direction)) continue;
+                    switch (directionBlocker.type) {
+        				case MovementConstants.BLOCKER_TYPE_GAP:
+                            projects.push(new LevelProjectVO(null, "bridge_gap", sectorPosition, direction, "Gap", "bridge"));
+                            break;
+        				case MovementConstants.BLOCKER_TYPE_DEBRIS:
+                            projects.push(new LevelProjectVO(null, "clear_debris", sectorPosition, direction, "Debris", "clear"));
+                            break;
+                    }
                 }
             }
 
@@ -616,6 +660,12 @@ define([
 			return false;
 		},
 
+        isSectorReachable: function (startSector, goalSector) {
+            var settings = { skipUnvisited: false, skipBlockers: true, omitWarnings: false };
+            var path = this.findPathTo(startSector, goalSector, settings);
+            return path && path.length >= 0;
+        },
+        
 		getLevelLocales: function (level, includeScouted, localeBracket, excludeLocaleVO) {
 			var locales = [];
 			var sectorPosition;
@@ -658,6 +708,19 @@ define([
 			}
 			return locales;
 		},
+        
+        getLevelStashSectors:  function (level) {
+            var sectors = [];
+            this.saveSectorsForLevel(level);
+			for (var i = 0; i < this.sectorEntitiesByLevel[level].length; i++) {
+                var sectorEntity = this.sectorEntitiesByLevel[level][i];
+                var featuresComponent = sectorEntity.get(SectorFeaturesComponent);
+                if (featuresComponent.stash) {
+                    sectors.push(sectorEntity);
+                }
+			}
+            return sectors;
+        },
 
         saveSectorsForLevel: function (level) {
             if (this.sectorEntitiesByLevel[level] && this.sectorEntitiesByLevel[level] !== null && this.sectorEntitiesByLevel[level].length > 0) {

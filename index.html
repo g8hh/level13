@@ -22,23 +22,22 @@
 	<link rel="stylesheet" type="text/css" href="css/normalize.css" />
 	<link rel="stylesheet" type="text/css" href="css/gridism.css" />
 	<link rel="stylesheet" type="text/css" href="css/main.css" />
-	<link rel="stylesheet" type="text/css" href="css/vis.css" />
-	<link rel="stylesheet" type="text/css" href="css/scrollbar.css" />
 	<link rel="icon" type="image/png" href="favicon-32x32.png" sizes="32x32" />
 	<link rel="icon" type="image/png" href="favicon-16x16.png" sizes="16x16" />
 </head>
 
-<body class="wrap wider" style="height:100%">
+<body class="wrap wider dark" style="height:100%">
 	<script src="zh/core.js"></script>
+	
 	<div class="sticky-footer-wrapper">
 		<div class="grid" id="grid-main">
             <div class="unit one-quarter" style="visibility:hidden; padding:1px; height:1px"></div><!-- filler for log -->
 			<div class="unit three-quarters" id="unit-main" style="display: none">
 
                 <div id="header-self-bar" class="lvl13-box-2">
-                    <div id="header-self-inout"><img src="img/ui-camp-dark.png" alt="camp" title="camp" width="30" height="30" /></div>
-                    <span id="out-position-indicator-header">location</span>
-                    <span id="out-position-indicator"></span>
+                    <div id="header-self-inout"><img src="img/ui-camp-dark.png" alt="camp" title="camp" width="30" height="30" class="rotate-on-hover" /></div>
+                    <span id="out-position-indicator-header" class="vision-text">location</span>
+                    <span id="out-position-indicator" class="vision-text"></span>
                     <div id="notification-player" class="unit whole notification">
                         <div id="notification-player-bar" class="progress-wrap progress">
                             <div class="progress-bar progress"></div>
@@ -55,7 +54,7 @@
                 </div>
                 
 				<div class="grid" id="grid-main-header">
-                    <div class="unit whole lvl13-box-3 header-section" id="header-tribe-container">
+                    <div class="unit whole lvl13-box-1 header-section" id="header-tribe-container">
                         <div id="statsbar-self" class="statsbar">
                             <div id="stats-evidence" class="stats-indicator">
                                 <span class="label">Evidence</span>
@@ -79,7 +78,7 @@
                         </div>
                     </div>
                     
-                <div class="unit whole lvl13-box-3" id="header-camp-container">
+                <div class="unit whole lvl13-box-1" id="header-camp-container">
                     
                     <div class="header-section" id="main-header-bag">
                         <div id="header-bag-storage" class="stats-indicator">
@@ -104,7 +103,7 @@
                         <ul class="itemlist" id="list-header-items"></ul>
                     </div>
 						
-                    <div class="lvl13-box-2 header-section" id="main-header-camp">
+                    <div class="header-section" id="main-header-camp">
                         <div class="header-section" style="width: 22%">
                         <div id="header-camp-storage" class="stats-indicator">
                             <span class="label">Storage</span>
@@ -144,17 +143,17 @@
                 <div class="grid grid-content" id="grid-switch">
 					<div id="switch" class="unit whole">
 						<ul class="tabs" id="switch-tabs">
-							<li id="switch-out"><span class="name">Outside</span></li>
-							<li id="switch-embark"><span class="name">Outside</span></li>
-							<li id="switch-in"><span class="name">Camp</span></li>
-							<li id="switch-bag"><span class="name">Bag</span></li>
-							<li id="switch-followers"><span class="name">Party</span></li>
-							<li id="switch-map"><span class="name">Map</span></li>
-							<li id="switch-trade"><span class="name">Trade</span></li>
-							<li id="switch-projects"><span class="name">Projects</span></li>
-							<li id="switch-blueprints"><span class="name">Blueprints</span></li>
-							<li id="switch-upgrades"><span class="name">Upgrades</span></li>
-							<li id="switch-world"><span class="name">Tribe</span></li>
+							<li id="switch-out"><span class="name vision-text">Outside</span></li>
+							<li id="switch-embark"><span class="name vision-text">Outside</span></li>
+							<li id="switch-in"><span class="name vision-text">Camp</span></li>
+							<li id="switch-bag"><span class="name vision-text">Bag</span></li>
+							<li id="switch-followers"><span class="name vision-text">Party</span></li>
+							<li id="switch-map"><span class="name vision-text">Map</span></li>
+							<li id="switch-trade"><span class="name vision-text">Trade</span></li>
+							<li id="switch-projects"><span class="name vision-text">Projects</span></li>
+							<li id="switch-blueprints"><span class="name vision-text">Blueprints</span></li>
+							<li id="switch-upgrades"><span class="name vision-text">Upgrades</span></li>
+							<li id="switch-world"><span class="name vision-text">Tribe</span></li>
 						</ul>
 					</div>
 				</div><!-- grid for the switch -->
@@ -174,10 +173,10 @@
 					<!-- vis for camp -->
 					<div class="grid tabelement" id="container-tab-vis-in" data-tab="switch-in">
 						<div class="unit whole" id="tab-vis-in">
-                            <div id="tab-vis-in-container">
-                                <div id="vis-camp-layer-grid" class="vis-camp-layer"></div>
-                                <div id="vis-camp-layer-spots" class="vis-camp-layer"></div>
+                            <div id="tab-vis-in-container" class="vis-container canvas-container">
+                                <canvas id="campvis" width="800" height="10"></canvas>
                                 <div id="vis-camp-layer-buildings" class="vis-camp-layer"></div>
+                                <div id="vis-camp-info-overlay"><span>Info here</span></div>
                             </div>
 						</div>
 					</div>
@@ -188,101 +187,14 @@
 							<h3>Buildings</h3>
 							<div id="in-improvements" class="actionbox">
 								<table>
-                                <tr id="in-improvements-home">
-                                    <td><button class="action action-build action-location multiline" action="build_in_home">Tent</button></td>
-                                    <td class="list-amount">0</td>
-                                    <td><button class="action action-use" action="use_in_home">Rest</button></td>
-                                </tr><tr id="in-improvements-house">
-									<td><button class="action action-build action-location" action="build_in_house">Hut</button></td>
-									<td class="list-amount">0</td>
-								</tr><tr id="in-improvements-house2">
-									<td><button class="action action-build action-location multiline" action="build_in_house2">Tower block</button></td>
-									<td class="list-amount">0</td>
-								</tr><tr id="in-improvements-storage">
-									<td><button class="action action-build action-location" action="build_in_storage">Storage</button></td>
-									<td class="list-amount">0</td>
-								</tr><tr id="in-improvements-generator">
-									<td><button class="action action-build action-location" action="build_in_generator">Generator</button></td>
-									<td class="list-amount">0</td>
-								</tr><tr id="in-improvements-darkfarm">
-									<td><button class="action action-build action-location multiline" action="build_in_darkfarm">Snail farm</button></td>
-									<td class="list-amount">0</td>
-								</tr><tr id="in-improvements-apothecary">
-									<td><button class="action action-build action-location multiline" action="build_in_apothecary">Apothecary shop</button></td>
-									<td class="list-amount">0</td>
-								</tr><tr id="in-improvements-smithy">
-									<td><button class="action action-build action-location" action="build_in_smithy">Smithy</button></td>
-									<td class="list-amount">0</td>
-								</tr><tr id="in-improvements-cementmill">
-									<td><button class="action action-build action-location multiline" action="build_in_cementmill">Cement mill</button></td>
-									<td class="list-amount">0</td>
-								</tr><tr id="in-improvements-library">
-									<td><button class="action action-build action-location" action="build_in_library">Library</button></td>
-									<td class="list-amount">0</td>
-								</tr><tr id="in-improvements-shrine">
-									<td><button class="action action-build action-location" action="build_in_shrine">Shrine</button></td>
-									<td class="list-amount">0</td>
-								</tr><tr id="in-improvements-barracks">
-									<td><button class="action action-build action-location" action="build_in_barracks">Barracks</button></td>
-									<td class="list-amount">0</td>
-								</tr><tr id="in-improvements-fortification">
-									<td><button class="action action-build action-location" action="build_in_fortification">Fortifications</button></td>
-									<td class="list-amount">0</td>
-								</tr><tr id="in-improvements-fortification2">
-									<td><button class="action action-build action-location multiline" action="build_in_fortification2">Concrete Fortifications</button></td>
-									<td class="list-amount">0</td>
-								</tr><tr id="in-improvements-campfire">
-									<td><button class="action action-build action-location" action="build_in_campfire">Campfire</button></td>
-									<td class="list-amount">0</td>
-									<td><button class="action action-use action-location" action="use_in_campfire">Sit down</button></td>
-								</tr><tr id="in-improvements-lights">
-									<td><button class="action action-build action-location" action="build_in_lights">Lights</button></td>
-									<td class="list-amount">0</td>
-								</tr><tr id="in-improvements-aqueduct">
-									<td><button class="action action-build action-location" action="build_in_aqueduct">Aqueduct</button></td>
-									<td class="list-amount">0</td>
-								</tr><tr id="in-improvements-ceiling">
-									<td><button class="action action-build action-location multiline" action="build_in_ceiling">Tent cover</button></td>
-									<td class="list-amount">0</td>
-								</tr><tr id="in-improvements-hospital">
-									<td><button class="action action-build action-location" action="build_in_hospital">Clinic</button></td>
-									<td class="list-amount">0</td>
-									<td><button class="action action-use" action="use_in_hospital" id="btn-use_in_hospital1">Treatment</button>
-									<button class="action action-use" action="use_in_hospital2" id="btn-use_in_hospital2">Augment</button></td>
-								</tr><tr id="in-improvements-market">
-									<td><button class="action action-build action-location" action="build_in_market">Market</button></td>
-									<td class="list-amount">0</td>
-								</tr><tr id="in-improvements-inn">
-									<td><button class="action action-build action-location" action="build_in_inn">Inn</button></td>
-									<td class="list-amount">0</td>
-									<td><button class="action action-use action-location" action="use_in_inn">Recruit</button></td>
-								</tr><tr id="in-improvements-radio">
-									<td><button class="action action-build action-location multiline" action="build_in_radio">Radio tower</button></td>
-									<td class="list-amount">0</td>
-								</tr><tr id="in-improvements-trading">
-									<td><button class="action action-build action-location multiline" action="build_in_tradingPost">Trading post</button></td>
-									<td class="list-amount">0</td>
-								</tr><tr id="in-improvements-stable">
-									<td><button class="action action-build action-location multiline" action="build_in_stable">Caravan stable</button></td>
-									<td class="list-amount">0</td>
-								</tr><tr id="in-improvements-research">
-									<td><button class="action action-build action-location multiline" action="build_in_researchcenter">Research center</button></td>
-									<td class="list-amount">0</td>
-								</tr><tr id="in-improvements-square">
-                                    <td><button class="action action-build action-location" action="build_in_square">Square</button></td>
-									<td class="list-amount">0</td>
-								</tr><tr id="in-improvements-garden">
-									<td><button class="action action-build action-location multiline" action="build_in_garden">Moss garden</button></td>
-									<td class="list-amount">0</td>
-								</tr>
 								</table>
 							</div>
 						</div>
-						<div class="unit golden-small">
+						<div class="unit unit golden-small">
 							<div id="in-population" class="infobox">
 								<h3>Population</h3>
 								<p style="display:none" id="in-population-status">free / diseased</p>
-								<table class="full-width" id="in-assign-workers" style="display:none">
+								<table class="full-width" id="in-assign-workers">
 									<tr id="in-assign-water">
 										<td class="in-assing-worker-desc"><div class="info-callout-target info-callout-target-small">Water collector</div></td>
 										<td><div class="stepper" id="stepper-water"></div></td>
@@ -408,7 +320,7 @@
                         </div>
 						<div class="unit unit-rest">
                             <h2 id="header-sector">Sector header</h2>
-							<div id="out-desc" class="infobox"></div>
+							<div id="out-desc"></div>
 						</div>
 					</div>
                     
@@ -433,12 +345,12 @@
                                 </tr>
                             </table>
                             <div id="out-actions-movement" class="actionbox">
-                            <button class="action action-location" id="out-action-enter" action="enter_camp">Enter camp</button><br/>
-                            <button class="action btn-icon" id="out-action-move-camp" action="move_camp_level"><span>Back to camp</span></button><br/>
-                            <span id="out-action-move-camp-details" class="p-meta">(2 blocks)</span><br/>
-                            <button class="action btn-icon" id="out-action-move-up" action="move_level_up"><span>Move up</span></button><br/>
-                            <button class="action btn-icon" id="out-action-move-down" action="move_level_down"><span>Move down</span></button><br/>
-                            <button class="action btn-icon" id="out-action-nap" action="nap"><span>Rest</span></button><br/>
+                            <button class="action action-location" id="out-action-enter" action="enter_camp">Enter camp</button>
+                            <button class="action btn-icon" id="out-action-move-up" action="move_level_up"><span>Move up</span></button>
+                            <button class="action btn-icon" id="out-action-move-down" action="move_level_down"><span>Move down</span></button>
+                            <button class="action btn-icon" id="out-action-move-camp" action="move_camp_level"><span>Back to camp</span></button>
+                            <p id="out-action-move-camp-details" class="p-meta button-detail-label">(2 blocks)</p>
+                            <button class="action btn-icon" id="out-action-nap" action="nap"><span>Rest</span></button>
                             <button class="action action-location" id="out-action-despair" action="despair">Despair</button>
                             </div>
                         </div>
@@ -464,17 +376,17 @@
 								<table>
 								<tr id="out-improvements-collector-water">
 									<td><button class="action action-build action-location" action="build_out_collector_water" id="out-action-build-bucket">Bucket</button></td>
-									<td class="list-amount">0</td>
+									<td class="list-amount vision-text">0</td>
 									<td><button class="action action-use action-location" action="use_out_collector_water" id="out-action-use-bucket">Collect</button></td>
-									<td class="list-storage"></td>
+									<td class="list-storage vision-text"></td>
 								</tr><tr id="out-improvements-collector-food">
 									<td><button class="action action-build action-location" action="build_out_collector_food" id="out-action-build-trap">Trap</button></td>
-									<td class="list-amount">0</td>
+									<td class="list-amount vision-text">0</td>
 									<td><button class="action action-use action-location" action="use_out_collector_food" id="out-action-use-trap">Collect</button></td>
-									<td class="list-storage"></td>
+									<td class="list-storage vision-text"></td>
 								</tr><tr id="out-improvements-camp">
 									<td><button class="action action-build action-location" action="build_out_camp" >Camp</button></td>
-									<td class="list-amount">0</td>
+									<td class="list-amount vision-text">0</td>
 								</tr>
 								</table>
 							</div>
@@ -552,6 +464,7 @@
                                         <tr><td>Resources scavenged:</td><td><span id="mainmap-sector-details-res-sca"></span></td></tr>
                                         <tr><td>Collectors:</td><td><span id="mainmap-sector-details-res-col"></span></td></tr>
                                         <tr><td>Threats:</td><td><span id="mainmap-sector-details-threats"></span></td></tr>
+                                        <tr><td>Blockers:</td><td><span id="mainmap-sector-details-blockers"></span></td></tr>
                                         <tr><td>Environment:</td><td><span id="mainmap-sector-details-env"></span></td></tr>
                                         <tr><td>Distance:</td><td><span id="mainmap-sector-details-distance"></span></td></tr>
                                     </table>
@@ -594,6 +507,11 @@
     								<table class="fullwidth"></table>
     							</div>
                                 <p id="in-improvements-level-empty-message">There are no building projects available.</p>
+                            </div>
+                            <div id="container-in-improvements-level-hidden">
+                                <button id="in-improvements-reset-hidden" class='btn-meta btn-meta-float'>reset</button>
+                                <div class="subheader"><h3 id="header-in-improvements-level-hidden">Hidden projects</h3></div>
+                                <p id="in-improvements-hidden-message">There are no building projects available.</p>
                             </div>
                             <div class="subheader"><h3 id="header-in-improvements-level-built">Built projects</h3></div>
                             <div id="in-improvements-level-built" class="actionbox">
@@ -662,13 +580,14 @@
 								<table id="camp-overview" class="full-width">
 									<tr id="camp-overview-header" class="lvl13-box-1">
 										<th class="th-text" colspan="2"></th>
-										<th class="th-number">pop (free)</th>
+										<th class="th-number">pop</th>
 										<th class="th-number">rep</th>
+										<th class="th-number">raid</th>
                                         <th class="th-number">lvl pop</th>
-										<th class="th-number">trade</th>
 										<th class="th-number">storage</th>
 										<th class="th-text">production</th>
-										<th class="th-text"></th>
+										<th class="th-text">stats</th>
+										<th class="th-number"></th>
 										<th class="th-number"></th>
 									</tr>
 								</table>
@@ -711,27 +630,45 @@
     <div id="fight-popup" class="popup fill-on-mobiles" style="display:none">
         <h3 id="fight-title"></h3>
         <p id="fight-desc"></p>
-        <p id="fight-popup-enemy-info">Enemy name & strength</p>
+        <div class="infobox" id="fight-popup-enemy-info">
+            <div class="container-relative">
+                <p id="fight-popup-enemy-name">Enemy name & strength</p>
+                <div id="fight-damage-indictor-enemy" class="fight-damage-indicator">-5</div>
+            </div>
+            <p id="fight-popup-enemy-stats">Enemy strength</p>
+        </div>
         <div id="fight-popup-bars">
-            <div id="fight-bar-enemy" class="progress-wrap progress">
+            <div id="fight-bar-enemy" class="progress-wrap progress centered">
                 <div class="progress-bar progress"></div>
+                <div class="progress-bar-change progress"></div>
             </div>
-            <div id="fight-bar-self" class="progress-wrap progress">
+            <div id="fight-bar-self" class="progress-wrap progress centered">
                 <div class="progress-bar progress"></div>
+                <div class="progress-bar-change progress"></div>
             </div>
         </div>
-        <p id="fight-popup-self-info">Own strength</p>
-        <ul class="itemlist" id="list-fight-followers" style="margin-top: -10px;"></ul>
-        <div id="fight-popup-results">
+        <div class="infobox" id="fight-popup-self-info">
+            <div class="container-relative">
+                <p id="fight-popup-self-name">Player name</p>
+                <div id="fight-damage-indictor-self" class="fight-damage-indicator">-5</div>
+            </div>
+            <p id="fight-popup-self-stats">Player strength</p>
+            <span id="fight-popup-self-equipment"></span>
         </div>
-        <div class="buttonbox" id="fight-buttons-infightactions">
-            
+        <div class="container-nomargin" id="fight-popup-items">
+            <ul class="itemlist" id="list-fight-items" style="margin-top: -10px;"></ul>
+            <span id="fight-popup-itemlist-separator">|</span>
+            <ul class="itemlist" id="list-fight-followers" style="margin-top: -10px;"></ul>
         </div>
+        <div class="buttonbox" id="fight-buttons-infightactions"></div>
+        <div id="fight-popup-results"></div>
         <div class="buttonbox" id="fight-buttons-main">
             <button id="out-action-fight-cancel" class="action action-manual-trigger" action="flee">Flee</button>
             <button id="out-action-fight-confirm" class="action" action="fight">Fight</button>
-            <button id="out-action-fight-close">Close</button>
-            <button id="out-action-fight-next">Continue</button>
+            <button id="out-action-fight-close">Leave</button>
+            <button id="out-action-fight-continue">Continue</button>
+            <button id="out-action-fight-takeselected" class="action inventory-selection-ok" action="accept_inventory">Continue</button>
+            <button id="out-action-fight-takeall" class='action inventory-selection-takeall' action='take_all'>Take all</button>
         </div>
     </div>
     
@@ -812,6 +749,16 @@
         <p id="common-popup-input-container"><input class="text" autocomplete="false" autofocus="true"/></p>
         <div id="info-results"></div>
         <div class="buttonbox"></div>
+    </div>
+    
+    <div id="vision-overlay"></div>
+    
+    <div class="thinking-content">
+        <div class="loading-spinner">
+            <div class="loading-dot loading-dot1"></div>
+            <div class="loading-dot loading-dot2"></div>
+            <div class="loading-dot loading-dot3"></div>
+        </div>
     </div>
 	
     <div class="loading-content">

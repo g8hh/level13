@@ -60,10 +60,10 @@ define([
             if (GameGlobals.gameState.isPaused) return;
             
             for (var node = this.campNodes.head; node; node = node.next) {
-                this.updateNode(node, time + this.engine.extraUpdateTime);
+                this.updateNode(node, time);
             }
 	    
-			this.updatePlayer(time + this.engine.extraUpdateTime);
+			this.updatePlayer(time);
 			this.logAmbient();
 		},
 	
@@ -131,7 +131,7 @@ define([
 			var metalRequiredConcrete = time * GameGlobals.campHelper.getMetalConsumptionPerSecondConcrete(camp.assignedWorkers.concrete);
 			if (metalRequiredConcrete > 0) {
 				var metalUsedConcrete = Math.min(availableResources.getResource(resourceNames.metal), metalRequiredConcrete);
-                var concrete = time * (metalUsedConcrete / metalRequiredConcrete) * GameGlobals.campHelper.getConcreteProductionPerSecond(camp.assignedWorkers.concrete);
+                var concrete = time * (metalUsedConcrete / metalRequiredConcrete) * GameGlobals.campHelper.getConcreteProductionPerSecond(camp.assignedWorkers.concrete, improvementsComponent);
 				campResources.addResource(resourceNames.concrete, concrete);
 				campResources.addResource(resourceNames.metal, -metalUsedConcrete);
 				resourceAccComponent.addChange(resourceNames.concrete, concrete / time, "Concrete mixers");
@@ -186,7 +186,7 @@ define([
 			var improvementsComponent = node.entity.get(SectorImprovementsComponent);
 			
 			// Darkfarms
-			var farmFood = improvementsComponent.getCount(improvementNames.darkfarm) * 0.01 * time * GameConstants.gameSpeedCamp;
+			var farmFood = improvementsComponent.getCount(improvementNames.darkfarm) * 0.015 * time * GameConstants.gameSpeedCamp;
 			resources.addResource(resourceNames.food, farmFood);
 			resourceAcc.addChange(resourceNames.food, farmFood / time, "Snail farms");
 		},
@@ -205,7 +205,6 @@ define([
 		},
 		
 		logAmbient: function () {
-            if (GameGlobals.gameState.uiStatus.isHidden) return;
 			if (!this.playerLocationNodes.head || !this.playerLocationNodes.head.position) return;
 			
 			var playerFoodSource = GameGlobals.resourcesHelper.getCurrentStorage().resources;
@@ -238,16 +237,17 @@ define([
 					msg = "Your stomach is grumbling.";
 				}
 				
-				this.log(msg);
+                if (msg != null) {
+	                this.log(msg);
+                }
 			}
 		},
 		
 		log: function (msg) {
-			if (msg) {
-				var logComponent = this.playerNodes.head.entity.get(LogMessagesComponent);
-				logComponent.addMessage(LogConstants.MSG_ID_WORKER_STATUS, msg);
-				this.lastMsgTimeStamp = new Date().getTime();
-			}
+            log.i(msg, "WorkerSystem");
+			var logComponent = this.playerNodes.head.entity.get(LogMessagesComponent);
+			logComponent.addMessage(LogConstants.MSG_ID_WORKER_STATUS, msg);
+			this.lastMsgTimeStamp = new Date().getTime();
 		}
 
     });

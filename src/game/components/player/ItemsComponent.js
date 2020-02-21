@@ -14,12 +14,12 @@ function (Ash, ItemVO, ItemConstants) {
 
         addItem: function (item, isCarried) {
             if (!item) {
-                console.log("WARN: Trying to add undefined item.");
+                log.w("Trying to add undefined item.");
                 return;
             }
 
-            if (this.getItem(item.id, item.itemID, true)) {
-                console.log("WARN: Trying to add duplicate item: " + item.id);
+            if (this.getItem(item.id, item.itemID, true, true)) {
+                log.w("Trying to add duplicate item: " + item.id);
                 return;
             }
 
@@ -34,9 +34,9 @@ function (Ash, ItemVO, ItemConstants) {
         },
 
         discardItem: function (item, autoEquip) {
-            if (!item) console.log("WARN: Trying to discard null item.");
+            if (!item) log.w("Trying to discard null item.");
             if (!this.isItemDiscardable(item)) {
-                console.log("WARN: Trying to discard un-discardable item.");
+                log.w("Trying to discard un-discardable item.");
                 return;
             }
 
@@ -59,7 +59,7 @@ function (Ash, ItemVO, ItemConstants) {
                         if (nextItem) this.equip(nextItem);
                     }
                 } else {
-                    console.log("WARN: Item to discard not found.");
+                    log.w("Item to discard not found.");
                 }
             }
             this.uniqueItemsCarried = {};
@@ -98,12 +98,21 @@ function (Ash, ItemVO, ItemConstants) {
             if (!item) return -1;
             if (item.equipped) return 0;
             if (!item.equippable) return -1;
-            var currentItem = this.getEquipped(item.type)[0];
+            var currentItems = this.getEquipped(item.type);
+            var currentItem = currentItems[0];
             var result = 0;
             for (var bonusKey in ItemConstants.itemBonusTypes) {
                 var bonusType = ItemConstants.itemBonusTypes[bonusKey];
                 var currentBonus = currentItem ? currentItem.getBonus(bonusType) : 0;
                 var newBonus = item.getBonus(bonusType);
+                if (bonusType == ItemConstants.itemBonusTypes.movement) {
+                    currentBonus = 1 / (currentBonus || 1);
+                    newBonus = 1 / (newBonus || 1);
+                }
+                if (bonusType == ItemConstants.itemBonusTypes.fight_speed) {
+                    // TODO smarter item comparison (now just ignore speed to rank weapons by attack but should consider both)
+                    continue;
+                }
                 if (newBonus < currentBonus) {
                     if (result > 0) return 0;
                     result = -1;
@@ -323,13 +332,14 @@ function (Ash, ItemVO, ItemConstants) {
             return strongest;
         },
 
-        getItem: function (id, instanceId, includeNotCarried) {
+        getItem: function (id, instanceId, includeNotCarried, includeEquipped) {
             for (var key in this.items) {
                 for( var i = 0; i < this.items[key].length; i++) {
                     var item = this.items[key][i];
                     if (id != item.id) continue;
                     if (instanceId && instanceId != item.itemID) continue;
                     if (!includeNotCarried && !item.carried) continue;
+                    if (!includeEquipped && item.equipped) continue;
                     return item;
                 }
             }
@@ -415,14 +425,17 @@ function (Ash, ItemVO, ItemConstants) {
             for(var key in componentValues.items) {
                 for (var i in componentValues.items[key]) {
                     var id = componentValues.items[key][i].id;
-                    var item = ItemConstants.getItemByID(id).clone();
-                    if (item) {
-                        item.itemID = componentValues.items[key][i].itemID;
-                        var carried = componentValues.items[key][i].carried;
-                        this.addItem(item, carried);
-                        if (componentValues.items[key][i].equipped) {
-                            this.equip(item);
-                        }
+                    var definition = ItemConstants.getItemByID(id);
+                    if (!definition) {
+                        log.w("no item definition found: " + id);
+                        continue;
+                    }
+                    var item = definition.clone();
+                    item.itemID = componentValues.items[key][i].itemID;
+                    var carried = componentValues.items[key][i].carried;
+                    this.addItem(item, carried);
+                    if (componentValues.items[key][i].equipped) {
+                        this.equip(item);
                     }
                 }
             }

@@ -40,7 +40,7 @@ define([
 
         update: function (time) {
             if (GameGlobals.gameState.isPaused) return;
-			
+            
 			if (this.campNodes.head) {
 				for (var campNode = this.campNodes.head; campNode; campNode = campNode.next) {
                     var reputationComponent = campNode.reputation;
@@ -77,7 +77,8 @@ define([
                 switch (improvementVO.name) {
                     case improvementNames.generator:
                         var numHouses = sectorImprovements.getCount(improvementNames.house) + sectorImprovements.getCount(improvementNames.house2);
-                        var generatorBonus = numHouses * CampConstants.REPUTATION_PER_HOUSE_FROM_GENERATOR;
+                        var generatorBonus = numHouses * CampConstants.REPUTATION_PER_HOUSE_FROM_GENERATOR * (1 + improvementVO.level * 0.02);
+                        generatorBonus = Math.round(generatorBonus * 100) / 100;
                         addValue(generatorBonus, "Generator");
                         break;
                     case improvementNames.radio:
@@ -92,7 +93,7 @@ define([
             var targetReputationWithoutPenalties = targetReputation;
             
             // penalties: food and water
-            var storage = GameGlobals.resourcesHelper.getCurrentStorage(true);
+            var storage = GameGlobals.resourcesHelper.getCurrentCampStorage(campNode.entity);
 			var resources = storage ? storage.resources : null;
             var noFood = resources && resources.getResource(resourceNames.food) <= 0;
             var noWater = resources && resources.getResource(resourceNames.water) <= 0;
@@ -107,18 +108,18 @@ define([
             this.logReputationPenalty(campNode, CampConstants.REPUTATION_PENALTY_TYPE_WATER, noWater);
             
             // penalties: defences
-            var defenceLimit = 0.25;
+            var defenceLimit = CampConstants.REPUTATION_PENALTY_DEFENCES_THRESHOLD;
             var soldiers = campNode.camp.assignedWorkers.soldier;
             var soldierLevel = GameGlobals.upgradeEffectsHelper.getWorkerLevel("soldier", this.tribeUpgradeNodes.head.upgrades);
             var danger = OccurrenceConstants.getRaidDanger(sectorImprovements, soldiers, soldierLevel);
             var noDefences = danger > defenceLimit;
             if (noDefences) {
-                var steppedDanger = Math.ceil(danger * 100 / 5) * 5;
-                var penaltyRatio = (steppedDanger - defenceLimit) / 200;
-                var defencePenalty = Math.ceil(targetReputationWithoutPenalties * penaltyRatio);
-                if (steppedDanger >= 75) {
+                var steppedDanger = Math.ceil((danger - defenceLimit) * 100 / 5) * 5;
+                var penaltyRatio = steppedDanger / (100 - defenceLimit);
+                var defencePenalty = Math.ceil(targetReputationWithoutPenalties * penaltyRatio * 4) / 4;
+                if (penaltyRatio > 0.25) {
                     addValue(-defencePenalty, "Terrible defences");
-                } else if (steppedDanger >= 0) {
+                } else if (penaltyRatio > 0.15) {
                     addValue(-defencePenalty, "Poor defences");
                 } else {
                     addValue(-defencePenalty, "Inadequate defences");
@@ -140,7 +141,7 @@ define([
             // penalties: level population
             var levelVO = GameGlobals.levelHelper.getLevelEntityForSector(campNode.entity).get(LevelComponent).levelVO;
             if (levelVO.populationGrowthFactor < 1) {
-                var levelPopPenalty = targetReputationWithoutPenalties * (1 - levelVO.populationGrowthFactor) * 0.5;
+                var levelPopPenalty = targetReputationWithoutPenalties * (1 - levelVO.populationGrowthFactor);
                 addValue(-levelPopPenalty, "Level population");
             }
             this.logReputationPenalty(campNode, CampConstants.REPUTATION_PENALTY_TYPE_LEVEL_POP, levelVO.populationGrowthFactor < 1);
@@ -186,7 +187,7 @@ define([
             reputationComponent.accumulation += accSpeed;
             
             // apply accumulation
-            reputationComponent.value += (time + this.engine.extraUpdateTime) * accSpeed;
+            reputationComponent.value += time * accSpeed;
             if (accTargetDiff === 0) {
                 reputationComponent.value = reputationComponent.targetValue;
             } else if (reputationComponent.value > reputationComponent.targetValue && accTargetDiff > 0) {

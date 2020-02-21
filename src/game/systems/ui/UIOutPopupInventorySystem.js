@@ -1,6 +1,7 @@
 define([
     'ash',
     'game/GameGlobals',
+    'game/GlobalSignals',
     'game/constants/UIConstants',
     'game/constants/ItemConstants',
     'game/constants/BagConstants',
@@ -8,7 +9,7 @@ define([
     'game/nodes/player/PlayerActionResultNode',
     'game/components/common/PositionComponent',
     'game/components/player/BagComponent'
-], function (Ash, GameGlobals, UIConstants, ItemConstants, BagConstants, ItemsNode, PlayerActionResultNode, PositionComponent, BagComponent) {
+], function (Ash, GameGlobals, GlobalSignals, UIConstants, ItemConstants, BagConstants, ItemsNode, PlayerActionResultNode, PositionComponent, BagComponent) {
     var UIOutPopupInventorySystem = Ash.System.extend({
 
         playerActionResultNodes: null,
@@ -33,7 +34,7 @@ define([
             this.pendingListUpdate = true;
         },
 
-        update: function (time) {
+        update: function () {
 		    if (GameGlobals.gameState.uiStatus.isHidden) return;
             if (!this.playerActionResultNodes.head)
                 return;
@@ -55,8 +56,8 @@ define([
                 var rewards = resultNode.result.pendingResultVO;
                 var hasPickedSomething = rewards.selectedItems.length > 0 || rewards.selectedResources.getTotal() > 0 || rewards.discardedItems.length > 0 || rewards.discardedResources.getTotal() > 0;
                 var canPickSomething = rewards.gainedResources.getTotal() > 0 || rewards.gainedItems.length > 0;
-                $("#info-ok .btn-label").text(hasPickedSomething ? "Take selected" : canPickSomething ? "Leave all" : "Continue");
-                $("#info-ok").toggleClass("btn-secondary", !hasPickedSomething && canPickSomething);
+                $(".inventory-selection-ok .btn-label").text(hasPickedSomething ? "Take selected" : canPickSomething ? "Leave all" : "Continue");
+                $(".inventory-selection-ok").toggleClass("btn-secondary", !hasPickedSomething && canPickSomething);
             }
         },
 
@@ -115,23 +116,23 @@ define([
                         // player wants to discard an item; discard rewards first then own items
                         if (isInSelected) {
                             var itemToLeave = findItemById(itemId, rewards.selectedItems, null);
-                            console.log("leave: " + itemToLeave);
+                            log.i("leave: " + itemToLeave);
                             rewards.selectedItems.splice(itemToLeave);
                         } else {
                             var itemToDiscard = findItemById(itemId, playerAllItems, rewards.discardedItems, true);
                             if (!itemToDiscard) return;
-                            console.log("discard: " + itemToDiscard);
+                            log.i("discard: " + itemToDiscard);
                             rewards.discardedItems.push(itemToDiscard);
                         }
                     } else {
                         // player wants to take an item; take own items first then rewards
                         if (isInRewards) {
                             var itemToTake = findItemById(itemId, rewards.gainedItems, rewards.selectedItems);
-                            console.log("take: " + itemToTake);
+                            log.i("take: " + itemToTake);
                             rewards.selectedItems.push(itemToTake);
                         } else {
                             var itemToKeep = findItemById(itemId, rewards.discardedItems, null);
-                            console.log("keep: " + itemToKeep);
+                            log.i("keep: " + itemToKeep);
                             rewards.discardedItems.splice(itemToKeep);
                         }
                     }
@@ -154,19 +155,22 @@ define([
             GameGlobals.uiFunctions.generateCallouts("#resultlist-loststuff-lost");
 
             this.updateCapacity(rewards, resultNode, playerAllItems);
-
+            
+            GlobalSignals.updateButtonsSignal.dispatch();
+            
             this.pendingListUpdate = false;
         },
 
         updateCapacity: function (rewards, resultNode, playerAllItems) {
             var bagComponent = this.playerActionResultNodes.head.entity.get(BagComponent);
-
             BagConstants.updateCapacity(bagComponent, rewards, resultNode.resources, playerAllItems);
 
-            $("#inventory-popup-bar").data("progress-percent",  bagComponent.selectedCapacity/bagComponent.totalCapacity*100);
+            var selectedCapacityPercent = bagComponent.selectedCapacity / bagComponent.totalCapacity * 100;
+            log.i("update capacity: " + selectedCapacityPercent + " = " + bagComponent.selectedCapacity + "/" + bagComponent.totalCapacity);
+            $("#inventory-popup-bar").data("progress-percent", selectedCapacityPercent);
             $("#inventory-popup-bar .progress-label").text((Math.ceil( bagComponent.selectedCapacity * 10) / 10) + " / " + bagComponent.totalCapacity);
 
-            GameGlobals.uiFunctions.toggle("#confirmation-takeall", bagComponent.selectableCapacity > bagComponent.selectionStartCapacity);
+            GameGlobals.uiFunctions.toggle(".inventory-selection-takeall", bagComponent.selectableCapacity > bagComponent.selectionStartCapacity);
         },
 
         addItemsToLists: function (rewards, playerAllItems) {
@@ -228,7 +232,7 @@ define([
                 if (item.equipped) continue;
                 if (item.type === ItemConstants.itemTypes.bag) continue;
                 if (item.type === ItemConstants.itemTypes.uniqueEquipment) continue;
-                if (rewards.lostItems.indexOf(item) >= 0) continue;
+                if (rewards.lostItems && rewards.lostItems.indexOf(item) >= 0) continue;
                 if (rewards.discardedItems.indexOf(item) < 0) {
                     countKeptItem(item);
                 } else {

@@ -49,16 +49,20 @@ define(['ash',
 			if (item) div += "<img src='" + url + "'/>";
 
 			if (hasCount)
-				div += "<div class='item-count lvl13-box-3'>" + count + "x </div>";
+				div += "<div class='item-count lvl13-box-1 vision-text'>" + count + "x </div>";
 
 			if (!hideComparisonIndicator && item.equippable) {
-				var comparison = itemsComponent.getEquipmentComparison(item);
-				var comparisonClass = "indicator-even";
-				if (comparison > 0) {
-					comparisonClass = "indicator-increase";
-				} else if (comparison < 0) {
-					comparisonClass = "indicator-decrease";
-				}
+                var comparisonClass = "indicator-even";
+                if (item.equipped) {
+                    comparisonClass = "indicator-equipped";
+                } else {
+    				var comparison = itemsComponent.getEquipmentComparison(item);
+    				if (comparison > 0) {
+    					comparisonClass = "indicator-increase";
+    				} else if (comparison < 0) {
+    					comparisonClass = "indicator-decrease";
+    				}
+                }
 				div += "<div class='item-comparison-badge'><div class='item-comparison-indicator " + comparisonClass + "'/></div>";
 			}
 
@@ -141,7 +145,7 @@ define(['ash',
 			div += "<div class='info-callout-target info-callout-target-small' description='" + name + "'>";
 			div += this.getResourceImg(name);
 			if (amount || amount === 0)
-				div += "<div class='item-count lvl13-box-3'>" + Math.floor(amount) + "x</div>";
+				div += "<div class='item-count lvl13-box-1'>" + Math.floor(amount) + "x</div>";
 			div += "</div>";
 			div += "</div>";
 			var liclasses = "item-slot item-slot-small lvl13-box-1 ";
@@ -164,7 +168,7 @@ define(['ash',
 			var div = "<div class='" + classes + "' data-resourcename='currency'>";
 			div += "<div class='info-callout-target info-callout-target-small' description='silver'>";
 			div += this.getResourceImg("currency");
-			div += "<div class='item-count lvl13-box-3'>" + Math.floor(amount) + "x </div>";
+			div += "<div class='item-count lvl13-box-1'>" + Math.floor(amount) + "x </div>";
 			div += "</div>";
 			div += "</div>";
 			var liclasses = "item-slot item-slot-small lvl13-box-1 ";
@@ -184,7 +188,7 @@ define(['ash',
 		getBlueprintPieceLI: function (upgradeId) {
 			var upgradeDefinition = UpgradeConstants.upgradeDefinitions[upgradeId];
 			var name = upgradeDefinition.name;
-			return "<li><div class='info-callout-target info-callout-target-small' description='A piece of forgotten technology (" + name + ")'>" + this.getBlueprintPieceIcon(upgradeId) + " blueprint</li>";
+			return "<li><div class='info-callout-target' description='Blueprint (" + name + ")'>" + this.getBlueprintPieceIcon(upgradeId) + " blueprint</li>";
 		},
 
 		getResourceList: function (resourceVO) {
@@ -198,50 +202,6 @@ define(['ash',
 				}
 			}
 			return html;
-		},
-
-		getSectorMapTD: function (playerPosition, sector) {
-			var content = "";
-			var sectorStatus = SectorConstants.getSectorStatus(sector);
-			var classes = "vis-out-sector";
-			if (sector && sectorStatus !== SectorConstants.MAP_SECTOR_STATUS_UNVISITED_INVISIBLE) {
-				var sectorPos = sector.get(PositionComponent);
-				var statusComponent = sector.get(SectorStatusComponent);
-				var localesComponent = sector.get(SectorLocalesComponent);
-				var sectorPassages = sector.get(PassagesComponent);
-				var isScouted = statusComponent.scouted;
-				if (sectorPos.sectorId() === playerPosition.sectorId()) {
-					classes += " vis-out-sector-current";
-				}
-
-				if (sector.has(VisitedComponent)) {
-					classes += " vis-out-sector-visited";
-				}
-
-				content = "?";
-				var unScoutedLocales = localesComponent.locales.length - statusComponent.getNumLocalesScouted();
-				if (isScouted) content = " ";
-				if (sector.has(CampComponent)) content = "c";
-				if (sector.has(WorkshopComponent)) content = "w";
-				if (sectorPassages.passageUp && isScouted) content = "U";
-				if (sectorPassages.passageDown && isScouted) content = "D";
-				if (unScoutedLocales > 0 && isScouted) content = "L";
-			} else {
-				classes += " vis-out-sector-null";
-			}
-
-			content = "<div class='" + classes + "'>" + content.trim() + "<div>";
-
-			if (sector && sectorStatus !== SectorConstants.MAP_SECTOR_STATUS_UNVISITED_INVISIBLE) {
-				for (var i in PositionConstants.getLevelDirections()) {
-					var direction = PositionConstants.getLevelDirections()[i];
-					var blocker = sectorPassages.getBlocker(direction);
-					var blockerType = blocker ? blocker.type : "null";
-					content += "<div class='vis-out-blocker vis-out-blocker-" + PositionConstants.getDirectionName(direction) + " vis-out-blocker-" + blockerType + "'/>";
-				}
-			}
-
-			return "<td class='vis-out-sector-container'>" + content + "</td>";
 		},
 
 		getItemBonusDescription: function (item, showAllBonuses, useLineBreaks) {
@@ -276,6 +236,8 @@ define(['ash',
 			switch (bonusType) {
 				case ItemConstants.itemBonusTypes.light: return "max vision";
 				case ItemConstants.itemBonusTypes.fight_att: return "attack";
+				case ItemConstants.itemBonusTypes.fight_def: return "defence";
+				case ItemConstants.itemBonusTypes.fight_speed: return "speed";
 				case ItemConstants.itemBonusTypes.movement: return "movement cost";
 				case ItemConstants.itemBonusTypes.bag: return "bag size";
                 case ItemConstants.itemBonusTypes.fight_def: return "defence";
@@ -290,21 +252,29 @@ define(['ash',
 
 		getItemBonusText: function (item, bonusType) {
 			var bonusValue = item.getBonus(bonusType);
-			if (bonusValue === 0)
+			if (bonusValue === 0) {
 				return "+0";
-			else if (bonusValue >= 1)
-				return item.type === ItemConstants.itemTypes.bag ? " " + bonusValue : " +" + bonusValue;
-			else if (bonusValue > 0) {
+            } else if (item.type == ItemConstants.itemTypes.bag) {
+                return " " + bonusValue;
+            } else if (bonusType == ItemConstants.itemBonusTypes.fight_speed) {
+                var val = Math.abs(Math.round((1 - bonusValue) * 100));
+				return bonusValue == 1 ? "+0%" : (bonusValue < 1 ? "+" + val + "%" : "-" + val + "%");
+			} else if (bonusValue >= 1) {
+				return " +" + bonusValue;
+			} else if (bonusValue > 0) {
 				return " -" + Math.round((1 - bonusValue) * 100) + "%";
 			} else if (bonusValue > -1) {
 				return " +" + Math.round((1 - bonusValue) * 100) + "%";
-			} else
+			} else {
 				return " " + bonusValue;
+            }
 		},
 
-		getPerkDetailText: function (perk) {
+		getPerkDetailText: function (perk, isResting) {
 			if (perk.effectTimer >= 0) {
-				return this.getPerkBonusText(perk) + ", time left: " + this.getTimeToNum(perk.effectTimer);
+                var factor = isResting ? PerkConstants.PERK_RECOVERY_FACTOR_REST : 1;
+                var timeleft = perk.effectTimer / factor;
+				return this.getPerkBonusText(perk) + ", time left: " + this.getTimeToNum(timeleft);
 			} else {
 				return this.getPerkBonusText(perk);
 			}
@@ -524,14 +494,15 @@ define(['ash',
 			return "Y" + year + "-N" + week;
 		},
 
-		roundValue: function (value, showDecimalsWhenSmall, showDecimalsAlways) {
-			var decimalDivisor = 0;
-			if (showDecimalsWhenSmall && value <= 10) decimalDivisor = 100;
-			if (showDecimalsAlways) decimalDivisor = 100;
+		roundValue: function (value, showDecimalsWhenSmall, showDecimalsAlways, decimalDivisor) {
+            decimalDivisor = decimalDivisor || 100;
+			var divisor = 0;
+			if (showDecimalsWhenSmall && value <= 10) divisor = decimalDivisor;
+			if (showDecimalsAlways) divisor = decimalDivisor;
 
-			if (value % 1 === 0 || decimalDivisor <= 0) return Math.round(value);
-
-			return Math.round(value * decimalDivisor) / decimalDivisor;
+			if (value % 1 === 0 || divisor <= 0) return Math.round(value);
+            
+			return Math.round(value * divisor) / divisor;
 		},
 
 		getDisplayValue: function (value) {

@@ -36,12 +36,12 @@ define([
 
         update: function (time) {
             if (GameGlobals.gameState.isPaused) return;
-            this.updateNodes(time, this.engine.extraUpdateTime);
+            this.updateNodes(time);
         },
         
-        updateNodes: function (time, extraUpdateTime) {
+        updateNodes: function (time) {
             for (var node = this.campNodes.head; node; node = node.next) {
-                this.updateNode(node, time + extraUpdateTime);
+                this.updateNode(node, time);
             }
         },
 
@@ -65,8 +65,13 @@ define([
             newPopulation = Math.min(newPopulation, maxPopulation);
             change = newPopulation - oldPopulation;
             changePerSec = change / time / GameConstants.gameSpeedCamp;
-            camp.addPopulation(change);
             camp.populationChangePerSec = changePerSec;
+            
+            if (camp.pendingPopulation) {
+                change += camp.pendingPopulation;
+                camp.pendingPopulation = 0;
+            }
+            camp.addPopulation(change);
 
             if (Math.floor(camp.population) !== Math.floor(oldPopulation)) {
                 this.handlePopulationChange(node, camp.population > oldPopulation);
@@ -138,7 +143,7 @@ define([
                     var count = node.camp.assignedWorkers[workerCheck.name];
                     if (count > workerCheck.min) {
                         node.camp.assignedWorkers[workerCheck.name]--;
-                        console.log("Unassigned a worker: " + workerCheck.name);
+                        log.i("Unassigned a worker: " + workerCheck.name);
                         break;
                     }
                 }

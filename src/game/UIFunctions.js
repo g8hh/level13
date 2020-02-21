@@ -15,6 +15,7 @@ define(['ash',
 
 		var UIFunctions = Ash.Class.extend({
 
+            context: "UIFunctions",
 			popupManager: null,
 
 			elementIDs: {
@@ -52,12 +53,14 @@ define(['ash',
 			},
 
 			constructor: function () {
+				this.popupManager = new UIPopupManager(this);
+			},
+            
+            init: function () {
 				this.generateElements();
 				this.registerListeners();
 				this.registerGlobalMouseEvents();
-
-				this.popupManager = new UIPopupManager(this);
-			},
+            },
 
 			registerListeners: function () {
 				var elementIDs = this.elementIDs;
@@ -143,14 +146,18 @@ define(['ash',
 
 			registerGlobalMouseEvents: function () {
 				GameGlobals.gameState.uiStatus.mouseDown = false;
+                GameGlobals.gameState.uiStatus.mouseDownElement = null;
 				$(document).on('mouseleave', function (e) {
 					GameGlobals.gameState.uiStatus.mouseDown = false;
+                    GameGlobals.gameState.uiStatus.mouseDownElement = null;
 				});
 				$(document).on('mouseup', function (e) {
 					GameGlobals.gameState.uiStatus.mouseDown = false;
+                    GameGlobals.gameState.uiStatus.mouseDownElement = null;
 				});
 				$(document).on('mousedown', function (e) {
 					GameGlobals.gameState.uiStatus.mouseDown = true;
+                    GameGlobals.gameState.uiStatus.mouseDownElement = e.target;
 				});
 			},
 
@@ -162,7 +169,7 @@ define(['ash',
 				$.each($(scope + " button.action"), function () {
 					var $element = $(this);
 					if ($element.hasClass("click-bound")) {
-						console.log("WARN: trying to bind click twice! id: " + $element.attr("id"));
+						log.w("trying to bind click twice! id: " + $element.attr("id"));
 						return;
 					}
                     if ($element.hasClass("action-manual-trigger")) {
@@ -172,10 +179,11 @@ define(['ash',
 					$element.click(ExceptionHandler.wrapClick(function (e) {
 						var action = $(this).attr("action");
 						if (!action) {
-							console.log("WARN: No action mapped for button.");
+							log.w("No action mapped for button.");
 							return;
 						}
-
+                        
+                        log.i("action button clicked: " + action);
 						GlobalSignals.actionButtonClickedSignal.dispatch(action);
 
 						var param = null;
@@ -203,13 +211,19 @@ define(['ash',
 					GameGlobals.fightHelper.startFight();
 				});
 				$(scope + "#out-action-fight-close").click(function (e) {
-					GameGlobals.fightHelper.endFight();
+					GameGlobals.fightHelper.endFight(false);
 				});
-				$(scope + "#out-action-fight-next").click(function (e) {
-					GameGlobals.fightHelper.endFight();
+				$(scope + "#out-action-fight-continue").click(function (e) {
+					GameGlobals.fightHelper.endFight(false);
+				});
+				$(scope + "#out-action-fight-takeselected").click(function (e) {
+					GameGlobals.fightHelper.endFight(false);
+				});
+				$(scope + "#out-action-fight-takeall").click(function (e) {
+					GameGlobals.fightHelper.endFight(true);
 				});
 				$(scope + "#out-action-fight-cancel").click(function (e) {
-                    GameGlobals.fightHelper.endFight();
+                    GameGlobals.fightHelper.endFight(false);
 					GameGlobals.playerActionFunctions.flee();
 				});
 				$(scope + "#inn-popup-btn-cancel").click(function (e) {
@@ -227,14 +241,12 @@ define(['ash',
 						var resourceName = $(this).attr("id").split("-")[2];
 						var selectedVal = parseInt($(this).children("td").children(".stepper").children("input").val());
 						selectedResVO.setResource(resourceName, selectedVal);
-						gameState.uiStatus.leaveCampRes[resourceName] = selectedVal;
 					});
 
 					var selectedItems = {};
 					$.each($("#embark-items tr"), function () {
 						var itemID = $(this).attr("id").split("-")[2];
 						var selectedVal = parseInt($(this).children("td").children(".stepper").children("input").val());
-						gameState.uiStatus.leaveCampItems[itemID] = selectedVal;
 						selectedItems[itemID] = selectedVal;
 					});
 
@@ -246,6 +258,18 @@ define(['ash',
 				// Buttons: Bag: Item details
 				// some in UIOoutBagSystem
 			},
+            
+            registerCustomButtonListeners: function (scope, btnClass, fn) {
+                $.each($(scope + " button." + btnClass), function () {
+					var $element = $(this);
+					if ($element.hasClass("click-bound")) {
+						log.w("trying to bind click twice! id: " + $element.attr("id"));
+						return;
+					}
+					$element.addClass("click-bound");
+					$element.click(ExceptionHandler.wrapClick(fn));
+                });
+            },
 
 			registerCollapsibleContainerListeners: function (scope) {
 				var sys = this;
@@ -282,21 +306,10 @@ define(['ash',
 				this.generateButtonOverlays("body");
 				this.generateCallouts("body");
 
-				// building project info
-				$.each($("#out-improvements tr"), function () {
-					var actionName = $(this).find("button.action-build").attr("action");
-					if (actionName) {
-						var costSource = PlayerActionConstants.getCostSource(actionName);
-						if (costSource == PlayerActionConstants.COST_SOURCE_CAMP) {
-							var infotd = $(this).find("td")[2];
-							$(infotd).html("<span class='p-meta'></span>");
-						}
-					}
-				});
-
 				// equipment stats labels
 				for (var bonusKey in ItemConstants.itemBonusTypes) {
 					var bonusType = ItemConstants.itemBonusTypes[bonusKey];
+                    if (bonusType == ItemConstants.itemBonusTypes.fight_speed) continue;
 					var div = "<div id='stats-equipment-" + bonusKey + "' class='stats-indicator stats-indicator-secondary'>";
 					div += "<span class='label'>" + UIConstants.getItemBonusName(bonusType).replace(" ", "<br/>") + "</span>";
 					div += "<br/>";
@@ -306,7 +319,7 @@ define(['ash',
 			},
 
 			generateTabBubbles: function () {
-				$("#switch li").append("<div class='bubble'>1</div>");
+				$("#switch li").append("<div class='bubble' style='display:none'>1</div>");
 			},
 
 			generateResourceIndicators: function () {
@@ -320,13 +333,23 @@ define(['ash',
 
 			generateCallouts: function (scope) {
 				// Info callouts
-				$(scope + " .info-callout-target").wrap('<div class="callout-container"></div>');
-				$(scope + " .info-callout-target").after(function () {
-					var description = $(this).attr("description");
-					var content = description;
-					content = '<div class="callout-arrow-up"></div><div class="info-callout-content">' + content + "</div>";
-					return '<div class="info-callout">' + content + '</div>'
-				});
+                $.each($(scope + " .info-callout-target"), function () {
+                    var $target = $(this);
+                    var generated = $target.data("callout-generated");
+                    if (generated) {
+                        log.w("Info callout already generated! id: " + $target.attr("id") + ", scope: " + scope);
+                        log.i($target);
+                        return;
+                    }
+	                $target.wrap('<div class="callout-container"></div>');
+	                $target.after(function () {
+                        var description = $(this).attr("description");
+                        var content = description;
+                        content = '<div class="callout-arrow-up"></div><div class="info-callout-content">' + content + "</div>";
+                        return '<div class="info-callout">' + content + '</div>'
+    				});
+                    $target.data("callout-generated", true);
+                });
 
 				// Button callouts
 				var uiFunctions = this;
@@ -334,9 +357,9 @@ define(['ash',
                     var $container = $(this);
                     var generated = $container.data("callout-generated");
                     if (generated) {
-                        if (GameConstants.logWarnings) {
-                            console.log("WARN: Button callout already generated!");
-                            console.log($container);
+                        {
+                            log.w("Button callout already generated!");
+                            log.i($container);
                         }
                         return;
                     }
@@ -346,8 +369,8 @@ define(['ash',
                         var button = $(this).children("button")[0];
     					var action = $(button).attr("action");
                         if (!action) {
-                            console.log("WARN: Action button with no action " + uiFunctions.count);
-                            console.log($(button))
+                            log.w("Action button with no action " + uiFunctions.count);
+                            log.i($(button))
                             return "";
                         }
     					if (action === "take_all" || action === "accept_inventory" || action === "use_in_inn_cancel" || action === "fight")
@@ -358,14 +381,25 @@ define(['ash',
 
 				GlobalSignals.calloutsGeneratedSignal.dispatch();
 			},
+            
+            updateCallouts: function (scope) {
+                $.each($(scope + " .callout-container"), function () {
+                    var description = $(this).children(".info-callout-target").attr("description");
+    				$(this).find(".info-callout-content").html(description);
+                });
+            },
 
 			generateActionButtonCallout: function (action) {
 				var baseActionId = GameGlobals.playerActionsHelper.getBaseActionID(action);
-				var costFactor = GameGlobals.playerActionsHelper.getCostFactor(action);
 
 				var content = "";
 				var enabledContent = "";
 				var disabledContent = "";
+                
+                /*
+                var ordinal = GameGlobals.playerActionsHelper.getActionOrdinal(action);
+                content += "<span>" + action + " " + ordinal +  "</span>"
+                */
 
 				// always visible: description
 				var description = GameGlobals.playerActionsHelper.getDescription(action);
@@ -374,7 +408,7 @@ define(['ash',
 				}
 
 				// visible if button is enabled: costs & risks
-				var costs = GameGlobals.playerActionsHelper.getCosts(action, costFactor);
+				var costs = GameGlobals.playerActionsHelper.getCosts(action);
 				var hasCosts = action && costs && Object.keys(costs).length > 0;
 				if (hasCosts) {
 					if (content.length > 0 || enabledContent.length) enabledContent += "<hr/>";
@@ -383,7 +417,7 @@ define(['ash',
 						var item = ItemConstants.getItemByID(itemName);
 						var name = (this.names.resources[key] ? this.names.resources[key] : item !== null ? item.name : key).toLowerCase();
 						var value = costs[key];
-						enabledContent += "<span class='action-cost action-cost-" + key + "'>" + name + ": <span class='action-cost-value'>" + UIConstants.getDisplayValue(value) + "</span></span><br/>";
+                        enabledContent += "<span class='action-cost action-cost-" + key + "'>" + name + ": <span class='action-cost-value'>" + UIConstants.getDisplayValue(value) + "</span><br/></span>";
 					}
 				}
 
@@ -399,7 +433,7 @@ define(['ash',
 				var fightRiskMin = PlayerActionConstants.getRandomEncounterProbability(baseActionId, 100);
 				if (injuryRiskMax > 0 || inventoryRiskMax > 0 || fightRiskMax > 0) {
 					if (content.length > 0 || enabledContent.length) enabledContent += "<hr/>";
-					var inventoryRiskLabel = action === "despair" ? "lose items" : "lose an item";
+					var inventoryRiskLabel = action === "despair" ? "lose items" : "lose item";
 					if (injuryRiskMax > 0)
 						enabledContent += "<span class='action-risk action-risk-injury warning'>injury: <span class='action-risk-value'></span>%</span>";
 					if (inventoryRiskMax > 0)
@@ -425,7 +459,7 @@ define(['ash',
 				if (content.length > 0) {
 					return '<div class="btn-callout"><div class="callout-arrow-up"></div><div class="btn-callout-content">' + content + '</div></div>';
 				} else {
-					console.log("WARN: No callout could be created for action button with action " + action + ". No content for callout.");
+					log.w("No callout could be created for action button with action " + action + ". No content for callout.");
 					return "";
 				}
 			},
@@ -459,7 +493,7 @@ define(['ash',
 			},
 
 			startGame: function () {
-				console.log("Starting game..");
+				log.i("Starting game..");
 				var startTab = this.elementIDs.tabs.out;
 				var playerPos = GameGlobals.playerActionFunctions.playerPositionNodes.head.position;
 				if (playerPos.inCamp) startTab = this.elementIDs.tabs.in;
@@ -482,29 +516,45 @@ define(['ash',
 			},
 
 			showGame: function () {
-				$(".sticky-footer").css("display", "block");
-				$("#grid-main").css("display", "block");
-				$("#unit-main").css("display", "block");
-				$(".loading-content").css("display", "none");
-				GameGlobals.gameState.uiStatus.isHidden = false;
+                this.hideGameCounter--;
+                if (this.hideGameCounter > 0) return;
+                this.setGameOverlay(false, false);
+                this.setGameElementsVisibility(true);
+                this.setUIStatus(false, false);
 				GlobalSignals.gameShownSignal.dispatch();
 			},
 
-			hideGame: function (showLoading) {
-				if (showLoading)
-					$(".loading-content").css("display", "block");
-                else
-					$(".loading-content").css("display", "none");
-				$("#unit-main").css("display", "none");
-				$(".sticky-footer").css("display", "none");
-				$("#grid-main").css("display", "none");
-				GameGlobals.gameState.uiStatus.isHidden = true;
+			hideGame: function (showLoading, showThinking) {
+                this.hideGameCounter = this.hideGameCounter || 0;
+                this.hideGameCounter++;
+                showThinking = showThinking && !showLoading;
+                this.setGameOverlay(showLoading, showThinking);
+				this.setGameElementsVisibility(showThinking);
+                this.setUIStatus(true, true);
 			},
+            
+            setUIStatus: function (isHidden, isBlocked) {
+                isBlocked = isBlocked || isHidden;
+                GameGlobals.gameState.uiStatus.isHidden = isHidden;
+                GameGlobals.gameState.uiStatus.isBlocked = isBlocked;
+            },
+            
+            setGameOverlay: function (isLoading, isThinking) {
+                isThinking = isThinking && !isLoading;
+                $(".loading-content").css("display", isLoading ? "block" : "none");
+                $(".thinking-content").css("display", isThinking ? "block" : "none");
+            },
+            
+            setGameElementsVisibility: function (visible) {
+                $(".sticky-footer").css("display", visible ? "block" : "none");
+                $("#grid-main").css("display", visible ? "block" : "none");
+                $("#unit-main").css("display", visible ? "block" : "none");
+            },
 
 			restart: function () {
 				$("#log ul").empty();
 				this.onTabClicked(this.elementIDs.tabs.out, GameGlobals.gameState, this);
-				GlobalSignals.restartGameSignal.dispatch();
+				GlobalSignals.restartGameSignal.dispatch(true);
 			},
 
 			onResize: function () {
@@ -515,15 +565,12 @@ define(['ash',
 				var html = "";
 				html += "<span id='changelog-version'>version " + GameGlobals.changeLogHelper.getCurrentVersionNumber() + "<br/>updated " + GameGlobals.changeLogHelper.getCurrentVersionDate() + "</span>";
 				html += "<p>Note that this game is still in development and many features are incomplete and unbalanced. Updates might break saves. Feedback and bug reports are appreciated!</p>";
-				html += "<p><a href='https://github.com/nroutasuo/level13' target='github'>github</a> | ";
-				html += "<a href='https://www.reddit.com/r/level13' target='reddit'>reddit</a> | ";
-				html += "<a href='https://sayat.me/level13' target='sayatme'>sayat.me</a></p>";
-				html += "<h4 class='infobox-scrollable-header'>Changelog</h4>";
-				html += "<div id='changelog' class='infobox infobox-scrollable'>" + GameGlobals.changeLogHelper.getChangeLogHTML() + "</div>";
+				html += "<p>Feedback:<br/>" + GameConstants.getFeedbackLinksHTML() + "</p>";
+                html += "<p>More info:<br/><a href='faq.html' target='faq'>faq</a> | <a href='changelog.html' target='changelog'>changelog</a></p>";
 				return html;
 			},
 
-			onTabClicked: function (tabID, gameState, uiFunctions) {
+			onTabClicked: function (tabID, gameState, uiFunctions, tabProps) {
 				$("#switch-tabs li").removeClass("selected");
 				$("#switch-tabs li#" + tabID).addClass("selected");
 				$("#tab-header h2").text(tabID);
@@ -540,7 +587,7 @@ define(['ash',
 					uiFunctions.slideToggleIf($(this), null, $(this).attr("data-tab") === tabID, transitionTime, 200);
 				});
 
-				GlobalSignals.tabChangedSignal.dispatch(tabID);
+				GlobalSignals.tabChangedSignal.dispatch(tabID, tabProps);
 			},
 
 			onStepperButtonClicked: function (button, e) {
@@ -562,7 +609,7 @@ define(['ash',
 						}
 					}
 				} else {
-					console.log("WARN: invalid stepper input value [" + fieldName + "]");
+					log.w("invalid stepper input value [" + fieldName + "]");
 					input.val(0);
 				}
 			},
@@ -621,20 +668,24 @@ define(['ash',
 				var cooldownTotal;
 				var durationLeft;
 				var durationTotal;
+                var updates = false;
 				$.each($("button.action"), function () {
 					var action = $(this).attr("action");
 					var baseId = GameGlobals.playerActionsHelper.getBaseActionID(action);
 					if (action) {
 						var locationKey = uiFunctions.getLocationKey($(this));
 						cooldownTotal = PlayerActionConstants.getCooldown(action);
-						cooldownLeft = Math.min(cooldownTotal, GameGlobals.gameState.getActionCooldown(action, locationKey) / 1000);
+						cooldownLeft = Math.min(cooldownTotal, GameGlobals.gameState.getActionCooldown(action, locationKey, cooldownTotal) / 1000);
 						durationTotal = PlayerActionConstants.getDuration(baseId);
-						durationLeft = Math.min(durationTotal, GameGlobals.gameState.getActionDuration(action, locationKey) / 1000);
+						durationLeft = Math.min(durationTotal, GameGlobals.gameState.getActionDuration(action, locationKey, durationTotal) / 1000);
 						if (cooldownLeft > 0) uiFunctions.startButtonCooldown($(this), cooldownTotal, cooldownLeft);
 						else uiFunctions.stopButtonCooldown($(this));
 						if (durationLeft > 0) uiFunctions.startButtonDuration($(this), cooldownTotal, durationLeft);
+                        updates = true;
 					}
 				});
+                if (updates)
+                    GlobalSignals.updateButtonsSignal.dispatch();
 			},
 
 			slideToggleIf: function (element, replacement, show, durationIn, durationOut) {
@@ -762,11 +813,13 @@ define(['ash',
 				$(button).attr("data-hasCooldown", "false");
 				$(button).children(".cooldown-action").css("display", "none");
 				$(button).children(".cooldown-action").css("width", "100%");
+                GlobalSignals.updateButtonsSignal.dispatch();
 			},
 
 			startButtonCooldown: function (button, cooldown, cooldownLeft) {
 				if (GameGlobals.gameState.uiStatus.isHidden) return;
 				var action = $(button).attr("action");
+                if (!GameGlobals.playerActionsHelper.isRequirementsMet(action)) return;
 				if (!cooldownLeft) cooldownLeft = cooldown;
 				var uiFunctions = this;
 				var startingWidth = (cooldownLeft / cooldown * 100);
@@ -782,7 +835,7 @@ define(['ash',
 				);
 			},
 
-			stopButtonDuration: function (button, complete) {
+			stopButtonDuration: function (button) {
 				$(button).children(".cooldown-duration").stop(true, true);
 				$(button).children(".cooldown-duration").css("display", "none");
 				$(button).children(".cooldown-duration").css("width", "0%");
@@ -800,7 +853,7 @@ define(['ash',
 					durationLeft * 1000,
 					'linear',
 					function () {
-						uiFunctions.stopButtonDuration($(this).parent(), true);
+						uiFunctions.stopButtonDuration($(this).parent());
 					}
 				);
 			},
@@ -856,7 +909,7 @@ define(['ash',
 
 			registerLongTap: function (element, callback) {
 				var $element = typeof (element) === "string" ? $(element) : element;
-				var minTime = 1250;
+				var minTime = 1000;
 				var intervalTime = 200;
 
 				var cancelLongTap = function () {
@@ -870,13 +923,14 @@ define(['ash',
 					$(this).attr("data-long-tap-timeout", 0);
 				};
 				$element.on('mousedown', function (e) {
-					var target = $(this);
+                    var target = e.target;
+					var $target = $(this);
 					cancelLongTap()
 					var timer = setTimeout(function () {
 						cancelLongTap()
 						var interval = setInterval(function () {
-							if (GameGlobals.gameState.uiStatus.mouseDown) {
-								callback.apply(target, e);
+							if (GameGlobals.gameState.uiStatus.mouseDown && GameGlobals.gameState.uiStatus.mouseDownElement == target) {
+								callback.apply($target, e);
 							} else {
 								cancelLongTap();
 							}
@@ -899,8 +953,8 @@ define(['ash',
 				});
 			},
 
-			showTab: function (tabID) {
-				this.onTabClicked(tabID, GameGlobals.gameState, this);
+			showTab: function (tabID, tabProps) {
+				this.onTabClicked(tabID, GameGlobals.gameState, this, tabProps);
 			},
 
 			showFight: function () {
@@ -909,22 +963,6 @@ define(['ash',
 			},
 
 			showInnPopup: function (availableFollowers) {
-				$("table#inn-popup-options-followers").empty();
-				$("table#inn-popup-options-followers").append("<tr></tr>");
-				for (var i = 0; i < availableFollowers.length; i++) {
-					var td = "<td id='td-item-use_in_inn_select-" + availableFollowers[i].id + "'>";
-					td += UIConstants.getItemDiv(null, availableFollowers[i], false, UIConstants.getItemCallout(availableFollowers[i]), true);
-					td += "</td>";
-					$("table#inn-popup-options-followers tr").append(td);
-				}
-				$("table#inn-popup-options-followers").append("<tr></tr>");
-				for (var j = 0; j < availableFollowers.length; j++) {
-					var td = "<td>";
-					td += "<button class='action btn-narrow' action='use_in_inn_select_" + availableFollowers[j].id + "' followerID='" + availableFollowers[j].id + "'>Recruit</button>";
-					td += "</td>";
-					$($("table#inn-popup-options-followers tr")[1]).append(td);
-				}
-				this.generateButtonOverlays("#inn-popup-options-followers");
 				this.showSpecialPopup("inn-popup");
 			},
 
@@ -941,12 +979,12 @@ define(['ash',
 				$("#" + popupID).wrap("<div class='popup-overlay' style='display:none'></div>");
 				var uiFunctions = this;
 				$(".popup-overlay").fadeIn(200, function () {
-					uiFunctions.popupManager.onResize();
+					uiFunctions.popupManager.repositionPopups();
 					GlobalSignals.popupOpenedSignal.dispatch(popupID);
 					GameGlobals.gameState.isPaused = true;
 					$("#" + popupID).fadeIn(200, function () {
 						uiFunctions.toggle("#" + popupID, true);
-						uiFunctions.popupManager.onResize();
+						uiFunctions.popupManager.repositionPopups();
 					});
 					GlobalSignals.elementToggledSignal.dispatch(("#" + popupID), true);
 				});

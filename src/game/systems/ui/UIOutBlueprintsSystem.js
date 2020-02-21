@@ -29,6 +29,7 @@ define([
 			this.tribeNodes = engine.getNodeList(TribeUpgradesNode);
 			this.hasNeverBeenOpened = !GameGlobals.gameState.unlockedFeatures.blueprints;
 			GlobalSignals.tabChangedSignal.add(this.onTabChanged);
+			GlobalSignals.add(this, GlobalSignals.blueprintsChangedSignal, this.refresh);
 		},
 	
 		removeFromEngine: function (engine) {
@@ -40,12 +41,11 @@ define([
 		update: function (time) {
 			var isActive = GameGlobals.gameState.uiStatus.currentTab === GameGlobals.uiFunctions.elementIDs.tabs.blueprints;
 			this.updateBubble();
-            
-            if (isActive) {
-                var resetList = this.tribeNodes.head.upgrades.getUnfinishedBlueprints().length !== $("#blueprints-pieces-list tr").length || $("#blueprints-pieces-list tr").length === 0;
-                if (resetList) this.updateBlueprintList();
-            }
 		},
+        
+        refresh: function () {
+            this.updateBlueprintList();
+        },
         
         updateBubble: function () {
             var newBubbleNumber = Math.max(0, this.getCurrentCompletableCount());
@@ -61,11 +61,12 @@ define([
 			for (var i = 0; i < this.tribeNodes.head.upgrades.newBlueprints.length; i++) {
                 var blueprintVO = this.tribeNodes.head.upgrades.newBlueprints[i];
                 if (blueprintVO.completed) continue;
+                if (this.tribeNodes.head.upgrades.hasUpgrade(blueprintVO.upgradeId)) continue;
                 
                 var upgradeDefinition = UpgradeConstants.upgradeDefinitions[blueprintVO.upgradeId];
                 
                 if (!upgradeDefinition) {
-                    if (GameConstants.logWarnings) console.log("WARN: No definition found for upgrade: " + blueprintVO.upgradeId);
+                    log.w("No definition found for upgrade: " + blueprintVO.upgradeId);
                     continue;
                 }
                 
@@ -96,6 +97,7 @@ define([
 			for (var i = 0; i < this.tribeNodes.head.upgrades.newBlueprints.length; i++) {
                 var blueprintVO = this.tribeNodes.head.upgrades.newBlueprints[i];
                 if (blueprintVO.completed) continue;
+                if (this.tribeNodes.head.upgrades.hasUpgrade(blueprintVO.upgradeId)) continue;
                 if (blueprintVO.currentPieces === blueprintVO.maxPieces) count++;
             }
             return count;

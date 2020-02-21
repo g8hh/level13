@@ -1,6 +1,7 @@
 // Functions to handle cheats, either from the console or UI
 define(['ash',
     'game/GameGlobals',
+    'game/GlobalSignals',
     'game/constants/GameConstants',
     'game/constants/CheatConstants',
     'game/constants/ItemConstants',
@@ -26,6 +27,7 @@ define(['ash',
     'game/nodes/PlayerLocationNode'
 ], function (Ash,
     GameGlobals,
+    GlobalSignals,
     GameConstants,
     CheatConstants,
     ItemConstants,
@@ -86,6 +88,9 @@ define(['ash',
             this.registerCheat(CheatConstants.CHEAT_NAME_SUPPLIES, "Refill supplies (water and food).", [], function () {
                 this.addSupplies();
             });
+            this.registerCheat(CheatConstants.CHEAT_NAME_MATERIALS, "Refill materials (metal, rope).", [], function () {
+                this.addMaterials();
+            });
             this.registerCheat(CheatConstants.CHEAT_NAME_VISION, "Set vision.", ["value"], function (params) {
                 this.playerStatsNodes.head.vision.value = Math.min(200, Math.max(0, parseInt(params[0])));
             });
@@ -141,12 +146,16 @@ define(['ash',
                 var campOrdinal = parseInt(params[0]);
                 this.addTradePartners(campOrdinal);
             });
+            this.registerCheat(CheatConstants.CHEAT_NAME_TRADE_PARTNER, "Add next trade partner, regardless of camp ordinal.", [], function (params) {
+                this.addTradePartner();
+            });
             this.registerCheat(CheatConstants.CHEAT_NAME_WORKSHOPS, "Clear all workshops on a given level.", ["level"], function (params) {
                 var level = parseInt(params[0]);
                 this.clearWorkshops(level);
             });
             this.registerCheat(CheatConstants.CHEAT_NAME_ITEM, "Add the given item to inventory.", ["item id"], function (params) {
                 this.addItem(params[0]);
+                GlobalSignals.inventoryChangedSignal.dispatch();
             });
             this.registerCheat(CheatConstants.CHEAT_NAME_EQUIP_BEST, "Auto-equip best items available.", [], function (params) {
                 this.equipBest();
@@ -178,6 +187,9 @@ define(['ash',
             this.registerCheat(CheatConstants.CHEAT_NAME_AUTOPLAY, "Autoplay.", ["on/off/camp/expedition", "(optional) camp ordinal"], function (params) {
                 this.setAutoPlay(params[0], parseInt(params[1]));
             });
+            this.registerCheat(CheatConstants.CHEAT_NAME_SCAVENGE, "Do a scavenge expedition on the current level.", [], function (params) {
+                this.setAutoPlay("expedition", null, "scout");
+            });
         },
 
         registerCheat: function (cmd, desc, params, func) {
@@ -204,11 +216,11 @@ define(['ash',
                 if (Math.abs(inputParts.length - 1 - numParams) <= numOptional) {
                     func.call(this, inputParts.slice(1));
                 } else {
-                    console.log("Wrong number of parameters. Expected " + numParams + " (" + numOptional + ") got " + (inputParts.length -1));
+                    log.i("Wrong number of parameters. Expected " + numParams + " (" + numOptional + ") got " + (inputParts.length -1));
                 }
                 return;
             } else {
-                console.log("cheat not found: " + name);
+                log.i("cheat not found: " + name);
             }
 
             // TODO re-implement these cheats
@@ -216,22 +228,7 @@ define(['ash',
             var currentSector = this.playerLocationNodes.head ? this.playerLocationNodes.head.entity : null;
             switch (name) {
                 case "printSector":
-                    console.log(currentSector.get(SectorFeaturesComponent));
-                    break;
-
-                case "printEnemies":
-                    var enemiesComponent = currentSector.get(EnemiesComponent);
-                    var playerStamina = this.playerStatsNodes.head.stamina;
-                    if (enemiesComponent.possibleEnemies.length < 1)
-                        console.log("No enemies here.");
-                    for (var e = 0; e < enemiesComponent.possibleEnemies.length; e++) {
-                        var enemy = enemiesComponent.possibleEnemies[e];
-                        console.log(
-                            enemy.name + " " +
-                            "(att: " + enemy.att + ", def: " + enemy.def + ", rarity: " + enemy.rarity + ") " +
-                            "chances: " + Math.round(100 * FightConstants.getFightWinProbability(enemy, playerStamina, itemsComponent)) + "% " +
-                            FightConstants.getFightChances(enemy, playerStamina, itemsComponent));
-                    }
+                    log.i(currentSector.get(SectorFeaturesComponent));
                     break;
             }
             */
@@ -246,7 +243,7 @@ define(['ash',
                 for (var i = 0; i < this.cheatDefinitions[cmd].params.length; i++) {
                     params += "[" + this.cheatDefinitions[cmd].params[i] + "] ";
                 }
-                console.log(cmd + " " + params + "- " + this.cheatDefinitions[cmd].desc);
+                log.i(cmd + " " + params + "- " + this.cheatDefinitions[cmd].desc);
             }
         },
 
@@ -278,7 +275,7 @@ define(['ash',
             GameGlobals.playerActionFunctions.passTime(mins * 60);
         },
 
-        setAutoPlay: function (type, numCampsTarget) {
+        setAutoPlay: function (type, numCampsTarget, expeditionTarget) {
             var start = false;
             var stop = false;
             var isExpedition = false;
@@ -330,6 +327,7 @@ define(['ash',
                     if (isExpedition) {
                         component.isPendingExploring = true;
                         component.isExpedition = true;
+                        component.forcedExpeditionType = expeditionTarget;
                     }
                     this.playerStatsNodes.head.entity.add(component);
                 }
@@ -341,8 +339,8 @@ define(['ash',
                 var playerResources = GameGlobals.resourcesHelper.getCurrentStorage().resources;
                 playerResources.setResource(name, amount);
             } else {
-                console.log(name + " is not a valid resource. Possible names are:");
-                console.log(Object.keys(resourceNames));
+                log.i(name + " is not a valid resource. Possible names are:");
+                log.i(Object.keys(resourceNames));
             }
         },
 
@@ -362,6 +360,17 @@ define(['ash',
             playerResources.setResource("food", 15);
             playerResources.setResource("water", 15);
         },
+        
+        addMaterials: function () {
+            var playerStorage = GameGlobals.resourcesHelper.getCurrentStorage();
+            var playerResources = playerStorage.resources;
+            playerResources.setResource("metal", playerStorage.storageCapacity);
+            playerResources.setResource("rope", playerStorage.storageCapacity / 2);
+            if (GameGlobals.gameState.unlockedFeatures.resources.concrete)
+                playerResources.setResource("concrete", playerStorage.storageCapacity / 4);
+            if (GameGlobals.gameState.unlockedFeatures.resources.tools)
+                playerResources.setResource("tools", playerStorage.storageCapacity / 4);
+        },
 
         addPopulation: function (amount) {
             var currentSector = this.playerLocationNodes.head ? this.playerLocationNodes.head.entity : null;
@@ -369,7 +378,7 @@ define(['ash',
             if (camp) {
                 camp.addPopulation(amount);
             } else {
-                console.log("WARN: Camp not found.");
+                log.w("Camp not found.");
             }
         },
 
@@ -449,6 +458,18 @@ define(['ash',
             }
         },
         
+        addTradePartner: function () {
+            var partner;
+			for (var i = 0; i < TradeConstants.TRADING_PARTNERS.length; i++) {
+                partner = TradeConstants.TRADING_PARTNERS[i];
+                if (GameGlobals.gameState.foundTradingPartners.indexOf(partner.campOrdinal) >= 0)
+                    continue;
+
+                GameGlobals.gameState.foundTradingPartners.push(partner.campOrdinal);
+                return;
+            }
+        },
+        
         clearWorkshops: function (level) {
             var workshopEntities = GameGlobals.levelHelper.getWorkshopsSectorsForLevel(level);
             var featuresComponent;
@@ -470,7 +491,7 @@ define(['ash',
                     itemsComponent.addItem(item.clone(), !playerPos.inCamp);
                 }
             } else {
-                console.log("WARN: No such item: " + itemID);
+                log.w("No such item: " + itemID);
             }
         },
 
@@ -491,7 +512,7 @@ define(['ash',
             if (perk) {
                 perksComponent.addPerk(perk);
             } else {
-                console.log("WARN: No such perk: " + perkID);
+                log.w("No such perk: " + perkID);
             }
         },
 
@@ -507,7 +528,7 @@ define(['ash',
         },
 
         revealMap: function (value) {
-            GameGlobals.uiMapHelper.isMapRevealed = value ? true : false;
+            GameGlobals.uiMapHelper.isMapRevealed = value === true || value === "true" || value === 1 ? true : false;
         },
 
         debugMap: function (value) {
@@ -518,25 +539,33 @@ define(['ash',
         },
 
         scoutLevel: function () {
+            GameGlobals.playerActionFunctions.leaveCamp();
+            var startSector = this.playerLocationNodes.head.entity;
             var originalPos = this.playerPositionNodes.head.position.getPosition();
             var levelVO = GameGlobals.levelHelper.getLevelEntityForPosition(originalPos.level).get(LevelComponent).levelVO;
             var sectorVO;
             var i = 0;
+            var binding = null;
             var updateFunction = function () {
                 if (i < levelVO.sectors.length) {
                     sectorVO = levelVO.sectors[i];
-                    this.setPlayerPosition(levelVO.level, sectorVO.position.sectorX, sectorVO.position.sectorY);
-                    GameGlobals.playerActionFunctions.scout();
-                    i++;
-                } else {
+                    var goalSector = GameGlobals.levelHelper.getSectorByPosition(levelVO.level, sectorVO.position.sectorX, sectorVO.position.sectorY);
+                    if (GameGlobals.levelHelper.isSectorReachable(startSector, goalSector)) {
+                        this.setPlayerPosition(levelVO.level, sectorVO.position.sectorX, sectorVO.position.sectorY);
+                        GameGlobals.playerActionFunctions.scout();
+                    }
+                } else if (i == levelVO.sectors.length) {
                     this.setPlayerPosition(originalPos.level, originalPos.sectorX, originalPos.sectorY);
                     GameGlobals.uiFunctions.popupManager.closeAllPopups();
-                    this.engine.updateComplete.remove(updateFunction);
-                    GameGlobals.uiFunctions.showGame();
+                    binding.detach();
+                    this.engine.updateComplete.addOnce(function () {
+                        GameGlobals.uiFunctions.showGame();
+                    });
                 }
+                i++;
             };
 			GameGlobals.uiFunctions.hideGame(false);
-            this.engine.updateComplete.add(updateFunction, this);
+            binding = this.engine.updateComplete.add(updateFunction, this);
         },
 
         triggerTrader: function () {

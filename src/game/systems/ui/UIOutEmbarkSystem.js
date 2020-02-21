@@ -27,11 +27,7 @@ define([
         // TODO create nice transitions for leaving camp
 	
 		constructor: function (resourceHelper) {
-            GameGlobals.uiFunctions.toggle("#switch-embark .bubble", false);
             this.initElements();
-            GameGlobals.uiFunctions.generateSteppers("#embark-resources");
-            GameGlobals.uiFunctions.registerStepperListeners("#embark-resources");
-            this.registerStepperListeners("#embark-resources");
 			return this;
 		},
 	
@@ -39,6 +35,7 @@ define([
 			this.playerPosNodes = engine.getNodeList(PlayerPositionNode);
 			this.playerLocationNodes = engine.getNodeList(PlayerLocationNode);
             GlobalSignals.add(this, GlobalSignals.tabChangedSignal, this.onTabChanged)
+            GlobalSignals.add(this, GlobalSignals.pageSetUpSignal, this.setupElements)
 			
 			this.engine  = engine;
 		},
@@ -61,6 +58,10 @@ define([
                     "</tr>"
                 );
             }
+        },
+        
+        setupElements: function () {
+            this.registerStepperListeners("#embark-resources");
         },
 		
 		initLeaveCampRes: function () {
@@ -124,7 +125,7 @@ define([
                     selectedAmount = Math.max(0, val);
                     selectedCapacity += selectedAmount * BagConstants.getResourceCapacity(resourceName);
                     
-                    $(this).toggleClass("list-option-dimmed", val <= 0 || inputMax <= 0);
+                    $(this).toggleClass("container-dimmed", val <= 0 || inputMax <= 0);
                     
                     if (resourceName === resourceNames.water)
                         selectedWater = selectedAmount;
@@ -139,6 +140,8 @@ define([
 			$.each($("#embark-items tr"), function () {
 				var itemID = $(this).attr("id").split("-")[2];
                 var count = itemsComponent.getCountById(itemID, true);
+                var item = itemsComponent.getItem(itemID, null, true, true);
+                if (item && item.equipped) count -= 1;
 				var visible = count > 0;
                 if (visible) visibleItemTRs++;
 				GameGlobals.uiFunctions.toggle($(this), visible);
@@ -150,9 +153,9 @@ define([
                     var val = Math.max(inputValue, inputMin);
                     GameGlobals.uiFunctions.updateStepper("#" + $(stepper).attr("id"), val, inputMin, inputMax)
                     selectedAmount = Math.max(0, $(stepper).children("input").val());
-                    selectedCapacity += selectedAmount * BagConstants.getItemCapacity(itemsComponent.getItem(itemID, null, true));
+                    selectedCapacity += selectedAmount * BagConstants.getItemCapacity(itemsComponent.getItem(itemID, null, true, true));
                     
-                    $(this).toggleClass("list-option-dimmed", val <= 0 || inputMax <= 0);
+                    $(this).toggleClass("container-dimmed", val <= 0 || inputMax <= 0);
                 }
 			});
 			
@@ -168,7 +171,9 @@ define([
         updateWarning: function (campResourcesAcc, campResources, selectedWater, selectedFood) {
             var warning = "";
             var staminaComponent = this.playerPosNodes.head.entity.get(StaminaComponent);
-            var campPopulation = Math.floor(this.playerLocationNodes.head.entity.get(CampComponent).population);
+            var campComponent = this.playerLocationNodes.head.entity.get(CampComponent);
+            if (!campComponent) return;
+            var campPopulation = Math.floor(campComponent.population);
             if (staminaComponent.stamina < PlayerStatConstants.getStaminaWarningLimit(staminaComponent)) {
                 warning = "Won't get far with low stamina.";
             } else if (campPopulation > 1) {
@@ -182,6 +187,8 @@ define([
                 else if (isFoodDecreasing && selectedFood > 0 && remainingFood <= campPopulation) {
                     warning = "There won't be much food left in the camp.";
                 }
+            } else if (selectedWater < 1 || selectedFood < 1) {
+                warning = "Won't get far without food and water.";
             }
             $("#embark-warning").text(warning);
             GameGlobals.uiFunctions.toggle("#embark-warning", warning.length > 0);
@@ -216,6 +223,19 @@ define([
             this.registerStepperListeners("#embark-items");
         },
         
+        saveSelections: function () {
+            $.each($("#embark-resources tr"), function () {
+                var resourceName = $(this).attr("id").split("-")[2];
+                var selectedVal = parseInt($(this).children("td").children(".stepper").children("input").val());
+                GameGlobals.gameState.uiStatus.leaveCampRes[resourceName] = selectedVal;
+            });
+            $.each($("#embark-items tr"), function () {
+                var itemID = $(this).attr("id").split("-")[2];
+                var selectedVal = parseInt($(this).children("td").children(".stepper").children("input").val());
+                GameGlobals.gameState.uiStatus.leaveCampItems[itemID] = selectedVal;
+            });
+        },
+        
         registerStepperListeners: function (scope) {
             var sys = this;
             $(scope + " input.amount").change(function (e) {
@@ -224,14 +244,22 @@ define([
         },
         
         onTabChanged: function () {
-			if (GameGlobals.gameState.uiStatus.currentTab !== GameGlobals.uiFunctions.elementIDs.tabs.embark) return;
+			if (GameGlobals.gameState.uiStatus.currentTab !== GameGlobals.uiFunctions.elementIDs.tabs.embark) {
+                if (this.wasActive) {
+                    this.saveSelections();
+                }
+                this.wasActive = false;
+                return;
+            }
             var posComponent = this.playerPosNodes.head.position;
             if (!posComponent.inCamp) return;
             
+            this.regenrateEmbarkItems();
             this.initLeaveCampRes();
             this.initLeaveCampItems();
-            this.regenrateEmbarkItems();
             this.refresh();
+            
+            this.wasActive = true;
         },
         
 		

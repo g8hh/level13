@@ -1,5 +1,5 @@
-define(['ash', 'game/vos/PerkVO', 'game/constants/PerkConstants'],
-function (Ash, PerkVO, PerkConstants) {
+define(['ash', 'game/GlobalSignals', 'game/vos/PerkVO', 'game/constants/PerkConstants'],
+function (Ash, GlobalSignals, PerkVO, PerkConstants) {
     var PerksComponent = Ash.Class.extend({
 
         perks: {},
@@ -16,11 +16,13 @@ function (Ash, PerkVO, PerkConstants) {
         },
 
         addPerk: function (perk) {
+            perk.timestamp = new Date().getTime();
             if (typeof this.perks[perk.type] == 'undefined') {
                 this.perks[perk.type] = [];
             }
 
             this.perks[perk.type].push(perk);
+            GlobalSignals.perksChangedSignal.dispatch();
         },
 
         hasPerk: function (perkId) {
@@ -88,13 +90,15 @@ function (Ash, PerkVO, PerkConstants) {
             if (typeof this.perks[type] !== 'undefined') {
                 this.perks[type] = [];
             }
+            GlobalSignals.perksChangedSignal.dispatch();
         },
 
-        removeItemsById: function(perkId) {
+        removeItemsById: function (perkId) {
             for (var key in this.perks) {
                 for( var i = 0; i < this.perks[key].length; i++) {
                     if (this.perks[key][i].id === perkId) {
                         this.perks[key].splice(i, 1);
+                        GlobalSignals.perksChangedSignal.dispatch();
                         return;
                     }
                 }
@@ -129,7 +133,9 @@ function (Ash, PerkVO, PerkConstants) {
             for(var key in componentValues.perks) {
                 for (var i in componentValues.perks[key]) {
                     var perkID = componentValues.perks[key][i].id;
-                    var perk = PerkConstants.getPerk(perkID).clone();
+                    var perk = PerkConstants.getPerk(perkID);
+                    if (!perk) continue;
+                    perk = perk.clone();
                     perk.effectTimer = componentValues.perks[key][i].effectTimer;
                     if (perk) {
                         this.addPerk(perk);

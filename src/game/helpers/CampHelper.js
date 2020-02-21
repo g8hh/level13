@@ -4,14 +4,27 @@ define([
     'game/GameGlobals',
     'game/constants/GameConstants',
     'game/constants/CampConstants',
+	'game/components/sector/improvements/SectorImprovementsComponent',
+    'game/nodes/sector/CampNode',
     'game/nodes/tribe/TribeUpgradesNode',
-], function (Ash, GameGlobals, GameConstants, CampConstants, TribeUpgradesNode) {
+], function (Ash, GameGlobals, GameConstants, CampConstants, SectorImprovementsComponent, CampNode, TribeUpgradesNode) {
     
     var CampHelper = Ash.Class.extend({
 		
 		constructor: function (engine) {
             this.tribeUpgradesNodes = engine.getNodeList(TribeUpgradesNode);
+            this.campNodes = engine.getNodeList(CampNode);
 		},
+        
+        getTotalNumImprovementsBuilt: function (improvementName) {
+            if (!this.campNodes.head) return 0;
+            var result = 0;
+            for (var campNode = this.campNodes.head; campNode; campNode = campNode.next) {
+                var improvements = campNode.entity.get(SectorImprovementsComponent);
+                result += improvements.getCount(improvementName);
+            }
+            return result;
+        },
         
         getMetalProductionPerSecond: function (workers, improvementsComponent) {
 			var metalUpgradeBonus = this.getUpgradeBonus("scavenger");
@@ -41,17 +54,20 @@ define([
         
         getMedicineProductionPerSecond: function (workers, improvementsComponent) {
 			var medicineUpgradeBonus = this.getUpgradeBonus("apothecary");
-			return workers * CampConstants.PRODUCTION_MEDICINE_PER_WORKER_PER_S * medicineUpgradeBonus * GameConstants.gameSpeedCamp;
+            var levelBonus = 1 + improvementsComponent.getLevel(improvementNames.apothecary) / 10;
+			return workers * CampConstants.PRODUCTION_MEDICINE_PER_WORKER_PER_S * medicineUpgradeBonus * levelBonus * GameConstants.gameSpeedCamp;
         },
         
         getToolsProductionPerSecond: function (workers, improvementsComponent) {
 			var toolsUpgradeBonus = this.getUpgradeBonus("smith");
-			return workers * CampConstants.PRODUCTION_TOOLS_PER_WORKER_PER_S * toolsUpgradeBonus * GameConstants.gameSpeedCamp;
+            var levelBonus = 1 + improvementsComponent.getLevel(improvementNames.smithy) / 10;
+			return workers * CampConstants.PRODUCTION_TOOLS_PER_WORKER_PER_S * toolsUpgradeBonus * levelBonus * GameConstants.gameSpeedCamp;
         },
         
-        getConcreteProductionPerSecond: function (workers, improvementComponent) {
+        getConcreteProductionPerSecond: function (workers, improvementsComponent) {
 			var concreteUpgradeBonus = this.getUpgradeBonus("concrete");
-			return workers * CampConstants.PRODUCTION_CONCRETE_PER_WORKER_PER_S * concreteUpgradeBonus * GameConstants.gameSpeedCamp;
+            var levelBonus = 1 + improvementsComponent.getLevel(improvementNames.cementmill) / 10;
+			return workers * CampConstants.PRODUCTION_CONCRETE_PER_WORKER_PER_S * concreteUpgradeBonus * levelBonus * GameConstants.gameSpeedCamp;
         },
         
         getEvidenceProductionPerSecond: function (workers, improvementComponent) {
@@ -87,7 +103,7 @@ define([
 			var workerUpgrade;
 			for (var i in workerUpgrades) {
 				workerUpgrade = workerUpgrades[i];
-				if (this.tribeUpgradesNodes.head.upgrades.hasUpgrade(workerUpgrade)) upgradeLevel += 0.1;
+				if (this.tribeUpgradesNodes.head.upgrades.hasUpgrade(workerUpgrade)) upgradeLevel += 0.15;
 			}
 			return upgradeLevel;
 		},

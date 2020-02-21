@@ -2,6 +2,7 @@
 define([
     'ash',
     'game/GameGlobals',
+    'game/GlobalSignals',
     'game/constants/FightConstants',
     'game/constants/PositionConstants',
     'game/constants/EnemyConstants',
@@ -13,7 +14,7 @@ define([
     'game/components/sector/SectorControlComponent',
     'game/components/player/ItemsComponent',
     'game/components/player/PlayerActionResultComponent',
-], function (Ash, GameGlobals, FightConstants, PositionConstants, EnemyConstants,
+], function (Ash, GameGlobals, GlobalSignals, FightConstants, PositionConstants, EnemyConstants,
     FightNode, PlayerStatsNode,
     PositionComponent,
     FightComponent, FightEncounterComponent, SectorControlComponent,
@@ -23,6 +24,9 @@ define([
         
 		fightNodes: null,
         playerStatsNodes: null,
+        totalFightTime: 0,
+        
+        context: "fight",
         
         constructor: function () { },
 
@@ -30,56 +34,146 @@ define([
 			this.engine = engine;
             this.playerStatsNodes = engine.getNodeList(PlayerStatsNode);
             this.fightNodes = engine.getNodeList(FightNode);
-            this.fightNodes.nodeAdded.add(this.onFightNodeAdded);
+            this.fightNodes.nodeAdded.add(this.onFightNodeAdded, this);
         },
 
         removeFromEngine: function (engine) {
 			this.engine = null;
-            this.fightNodes.nodeAdded.remove(this.onFightNodeAdded);
-            this.fightNodes = null;
+            this.fightNodes.nodeAdded.remove(this.onFightNodeAdded, this);
             this.playerStatsNodes = null;
+            this.fightNodes = null;
         },
         
         onFightNodeAdded: function (node) {
+            this.initFight();
         },
 
         update: function (time) {
-            if (!this.fightNodes || !this.fightNodes.head) return;
+            if (!this.fightNodes.head) return;
+            if (this.fightNodes.head.fight.finishedPending) return;
             if (this.fightNodes.head.fight.finished) return;
+            if (this.fightNodes.head.fight.fled) return;
             
             var enemy = this.fightNodes.head.fight.enemy;
             var playerStamina = this.playerStatsNodes.head.stamina;
+            var itemEffects = this.fightNodes.head.fight.itemEffects;
             
-            if (enemy.hp < 0 || playerStamina.hp < 0) {
+            if (itemEffects.fled) {
+                this.fleeFight();
+            }
+            
+            if (enemy.hp <= 0 || playerStamina.hp <= 0) {
                 this.endFight();
             }
             
             this.applyFightStep(time);
         },
         
+        initFight: function () {
+            var itemsComponent = this.playerStatsNodes.head.entity.get(ItemsComponent);
+            var enemy = this.fightNodes.head.fight.enemy;
+            var startDelay = 0.25;
+            enemy.resetHP();
+            this.fightNodes.head.fight.nextTurnEnemy = startDelay + FightConstants.getEnemyAttackTime(enemy) * Math.random();
+            this.fightNodes.head.fight.nextTurnPlayer = startDelay + FightConstants.getPlayerAttackTime(itemsComponent) * Math.random();
+            this.totalFightTime = 0;
+            
+            var playerStamina = this.playerStatsNodes.head.stamina;
+            playerStamina.resetHP();
+            
+            var enemyDamagePerSec = FightConstants.getEnemyDamagePerSec(enemy, playerStamina, itemsComponent);
+            var playerDamagePerSec = FightConstants.getPlayerDamagePerSec(enemy, playerStamina, itemsComponent);
+            var playerRandomDamagePerSec = FightConstants.getRandomDamagePerSec(enemy, playerStamina, itemsComponent);
+            var duration = Math.min(enemy.hp / enemyDamagePerSec, playerStamina.hp / (playerDamagePerSec + playerRandomDamagePerSec));
+            var winChance = FightConstants.getFightWinProbability(enemy, playerStamina, itemsComponent);
+            this.log("init fight | expected duration: " + Math.round(duration*100)/100 + ", win chance: " + Math.round(winChance*100)/100);
+        },
+        
         applyFightStep: function (time) {
+            var fightTime = Math.min(time, 1);
+            this.totalFightTime += fightTime;
+            
             var itemsComponent = this.playerStatsNodes.head.entity.get(ItemsComponent);
             var enemy = this.fightNodes.head.fight.enemy;
             var playerStamina = this.playerStatsNodes.head.stamina;
-            
-            // calculate regular damage
-            var enemyDamage = FightConstants.getEnemyDamagePerSec(enemy, playerStamina, itemsComponent);
-            var playerDamage = FightConstants.getPlayerDamagePerSec(enemy, playerStamina, itemsComponent);
-            var playerRandomDamage = FightConstants.getRandomDamagePerSec(enemy, playerStamina, itemsComponent);
-            var secondsToComplete = Math.min(100 / enemyDamage, 100 / playerDamage);
-            
-            // calculate one-use-item effects
             var itemEffects = this.fightNodes.head.fight.itemEffects;
-            if (itemEffects.enemyStunnedSeconds > 0) {
-                playerDamage = 0;
-            }
-            itemEffects.enemyStunnedSeconds -= time;
+            
+            // item effects: stun
+            itemEffects.enemyStunnedSeconds -= fightTime;
             itemEffects.enemyStunnedSeconds = Math.max(itemEffects.enemyStunnedSeconds, 0);
+            
+            // player turn
+            var enemyDamage = 0;
+            var enemyChange = 0;
+            this.fightNodes.head.fight.nextTurnPlayer -= fightTime;
+            if (this.fightNodes.head.fight.nextTurnPlayer <= 0) {
+                var isMiss = Math.random() < FightConstants.getMissChance(FightConstants.PARTICIPANT_TYPE_FRIENDLY);
+                if (!isMiss) {
+                    enemyDamage = FightConstants.getEnemyDamagePerAttack(enemy, playerStamina, itemsComponent);
+                    var attackTime = FightConstants.getPlayerAttackTime(itemsComponent);
+                    this.fightNodes.head.fight.nextTurnPlayer = attackTime;
+                    this.fightNodes.head.fight.nextTurnEnemy += Math.min(FightConstants.HIT_STUN_TIME, attackTime * 0.75);
+                    enemyChange = this.getFinalDamage(enemyDamage, FightConstants.PARTICIPANT_TYPE_FRIENDLY);
+                    this.log("player hit: " + enemyChange);
+                } else {
+                    this.log("player missed");
+                }
+            }
+            
+            // enemy turn
+            var playerDamage = 0;
+            var playerRandomDamage = 0;
+            var playerChange = 0;
+            if (itemEffects.enemyStunnedSeconds <= 0) {
+                this.fightNodes.head.fight.nextTurnEnemy -= fightTime;
+                if (this.fightNodes.head.fight.nextTurnEnemy <= 0) {
+                    var isMiss = Math.random() < FightConstants.getMissChance(FightConstants.PARTICIPANT_TYPE_ENEMY);
+                    if (!isMiss) {
+                        playerDamage = FightConstants.getPlayerDamagePerAttack(enemy, playerStamina, itemsComponent);
+                        playerRandomDamage = FightConstants.getRandomDamagePerAttack(enemy, playerStamina, itemsComponent);
+                        var attackTime = FightConstants.getEnemyAttackTime(enemy);
+                        this.fightNodes.head.fight.nextTurnEnemy = attackTime;
+                        this.fightNodes.head.fight.nextTurnPlayer += Math.min(FightConstants.HIT_STUN_TIME, attackTime * 0.75);
+                        playerChange = this.getFinalDamage(playerDamage + playerRandomDamage, FightConstants.PARTICIPANT_TYPE_ENEMY);
+                        this.log("enemy hit: " + playerChange + " (" + Math.round(playerRandomDamage * 100)/100 + ")");
+                    } else {
+                        this.log("enemy missed");
+                    }
+                }
+            } else {
+                this.log("enemy stunned");
+            }
+            
+            // item effects: extra damage
+            var extraEnemyDamage = 0;
+            if (itemEffects.damage > 0) {
+                extraEnemyDamage += itemEffects.damage;
+                itemEffects.damage = 0;
+                this.log("item damage: " + extraEnemyDamage);
+            }
 
             // apply effects
-            var timeFactor = secondsToComplete / FightConstants.FIGHT_LENGTH_SECONDS;            
-            enemy.hp -= (enemyDamage) * time * timeFactor;
-            playerStamina.hp -= (playerDamage + playerRandomDamage) * time * timeFactor;
+            enemy.hp -= (enemyChange + extraEnemyDamage);
+            enemy.hp = Math.max(enemy.hp, 0);
+            playerStamina.hp -= playerChange;
+            playerStamina.hp = Math.max(playerStamina.hp, 0);
+            
+            if (playerChange !== 0 || enemyChange !== 0) {
+                GlobalSignals.fightUpdateSignal.dispatch(playerChange, enemyChange);
+            }
+        },
+        
+        getFinalDamage: function (value, participantType) {
+            if (value <= 0) return 0;
+            var result = value;
+            if (result < 1) result = 1;
+            if (Math.random() < FightConstants.getGoodHitChance(participantType))
+                result = result * 1.15;
+            else if (Math.random() < FightConstants.getPoorHitChance(participantType))
+                result = result * 0.85;
+            else if (Math.random() < FightConstants.getCriticalHitChance(participantType))
+                result = result * 1.5;
+            return Math.round(result * 4)/4;
         },
         
         endFight: function () {
@@ -87,37 +181,42 @@ define([
             var enemy = this.fightNodes.head.fight.enemy;
             var playerStamina = this.playerStatsNodes.head.stamina;
             var won = playerStamina.hp > enemy.hp;
-            var cleared = false;
             
-            if (won) {
-                var sectorControlComponent = sector.get(SectorControlComponent);
-				var encounterComponent = sector.get(FightEncounterComponent);
-				var baseActionID = GameGlobals.playerActionsHelper.getBaseActionID(encounterComponent.context);
-				var localeId = FightConstants.getEnemyLocaleId(baseActionID, encounterComponent.context);
-				sectorControlComponent.addWin(localeId);
-				
-				var relatedSectorDirection = FightConstants.getRelatedSectorDirection(baseActionID, encounterComponent.context);
-				if (relatedSectorDirection !== PositionConstants.DIRECTION_NONE) {
-					var relatedSectorPosition = PositionConstants.getPositionOnPath(sector.get(PositionComponent).getPosition(), relatedSectorDirection, 1);
-					var relatedSector = GameGlobals.levelHelper.getSectorByPosition(relatedSectorPosition.level, relatedSectorPosition.sectorX, relatedSectorPosition.sectorY);
-					var relatedSectorControlComponent = relatedSector.get(SectorControlComponent);
-					var relatedSectorLocaleId = FightConstants.getEnemyLocaleId(baseActionID, encounterComponent.context, true);
-					relatedSectorControlComponent.addWin(relatedSectorLocaleId);
-				}
-            }
-            
-            this.addFightRewardsAndPenalties(won, cleared, enemy);
-            
-            enemy.hp = 100;
-            playerStamina.hp = 100;
-            this.fightNodes.head.fight.won = won;
-            this.fightNodes.head.fight.finished = true;
+            this.fightNodes.head.fight.finishedPending = true;
+            setTimeout(function () {
+                if (won) {
+                    var sectorControlComponent = sector.get(SectorControlComponent);
+    				var encounterComponent = sector.get(FightEncounterComponent);
+                    if (encounterComponent.gangComponent) {
+                        encounterComponent.gangComponent.addWin();
+                    } else {
+        				var baseActionID = GameGlobals.playerActionsHelper.getBaseActionID(encounterComponent.context);
+        				var localeId = FightConstants.getEnemyLocaleId(baseActionID, encounterComponent.context);
+        				sectorControlComponent.addWin(localeId);
+                    }
+                }
+                
+                this.fightNodes.head.fight.resultVO = GameGlobals.playerActionResultsHelper.getFightRewards(won);
+                this.playerStatsNodes.head.entity.add(new PlayerActionResultComponent(this.fightNodes.head.fight.resultVO));
+                
+                enemy.resetHP();
+                playerStamina.resetHP();
+                this.fightNodes.head.fight.won = won;
+                this.fightNodes.head.fight.finished = true;
+            }.bind(this), 700);
         },
         
-        addFightRewardsAndPenalties: function (won, cleared, enemy) {
-            this.fightNodes.head.fight.resultVO = GameGlobals.playerActionResultsHelper.getFightRewards(won);
-            this.playerStatsNodes.head.entity.add(new PlayerActionResultComponent(this.fightNodes.head.fight.resultVO));
+        fleeFight: function () {
+            var enemy = this.fightNodes.head.fight.enemy;
+            var playerStamina = this.playerStatsNodes.head.stamina;
+            enemy.resetHP();
+            playerStamina.resetHP();
+            this.fightNodes.head.fight.fled = true;
         },
+        
+        log: function (msg) {
+            log.i("[" + Math.round(this.totalFightTime * 100)/100 + "] " + msg, this);
+        }
         
     });
 

@@ -4,6 +4,7 @@ define(['ash'], function (Ash) {
         1: [ "Hole", "Elevator" ],
 		2: [ "Elevator", "Elevator" ],
 		3: [ "Stairwell", "Stairwell" ],
+		4: [ "Stairwell", "Stairwell" ],
     };
     
     var PassageVO = Ash.Class.extend({
@@ -11,7 +12,7 @@ define(['ash'], function (Ash) {
         constructor: function (type) {
 			this.type = type;
 			
-			if (!passageTypes[type]) console.log("WARN: No such passage type: " + type);
+			if (!passageTypes[type]) log.w("No such passage type: " + type);
 			
 			this.name = passageTypes[type][0];
             this.nameRepaired = passageTypes[type][1];

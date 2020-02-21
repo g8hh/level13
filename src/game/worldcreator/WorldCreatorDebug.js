@@ -4,7 +4,7 @@ define(['ash',], function (Ash) {
     var WorldCreatorDebug = {
 		
 		printWorld: function (worldVO, keys) {
-			console.log("Print world, seed: " + worldVO.seed + ", attributes: " + keys)
+			log.i("Print world, seed: " + worldVO.seed + ", attributes: " + keys)
 			var print = "";
 			var levelVO;
 			var sectorVO;
@@ -45,15 +45,15 @@ define(['ash',], function (Ash) {
 				}
 				print = print.substring(0, print.length - 1);
 				print += "\n\n";
-                console.log(print);
+                log.i(print);
                 print = "";
 			}
-			//console.log(print.trim());
+			//log.i(print.trim());
 		},
 		
 		printLevel: function (woldVO, levelVO) {
-			console.log("Print level, seed: " + woldVO.seed + ", level: " + levelVO.level + ", total sectors: " + levelVO.sectors.length + ", bounds: " + levelVO.minX + "." + levelVO.minY + "-" + levelVO.maxX + "." + levelVO.maxY);
-            console.log("central area: " + levelVO.centralAreaSize + ", bag size: " + levelVO.bagSize);
+			log.i("Print level, seed: " + woldVO.seed + ", level: " + levelVO.level + ", total sectors: " + levelVO.sectors.length + ", bounds: " + levelVO.minX + "." + levelVO.minY + "-" + levelVO.maxX + "." + levelVO.maxY);
+            log.i("central area: " + levelVO.centralAreaSize + ", bag size: " + levelVO.bagSize);
 			var print = "\t";
 		
 			for (var x = levelVO.minX; x <= levelVO.maxX; x++) {
@@ -64,21 +64,48 @@ define(['ash',], function (Ash) {
 				print += "\n";
 				print += y + "\t";
 				for (var x = levelVO.minX; x <= levelVO.maxX; x++) {
+                    var zonePoint = levelVO.getZonePoint(x, y);
 					if (levelVO.hasSector(x, y)) {
                         var sectorVO = levelVO.getSector(x, y);
-                        if (sectorVO.passageUp)
+                        var criticalPath = sectorVO.getCriticalPathC();
+                        var zone = sectorVO.getZoneC();
+                        if (sectorVO.passageUp && sectorVO.passageDown)
+                            print += "O ";
+                        else if (sectorVO.passageUp)
                             print += "U ";
-                        if (sectorVO.passageDown)
+                        else if (sectorVO.passageDown)
                             print += "D ";
+                        else if (sectorVO.camp)
+                            print += "C ";
+                        /*
+                        else if (zonePoint)
+                            print += "P ";
+                        */
+                        /*
+                        else if (sectorVO.locales.length > 0)
+                            print += "L ";
+                        */
+                        /*
+                        else if (criticalPath >= 0)
+                            print += criticalPath + " ";
+                        */
+                        else if (zone >= 0)
+                            print += zone + " ";
                         else
                             print += "+ ";
-					} else if (levelVO.isCentral(x, y))
-						print += "· ";
-					else
-						print += "  ";
+					} else {
+                        /*
+                        if (zonePoint)
+                            print += "P ";
+                        else
+                    */if (levelVO.isCentral(x, y))
+                            print += "· ";
+                       else
+                            print += "  ";
+                    }
 				}
 			}
-			console.log(print);
+			log.i(print);
 		},
         
     };

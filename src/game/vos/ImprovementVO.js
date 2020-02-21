@@ -5,7 +5,6 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 		collector_food: "Trap",
 		collector_water: "Bucket",
 		
-		bridge: "Bridge",
 		passageUpStairs: "Staircase Up",
 		passageUpElevator: "Elevator Up (Repair)",
 		passageUpHole: "Elevator Up (Build)",
@@ -26,7 +25,7 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
         generator: "Generator",
 		tradepost: "Trading post",
 		inn: "Inn",
-		apothecary: "Apothecary shop",
+		apothecary: "Apothecary",
 		smithy: "Smithy",
 		cementmill: "Cement mill",
 		library: "Library",
@@ -55,6 +54,7 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
         constructor: function (name) {
 			this.name = name;
 			this.count = 0;
+            this.level = 1;
 			
 			this.initStorage();
 		},
@@ -79,7 +79,7 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 		},
         
         getReputationBonus: function () {
-            return getImprovementReputationBonus(this.name);
+            return getImprovementReputationBonus(this.name, this.level);
         },
         
         getKey: function () {
@@ -121,7 +121,6 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
         switch (name) {
             case improvementNames.collector_food:
             case improvementNames.collector_water:
-            case improvementNames.bridge:
             case improvementNames.spaceship1:
             case improvementNames.spaceship2:
             case improvementNames.spaceship3:
@@ -138,8 +137,9 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
         }
     };
     
-    getImprovementReputationBonus = function (name) {
+    getImprovementReputationBonus = function (name, level) {
         if (getImprovementType(name) == improvementTypes.level) return 0;
+        level = level || 1;
         switch (name) {
             case improvementNames.home:
             case improvementNames.apothecary:
@@ -149,18 +149,27 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
             case improvementNames.fortification:
             case improvementNames.fortification2:
             case improvementNames.storage:
+            case improvementNames.stable:
                 return 0;
+            case improvementNames.house:
+            case improvementNames.house2:
             case improvementNames.darkfarm:
+            case improvementNames.library:
+            case improvementNames.lights:
+            case improvementNames.generator:
+                return 0.5;
             case improvementNames.inn:
             case improvementNames.market:
             case improvementNames.tradepost:
+                return 1;
             case improvementNames.campfire:
+            case improvementNames.hospital:
                 return 2;
             case improvementNames.shrine:
                 return 3;
             case improvementNames.square:
             case improvementNames.garden:
-                return 5;
+                return 1.9 + level * 0.1;
             default:
                 return 1;
         }

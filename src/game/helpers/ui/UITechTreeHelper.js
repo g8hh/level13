@@ -1,11 +1,13 @@
 // Creates and updates maps (mini-map and main)
 define(['ash',
+    'utils/CanvasUtils',
     'game/GameGlobals',
     'game/constants/CanvasConstants',
+    'game/constants/ColorConstants',
     'game/constants/PlayerActionConstants',
     'game/constants/UpgradeConstants',
     'game/nodes/tribe/TribeUpgradesNode'],
-function (Ash, GameGlobals, CanvasConstants, PlayerActionConstants, UpgradeConstants, TribeUpgradesNode) {
+function (Ash, CanvasUtils, GameGlobals, CanvasConstants, ColorConstants, PlayerActionConstants, UpgradeConstants, TribeUpgradesNode) {
     
     var UITechTreeNode = Ash.Class.extend({
         
@@ -72,7 +74,7 @@ function (Ash, GameGlobals, CanvasConstants, PlayerActionConstants, UpgradeConst
                             requiredNode.requiredByByLevel[node.level] = [];
                         requiredNode.requiredByByLevel[node.level].push(node);
                     } else {
-                        console.log("WARN: Missing required node: " + requiredId);
+                        log.w("Missing required node: " + requiredId);
                     }
                 }
             }
@@ -189,7 +191,7 @@ function (Ash, GameGlobals, CanvasConstants, PlayerActionConstants, UpgradeConst
         
         refreshCanvas: function (vis) {
             this.canvas = vis.$canvas[0];
-            this.ctx = this.canvas ? this.canvas.getContext && this.canvas.getContext('2d') : null;
+            this.ctx = CanvasUtils.getCTX(vis.$canvas);
             
             if (!this.ctx)
                 return;
@@ -197,7 +199,7 @@ function (Ash, GameGlobals, CanvasConstants, PlayerActionConstants, UpgradeConst
             this.ctx.canvas.width = vis.dimensions.canvasWidth;
             this.ctx.canvas.height = vis.dimensions.canvasHeight;
             this.ctx.clearRect(0, 0, this.canvas.scrollWidth, this.canvas.scrollWidth);
-            this.ctx.fillStyle = CanvasConstants.getBackgroundColor(vis.sunlit);
+            this.ctx.fillStyle = ColorConstants.getColor(vis.sunlit, "bg_page");
             this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
 			for (var i = 0; i < vis.tree.roots.length; i++) {
@@ -234,7 +236,7 @@ function (Ash, GameGlobals, CanvasConstants, PlayerActionConstants, UpgradeConst
             var $div = $("<div class='canvas-overlay-cell upgrades-overlay-cell' style='top: " + ypx + "px; left: " + xpx + "px' " + data +"><p>" + text +"</p></div>");
             var helper = this;
             $div.click(function (e) {
-                console.log("tech selected: " + node.definition.id);
+                log.i("tech selected: " + node.definition.id);
                 vis.selectedID = node.definition.id;
                 vis.selectioncb();
             });
@@ -277,7 +279,7 @@ function (Ash, GameGlobals, CanvasConstants, PlayerActionConstants, UpgradeConst
             var gridX = Math.round(x*grids) / grids;
             var gridY = Math.round(y*grids) / grids;
             if (!tree.grid[gridY]) tree.grid[gridY] = {};
-            if (this.isOccupiedArea(tree, gridX, gridY, 0.5, 0.5)) console.log("WARN: Overlapping position: " + gridX + "-" + gridY + " " + node.definition.name);
+            if (this.isOccupiedArea(tree, gridX, gridY, 0.5, 0.5)) log.w("Overlapping position: " + gridX + "-" + gridY + " " + node.definition.name);
             tree.grid[gridY][gridX] = node;
         },
         
@@ -310,8 +312,8 @@ function (Ash, GameGlobals, CanvasConstants, PlayerActionConstants, UpgradeConst
                 
                 var j = 0;
                 while (this.isOccupiedArea(tree, childX, childY, 0.25, childYHeight/2)) {
-                    if (childY < 0) { console.log("break push due to 0"); break; }
-                    if (j > 100) { console.log("break push due to j"); break; }
+                    if (childY < 0) { log.i("break push due to 0"); break; }
+                    if (j > 100) { log.i("break push due to j"); break; }
                     childY += childYHeight / 2;
                     j++;
                 }
@@ -412,17 +414,7 @@ function (Ash, GameGlobals, CanvasConstants, PlayerActionConstants, UpgradeConst
             this.ctx.stroke();
             
             // arrowhead
-            var headlen = 8;
-            this.ctx.fillStyle = color;
-            this.ctx.lineWidth = 2;
-            this.ctx.beginPath();
-            this.ctx.moveTo(tox, toy);
-            this.ctx.lineTo(tox-headlen*Math.cos(angle-Math.PI/6),toy-headlen*Math.sin(angle-Math.PI/6));
-            this.ctx.moveTo(tox, toy);
-            this.ctx.lineTo(tox-headlen*Math.cos(angle+Math.PI/6),toy-headlen*Math.sin(angle+Math.PI/6));
-            this.ctx.lineTo(tox-headlen*Math.cos(angle-Math.PI/6),toy-headlen*Math.sin(angle-Math.PI/6));
-            this.ctx.fill();
-            this.ctx.closePath();
+            CanvasUtils.drawTriangle(this.ctx, color, 8, 8, tox, toy, angle);
         },
         
         makeTechTree: function () {
@@ -515,9 +507,9 @@ function (Ash, GameGlobals, CanvasConstants, PlayerActionConstants, UpgradeConst
             var def2 = toNode.definition;
             var highlight = this.isConnected(tree, fromNode.definition.id, highlightedID) && this.isConnected(tree, toNode.definition.id, highlightedID);
             if (!highlightedID || highlight) {
-                return sunlit ? "#999" : "#777";
+                return ColorConstants.getColor(sunlit, "techtree_arrow");
             } else {
-                return sunlit ? "#ccc" : "#555";
+                return ColorConstants.getColor(sunlit, "techtree_arrow_dimmed");
             }
         },
         
@@ -527,15 +519,15 @@ function (Ash, GameGlobals, CanvasConstants, PlayerActionConstants, UpgradeConst
             var highlight = definition.id == highlightedID || this.isConnected(tree, definition.id, highlightedID);
             if (!highlightedID || highlight) {
                 if (isUnlocked) {
-                    return sunlit ? "#999" : "#ccc";
+                    return ColorConstants.getColor(sunlit, "techtree_node_unlocked");
                 }
                 var isAvailable = GameGlobals.playerActionsHelper.checkRequirements(definition.id, false).value > 0;
                 if (isAvailable) {
-                    return sunlit ? "#ccc" : "#777";
+                    return ColorConstants.getColor(sunlit, "techtree_node_available");
                 }
-                return sunlit ? "#ccc" : "#777";
+                return ColorConstants.getColor(sunlit, "techtree_node_default");
             } else {
-                return sunlit ? "#eee" : "#444";
+                return ColorConstants.getColor(sunlit, "techtree_node_dimmed");
                 
             }
         },
@@ -547,9 +539,9 @@ function (Ash, GameGlobals, CanvasConstants, PlayerActionConstants, UpgradeConst
             if (!isUnlocked && isAvailable) {
                 var highlight = definition.id == highlightedID || this.isConnected(tree, definition.id, highlightedID);
                 if (!highlightedID || highlight) {
-                    return sunlit ? "#999" : "#ccc";
+                    return ColorConstants.getColor(sunlit, "techtree_node_unlocked");
                 } else {
-                    return sunlit ? "#ccc" : "#777";
+                    return ColorConstants.getColor(sunlit, "techtree_node_default");
                 }
             } else {
                 return this.getFillColor(tree, node, sunlit, highlightedID);

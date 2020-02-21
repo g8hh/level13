@@ -31,14 +31,15 @@ define([
             $("#checkbox-crafting-show-obsolete").change(function () {
                 sys.onObsoleteToggled();
             });
+            
+			this.initItemSlots();
+            this.initCraftingButtons();
 
 			return this;
 		},
 
 		addToEngine: function (engine) {
 			this.itemNodes = engine.getNodeList(ItemsNode);
-			this.initItemSlots();
-            this.initCraftingButtons();
             GlobalSignals.add(this, GlobalSignals.slowUpdateSignal, this.slowUpdate);
             GlobalSignals.add(this, GlobalSignals.tabChangedSignal, this.onTabChanged);
             GlobalSignals.add(this, GlobalSignals.inventoryChangedSignal, this.onInventoryChanged);
@@ -54,7 +55,7 @@ define([
                 var itemTypeName = ItemConstants.itemTypes[rawType];
                 var typeDisplay = ItemConstants.itemTypes[rawType].toLowerCase();
 				$(this).append("<span class='item-slot-type-empty'>" + typeDisplay + "</span>");
-				$(this).append("<span class='item-slot-type-equipped'>" + typeDisplay + "</span>");
+				$(this).append("<span class='item-slot-type-equipped vision-text'>" + typeDisplay + "</span>");
 				$(this).append("<span class='item-slot-name '></span>");
 				$(this).append("<div class='item-slot-image'></div>");
                 $(this).hover(function () {
@@ -88,11 +89,6 @@ define([
             }
             div = div + "</div>";
             $("#self-craft").append(div);
-            GameGlobals.uiFunctions.registerActionButtonListeners("#self-craft");
-            GameGlobals.uiFunctions.registerCollapsibleContainerListeners("#self-craft");
-            GameGlobals.uiFunctions.generateButtonOverlays("#self-craft");
-            GameGlobals.uiFunctions.generateCallouts("#self-craft");
-            GlobalSignals.elementCreatedSignal.dispatch();
         },
 
 		removeFromEngine: function (engine) {
@@ -152,7 +148,8 @@ define([
 
         updateBubble: function () {
             var isStatIncreaseAvailable = this.isStatIncreaseAvailable();
-            var newBubbleNumber = Math.max(0, this.numCraftableUnlockedUnseen + this.numCraftableAvailableUnseen);
+            var numImmediatelyUsable = this.getNumImmediatelyUsable();
+            var newBubbleNumber = Math.max(0, this.numCraftableUnlockedUnseen + this.numCraftableAvailableUnseen + numImmediatelyUsable);
             if (this.isStatIncreaseShown == isStatIncreaseAvailable && this.bubbleNumber === newBubbleNumber)
                 return;
                 
@@ -196,11 +193,10 @@ define([
                 for (var i in itemList) {
                     itemDefinition = itemList[i];
                     var actionName = "craft_" + itemDefinition.id;
-                    var costFactor = GameGlobals.playerActionsHelper.getCostFactor(actionName);
-                    var hasCosts = Object.keys(GameGlobals.playerActionsHelper.getCosts(actionName, costFactor)).length > 0;
+                    var hasCosts = Object.keys(GameGlobals.playerActionsHelper.getCosts(actionName)).length > 0;
 
                     if (isActive && !hasCosts) {
-                        console.log("WARN: Craftable item has no costs: " + itemDefinition.id);
+                        log.w("Craftable item has no costs: " + itemDefinition.id);
                     }
 
                     var trID = this.getItemCraftTRID(itemDefinition);
@@ -273,8 +269,11 @@ define([
                     itemDefinition = itemList[i];
                     if (itemDefinition.useable) {
                         var actionName = "use_item_" + itemDefinition.id;
-                        var reqsCheck = GameGlobals.playerActionsHelper.checkAvailability(actionName, false);
-                        if (reqsCheck) {
+                        var reqsCheck = GameGlobals.playerActionsHelper.checkRequirements(actionName, false);
+                        var isAvailable = GameGlobals.playerActionsHelper.checkAvailability(actionName, false);
+                        var costsCheck = GameGlobals.playerActionsHelper.checkCosts(actionName);
+                        var showItem = isAvailable || (costsCheck >= 1 && reqsCheck.reason == PlayerActionConstants.UNAVAILABLE_REASON_NOT_IN_CAMP);
+                        if (showItem) {
                             itemDefinitionList.push(itemDefinition);
                         }
                     }
@@ -291,7 +290,8 @@ define([
             for (var j = 0; j < itemDefinitionList.length; j++) {
                 var itemDefinition = itemDefinitionList[j];
                 var actionName = "use_item_" + itemDefinition.id;
-                tr = "<tr><td><button class='action multiline' action='" + actionName + "'>Use " + itemDefinition.name + "</button></td></tr>";
+                var actionVerb = itemDefinition.id.startsWith("cache_metal") ? "Disassemble" : "Use";
+                tr = "<tr><td><button class='action multiline' action='" + actionName + "'>" + actionVerb + " " + itemDefinition.name + "</button></td></tr>";
                 $("#self-use-items table").append(tr);
             }
 
@@ -508,32 +508,8 @@ define([
 
         isObsolete: function (itemVO) {
             var itemsComponent = this.itemNodes.head.items;
-            var equipped = itemsComponent.getEquipped(itemVO.type);
-
-            // if item is equippable but the player already has one, equipped or not -> obsolete
-            if (itemVO.equippable) {
-                var inCamp = this.itemNodes.head.entity.get(PositionComponent).inCamp;
-                var owned = itemsComponent.getUnique(inCamp);
-                for (var j = 0; j < owned.length; j++) {
-                    if (owned[j].id === itemVO.id) return true;
-                }
-            }
-
-            // if no equipped item of type -> not obsolete
-            if (equipped.length === 0) return false;
-
-            // if item bonus is higher than any bonus on the currently equipped item of the same type -> not obsolete
-            for (var bonusKey in ItemConstants.itemBonusTypes) {
-                var bonusType = ItemConstants.itemBonusTypes[bonusKey];
-                var itemBonus = itemVO.getBonus(bonusType);
-                for (var i = 0; i < equipped.length; i++)
-                    if (itemBonus > equipped[i].getBonus(bonusType)) {
-                        return false;
-                    }
-            }
-
-            // has equipped item of type and no bonus is higher -> obsolete
-            return true;
+            var inCamp = this.itemNodes.head.entity.get(PositionComponent).inCamp;
+            return GameGlobals.itemsHelper.isObsolete(itemVO, itemsComponent, inCamp);
         },
         
         isStatIncreaseAvailable: function () {
@@ -545,6 +521,17 @@ define([
                 if (comparison > 0) return true;
             }
             return false;
+        },
+        
+        getNumImmediatelyUsable: function () {
+            // TODO remove hardcoded item ids
+            var itemsComponent = this.itemNodes.head.items;
+            var inCamp = this.itemNodes.head.entity.get(PositionComponent).inCamp;
+            if (inCamp) {
+                return itemsComponent.getCountById("cache_metal_1", true) + itemsComponent.getCountById("cache_metal_2", true);
+            } else {
+                return 0;
+            }
         },
 
         getCraftableItemDefinitions: function () {

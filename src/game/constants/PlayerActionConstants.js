@@ -2,16 +2,11 @@
 define(['ash',
     'game/constants/GameConstants',
     'game/constants/CampConstants',
+    'game/constants/ImprovementConstants',
 ],
-function (Ash, GameConstants, CampConstants) {
-
-    var COST_SOURCE_CAMP = "camp";
-    var COST_SOURCE_DEFAULT = "default";
+function (Ash, GameConstants, CampConstants, ImprovementConstants) {
 
     var PlayerActionConstants = {
-
-            COST_SOURCE_CAMP: COST_SOURCE_CAMP,
-            COST_SOURCE_DEFAULT: COST_SOURCE_DEFAULT,
 
             requirements: {
 
@@ -44,7 +39,21 @@ function (Ash, GameConstants, CampConstants) {
                     health: 80,
                     sector: {
                         scouted: true,
+                        acessible_to_workers: true,
                     },
+                },
+                
+                clear_debris: {
+                    sector: {
+                        scouted: true,
+                        acessible_to_workers: true,
+                    },
+                },
+
+                bridge_gap: {
+                    upgrades: {
+                        unlock_building_bridge: true,
+                    }
                 },
 
                 use_spring: {
@@ -59,7 +68,17 @@ function (Ash, GameConstants, CampConstants) {
                 },
 
                 fight_gang: {
+                    vision: [50, -1],
                     health: 70,
+                },
+                
+                nap: {
+                    sector: {
+                        hasCamp: false,
+                    },
+                    excursion: {
+                        numNaps: [0, 1],
+                    }
                 },
 
                 send_caravan: {
@@ -84,6 +103,7 @@ function (Ash, GameConstants, CampConstants) {
                         blockerNorth: false,
                     },
                     busy: false,
+                    inCamp: false,
                 },
 
                 move_sector_south: {
@@ -92,6 +112,7 @@ function (Ash, GameConstants, CampConstants) {
                         blockerSouth: false,
                     },
                     busy: false,
+                    inCamp: false,
                 },
 
                 move_sector_east: {
@@ -100,6 +121,7 @@ function (Ash, GameConstants, CampConstants) {
                         blockerEast: false,
                     },
                     busy: false,
+                    inCamp: false,
                 },
 
                 move_sector_west: {
@@ -108,6 +130,7 @@ function (Ash, GameConstants, CampConstants) {
                         blockerWest: false,
                     },
                     busy: false,
+                    inCamp: false,
                 },
 
                 move_sector_ne: {
@@ -116,6 +139,7 @@ function (Ash, GameConstants, CampConstants) {
                         blockerNE: false,
                     },
                     busy: false,
+                    inCamp: false,
                 },
 
                 move_sector_se: {
@@ -124,6 +148,7 @@ function (Ash, GameConstants, CampConstants) {
                         blockerSE: false,
                     },
                     busy: false,
+                    inCamp: false,
                 },
 
                 move_sector_sw: {
@@ -132,6 +157,7 @@ function (Ash, GameConstants, CampConstants) {
                         blockerSW: false,
                     },
                     busy: false,
+                    inCamp: false,
                 },
 
                 move_sector_nw: {
@@ -140,6 +166,7 @@ function (Ash, GameConstants, CampConstants) {
                         blockerNW: false,
                     },
                     busy: false,
+                    inCamp: false,
                 },
 
                 move_level_up: {
@@ -207,15 +234,6 @@ function (Ash, GameConstants, CampConstants) {
                     },
                     sector: {
                         canHaveCamp: true,
-                    }
-                },
-
-                build_out_bridge: {
-                    improvements: {
-                        bridge: [0, 1],
-                    },
-                    upgrades: {
-                        unlock_building_bridge: true,
                     }
                 },
 
@@ -367,6 +385,11 @@ function (Ash, GameConstants, CampConstants) {
                     }
                 },
 
+                use_in_home: {
+                    maxStamina: false,
+                    busy: false,
+                },
+
                 build_in_house: {
                     improvements: {
                         camp: [1, -1],
@@ -378,17 +401,20 @@ function (Ash, GameConstants, CampConstants) {
                     improvements: {
                         camp: [1, -1],
                         campfire: [-1, 1],
+                    }
+                },
+                
+                improve_in_campfire: {
+                    improvements: {
+                        camp: [1, -1],
+                        campfire: [1, -1],
                     },
+                    population: [1, -1],
                 },
 
                 use_in_campfire: {
                     rumourpoolchecked: false,
                     population: [1, -1],
-                    busy: false,
-                },
-
-                use_in_home: {
-                    maxStamina: false,
                     busy: false,
                 },
 
@@ -411,6 +437,13 @@ function (Ash, GameConstants, CampConstants) {
                     },
                     upgrades: {
                         unlock_building_passage_staircase: true,
+                    }
+                },
+                
+                improve_in_square: {
+                    improvements: {
+                        camp: [1, -1],
+                        square: [1, -1],
                     }
                 },
 
@@ -452,7 +485,7 @@ function (Ash, GameConstants, CampConstants) {
                     },
                 },
 
-                build_in_tradingPost: {
+                build_in_tradepost: {
                     numCamps: 2,
                     improvements: {
                         tradepost: [0, 1],
@@ -501,6 +534,13 @@ function (Ash, GameConstants, CampConstants) {
                         population: [1, -1]
                     }
                 },
+                
+                use_in_market: {
+                    improvements: {
+                        market: [1, -1],
+                    },
+                    busy: false,
+                },
 
                 build_in_library: {
                     upgrades: {
@@ -510,6 +550,13 @@ function (Ash, GameConstants, CampConstants) {
                         house: [1, -1],
                         library: [-1, 1],
                     },
+                },
+                
+                improve_in_library: {
+                    improvements: {
+                        camp: [1, -1],
+                        library: [1, -1],
+                    }
                 },
 
                 build_in_house2: {
@@ -528,6 +575,13 @@ function (Ash, GameConstants, CampConstants) {
                     improvements: {
                         generator: [0, 1],
                         campfire: [1, -1],
+                    }
+                },
+                
+                improve_in_generator: {
+                    improvements: {
+                        camp: [1, -1],
+                        generator: [1, -1],
                     }
                 },
 
@@ -597,6 +651,14 @@ function (Ash, GameConstants, CampConstants) {
                         unlock_building_apothecary: true,
                     }
                 },
+                
+                improve_in_apothecary: {
+                    improvements: {
+                        camp: [1, -1],
+                        apothecary: [1, -1],
+                    }
+                    
+                },
 
                 build_in_smithy: {
                     improvements: {
@@ -606,6 +668,13 @@ function (Ash, GameConstants, CampConstants) {
                         unlock_building_smithy: true,
                     }
                 },
+                
+                improve_in_smithy: {
+                    improvements: {
+                        camp: [1, -1],
+                        smithy: [1, -1],
+                    }
+                },
 
                 build_in_cementmill: {
                     improvements: {
@@ -613,6 +682,13 @@ function (Ash, GameConstants, CampConstants) {
                     },
                     upgrades: {
                         unlock_building_cementmill: true,
+                    }
+                },
+                
+                improve_in_cementmill: {
+                    improvements: {
+                        camp: [1, -1],
+                        cementmill: [1, -1],
                     }
                 },
 
@@ -625,7 +701,7 @@ function (Ash, GameConstants, CampConstants) {
                     }
                 },
 
-                build_in_radio: {
+                build_in_radiotower: {
                     improvements: {},
                     upgrades: {
                         unlock_building_radio: true
@@ -638,214 +714,270 @@ function (Ash, GameConstants, CampConstants) {
                 build_in_shrine: {
                     deity: true,
                 },
-
-                craft_light1: {
+                
+                craft_clothing_over_6: {
+                	upgrades: {
+                		unlock_item_clothing8: true
+                	}
                 },
-
-                craft_light2: {
-                    upgrades: {
-                        unlock_building_lights: true
-                    }
+                craft_weapon8: {
+                	upgrades: {
+                		unlock_item_weapon8: true
+                	}
                 },
-
-                craft_exploration_1: {
-                    upgrades: {
-                        unlock_item_shoe1: true,
-                    }
+                craft_clothing_lower_45: {
+                	upgrades: {
+                		unlock_building_spaceship3: true
+                	}
                 },
-
-                craft_first_aid_kit_1: {
-                    upgrades: {
-                        unlock_item_firstaid: true,
-                    }
+                craft_clothing_upper_45: {
+                	upgrades: {
+                		unlock_building_spaceship3: true
+                	}
                 },
-
-                craft_first_aid_kit_2: {
-                    upgrades: {
-                        upgrade_building_hospital: true,
-                    }
+                craft_bag_4: {
+                	upgrades: {
+                		unlock_item_bag_4: true
+                	}
                 },
-
-                craft_glowstick_1: {
-                    upgrades: {
-                        upgrade_worker_chemist: true,
-                    }
-                },
-
-                craft_weapon1: {
-                },
-
-                craft_weapon2: {
-                    upgrades: {
-                        unlock_item_weapon2: true,
-                    }
-                },
-
-                craft_weapon3: {
-                    upgrades: {
-                        unlock_building_smithy: true,
-                    }
-                },
-
-                craft_weapon4: {
-                    upgrades: {
-                        unlock_item_weapon4: true,
-                    }
-                },
-
-                craft_weapon5: {
-                    upgrades: {
-                        unlock_item_weapon5: true,
-                    }
-                },
-
-                craft_weapon6: {
-                    upgrades: {
-                        unlock_item_weapon6: true,
-                    }
-                },
-
                 craft_weapon7: {
+                	upgrades: {
+                		unlock_item_weapon7: true
+                	}
+                },
+                craft_clothing_head_5: {
+                	upgrades: {
+                		unlock_item_clothing_head_5: true
+                	}
+                },
+                craft_weapon6: {
+                	upgrades: {
+                		unlock_item_weapon6: true
+                	}
+                },
+                craft_first_aid_kit_2: {
+                	upgrades: {
+                		upgrade_building_hospital: true
+                	}
+                },
+                craft_clothing_lower_45: {
+                	upgrades: {
+                		unlock_itemclothing_lower_45: true
+                	}
+                },
+                craft_clothing_upper_45: {
+                	upgrades: {
+                		unlock_itemclothing_lower_45: true
+                	}
+                },
+                craft_weapon58: {
+                	upgrades: {
+                		unlock_item_weapon58: true
+                	}
+                },
+                craft_clothing_hands_4: {
+                	upgrades: {
+                		unlock_item_scavenger_gear: true
+                	}
+                },
+                craft_clothing_head_45: {
+                	upgrades: {
+                		unlock_item_scavenger_gear: true
+                	}
+                },
+                craft_clothing_over_45: {
+                	upgrades: {
+                		unlock_item_scavenger_gear: true
+                	}
+                },
+                craft_glowstick_1: {
+                	upgrades: {
+                		unlock_building_apothecary: true
+                	}
+                },
+                craft_consumable_weapon_1: {
                     upgrades: {
-                        unlock_item_weapon7: true,
+                        upgrade_worker_scavenger: true,
                     }
+                },
+                
+                craft_flee_1: {
+                    upgrades: {
+                        unlock_building_darkfarm: true,
+                    }
+                },
+                craft_weapon52: {
+                	upgrades: {
+                		unlock_item_weapon52: true
+                	}
+                },
+                craft_clothing_upper_4: {
+                	upgrades: {
+                		unlock_item_clothing6: true
+                	}
+                },
+                craft_clothing_lower_4: {
+                	upgrades: {
+                		unlock_item_clothing6: true
+                	}
+                },
+                craft_clothing_hands_3: {
+                	upgrades: {
+                		unlock_item_clothing3h: true
+                	}
+                },
+                craft_clothing_head_4: {
+                	upgrades: {
+                		unlock_item_clothing4he: true
+                	}
+                },
+                craft_bag_3: {
+                	upgrades: {
+                		unlock_item_bag3: true
+                	}
+                },
+                craft_weapon5: {
+                	upgrades: {
+                		unlock_item_weapon5: true
+                	}
+                },
+                craft_clothing_over_4: {
+                	upgrades: {
+                		unlock_item_clothing4: true
+                	}
+                },
+                craft_weapon4: {
+                	upgrades: {
+                		unlock_item_weapon4: true
+                	}
+                },
+                craft_clothing_over_3: {
+                	upgrades: {
+                		unlock_item_clothing5: true
+                	}
+                },
+                craft_clothing_head_3: {
+                	upgrades: {
+                		unlock_item_clothing5: true
+                	}
+                },
+                craft_clothing_upper_3: {
+                	upgrades: {
+                		unlock_item_clothing3: true
+                	}
+                },
+                craft_clothing_lower_3: {
+                	upgrades: {
+                		unlock_item_clothing3: true
+                	}
+                },
+                craft_clothing_hands_25: {
+                	upgrades: {
+                		unlock_item_clothing_hands_25: true
+                	}
+                },
+                craft_weapon3: {
+                	upgrades: {
+                		unlock_building_smithy: true
+                	}
+                },
+                craft_bag_2: {
+                	upgrades: {
+                		unlock_item_bag22: true
+                	}
+                },
+                craft_first_aid_kit_1: {
+                	upgrades: {
+                		unlock_item_firstaid: true
+                	}
+                },
+                craft_clothing_hands_2: {
+                	upgrades: {
+                		unlock_item_clothing4h: true
+                	}
+                },
+                craft_weapon25: {
+                	upgrades: {
+                		unlock_item_weapon25: true
+                	}
+                },
+                craft_light2: {
+                	upgrades: {
+                		unlock_building_lights: true
+                	}
+                },
+                craft_weapon2: {
+                	upgrades: {
+                		unlock_item_weapon2: true
+                	}
+                },
+                
+                craft_bag_1: {
+                	upgrades: {
+                		unlock_item_bag2: true
+                	}
+                },
+                craft_clothing_hands_12: {
+                	upgrades: {
+                		unlock_item_bag2: true
+                	}
+                },
+                craft_weapon12: {
+                	upgrades: {
+                		unlock_weapon_15: true
+                	}
+                },
+                craft_clothing_lower_15: {
+                	upgrades: {
+                		unlock_clothing_basic: true
+                	}
+                },
+                craft_clothing_upper_15: {
+                	upgrades: {
+                		unlock_clothing_basic: true
+                	}
+                },
+                craft_clothing_hands_1: {
+                	upgrades: {
+                		unlock_clothing_warm: true
+                	}
+                },
+                craft_clothing_head_1: {
+                	upgrades: {
+                		unlock_clothing_warm: true
+                	}
                 },
                 craft_clothing_over_1: {
-                    upgrades: {
-                        unlock_item_clothing2: true,
-                    }
+                	upgrades: {
+                		unlock_item_clothing2: true
+                	}
                 },
-
-                craft_clothing_over_4: {
-                    upgrades: {
-                        unlock_item_clothing4: true,
-                    }
+                craft_clothing_over_15: {
+                	upgrades: {
+                		unlock_item_bag2: true
+                	}
                 },
-
-                craft_clothing_over_6: {
-                    upgrades: {
-                        unlock_building_ceiling: true,
-                    }
-                },
-
-                craft_clothing_over_3: {
-                    upgrades: {
-                        unlock_item_clothing5: true,
-                    }
-                },
-
-                craft_clothing_upper_3: {
-                    upgrades: {
-                        unlock_item_clothing3: true
-                    }
-                },
-
-                craft_clothing_upper_4: {
-                    upgrades: {
-                        unlock_item_clothing6: true,
-                    }
-                },
-
                 craft_clothing_upper_5: {
-                    upgrades: {
-                        unlock_item_clothing5l: true
-                    }
+                	upgrades: {
+                		unlock_item_clothing5l: true
+                	}
                 },
-
-                craft_clothing_lower_3: {
-                    upgrades: {
-                        unlock_item_clothing3: true
-                    }
-                },
-
-                craft_clothing_lower_4: {
-                    upgrades: {
-                        unlock_item_clothing6: true,
-                    }
-                },
-
                 craft_clothing_lower_5: {
-                    upgrades: {
-                        unlock_item_clothing5l: true,
-                    }
+                	upgrades: {
+                		unlock_item_clothing5l: true
+                	}
                 },
-
-                craft_clothing_head_1: {
-                    upgrades: {
-                        unlock_clothing_warm: true,
-                    }
-                },
-
-                craft_clothing_head_3: {
-                    upgrades: {
-                        unlock_item_clothing5: true,
-                    }
-                },
-
-                craft_clothing_head_4: {
-                    upgrades: {
-                        unlock_item_clothing4he: true
-                    }
-                },
-
-                craft_clothing_head_5: {
-                    upgrades: {
-                        unlock_item_clothing7: true,
-                    }
-                },
-
-                craft_clothing_hands_1: {
-                    upgrades: {
-                        unlock_clothing_warm: true,
-                    }
-                },
-
-                craft_clothing_hands_2: {
-                    upgrades: {
-                        unlock_item_clothing4h: true
-                    }
-                },
-
-                craft_clothing_hands_3: {
-                    upgrades: {
-                        unlock_item_clothing3h: true,
-                    }
-                },
-
-                craft_clothing_hands_4: {
-                    upgrades: {
-                        unlock_item_clothing7: true,
-                    }
-                },
-
                 craft_shoe_1: {
-                    upgrades: {
-                        unlock_item_shoe1: true
-                    }
+                	upgrades: {
+                		unlock_item_shoe1: true
+                	}
                 },
-
                 craft_bag_0: {
-                    upgrades: {
-                        unlock_item_shoe1: true,
-                    }
+                	upgrades: {
+                		unlock_item_shoe1: true
+                	}
                 },
-
-                craft_bag_1: {
-                    upgrades: {
-                        unlock_item_bag2: true,
-                    }
-                },
-
-                craft_bag_2: {
-                    upgrades: {
-                        unlock_item_bag3: true
-                    }
-                },
-
-                craft_bag_4: {
-                    upgrades: {
-                        unlock_item_clothing8: true
-                    }
+                craft_exploration_1: {
                 },
 
                 use_item_glowstick_1: {
@@ -863,23 +995,119 @@ function (Ash, GameConstants, CampConstants) {
                         Injury: [0.05, 0.99, true],
                     },
                 },
+                
+                use_item_fight_consumable_weapon_1: {
+                    uses_in_fight: {
+                        consumable_weapon_1: [-1, 1],
+                    },
+                },
+                
+                use_item_fight_glowstick_1: {
+                    uses_in_fight: {
+                        glowstick_1: [-1, 1],
+                    },
+                },
+                
+                use_item_cache_metal_1: {
+                    inCamp: true,
+                },
+                
+                use_item_cache_metal_2: {
+                    inCamp: true,
+                },
 
                 create_blueprint: {
                     inCamp: true,
                 },
                 
+                unlock_item_clothing5l: {
+                    blueprint: 15,
+                	upgrades: {
+                		unlock_item_clothing_upper_4: true,
+                	}
+                },
+                
                 unlock_item_clothing8: {
                 	blueprint: 15,
                 	upgrades: {
-                		unlock_item_clothing7: true,
+                		unlock_item_clothing_upper_4: true,
                 	}
                 },
 
-                unlock_item_clothing5l: {
-                    blueprint: 15,
-                    upgrades: {
-                        unlock_item_clothing7: true,
-                    }
+                unlock_item_weapon8: {
+                	blueprint: 15,
+                	upgrades: {
+                		unlock_item_weapon6: true,
+                	}
+                },
+
+                unlock_building_ceiling: {
+                	blueprint: 15,
+                	upgrades: {
+                		upgrade_building_library2: true,
+                	}
+                },
+
+                unlock_building_spaceship1: {
+                	blueprint: 15,
+                	upgrades: {
+                		unlock_building_bridge: true,
+                	}
+                },
+
+                unlock_building_spaceship2: {
+                	blueprint: 15,
+                	upgrades: {
+                		unlock_building_bridge: true,
+                	}
+                },
+
+                unlock_building_spaceship3: {
+                	blueprint: 15,
+                	upgrades: {
+                		unlock_building_bridge: true,
+                	}
+                },
+
+                unlock_item_bag_4: {
+                	blueprint: 14,
+                	upgrades: {
+                		unlock_item_bag3: true,
+                	}
+                },
+
+                improve_building_market3: {
+                	blueprint: 14,
+                	upgrades: {
+                		unlock_building_radio: true,
+                	}
+                },
+
+                upgrade_building_cementmill: {
+                	blueprint: 14,
+                	upgrades: {
+                		unlock_building_cementmill: true,
+                	}
+                },
+
+                unlock_building_researchcenter: {
+                	blueprint: 14,
+                	upgrades: {
+                		upgrade_building_library2: true,
+                	}
+                },
+
+                unlock_item_weapon7: {
+                	blueprint: 14,
+                	upgrades: {
+                		upgrade_building_library2: true,
+                	}
+                },
+
+                unlock_item_clothing_head_5: {
+                	upgrades: {
+                		unlock_item_scavenger_gear: true,
+                	}
                 },
 
                 upgrade_building_apothecary: {
@@ -889,187 +1117,170 @@ function (Ash, GameConstants, CampConstants) {
                 	}
                 },
 
-                unlock_item_clothing8: {
-                    blueprint: 15,
-                    upgrades: {
-                        unlock_item_clothing7: true,
-                    }
-                },
-
-                unlock_building_ceiling: {
-                    blueprint: 15,
-                    upgrades: {
-                        upgrade_building_library2: true,
-                    }
-                },
-
-                improve_building_market3: {
-                    blueprint: 14,
-                    upgrades: {
-                        unlock_building_radio: true,
-                    }
-                },
-
-                upgrade_building_cementmill: {
-                    blueprint: 14,
-                    upgrades: {
-                        unlock_building_cementmill: true,
-                    }
-                },
-
-                unlock_building_researchcenter: {
-                    blueprint: 14,
-                    upgrades: {
-                        upgrade_building_library2: true,
-                    }
-                },
-
-                unlock_item_weapon7: {
-                    blueprint: 14,
-                    upgrades: {
-                        upgrade_building_library2: true,
-                    }
-                },
-
-                upgrade_building_hospital: {
-                    blueprint: 13,
-                    upgrades: {
-                        unlock_item_firstaid: true,
-                    }
-                },
-
-                unlock_item_clothing7: {
-                    blueprint: 13,
-                    upgrades: {
-                        upgrade_worker_chemist: true,
-                    }
-                },
-
                 unlock_item_weapon6: {
-                    blueprint: 13,
+                	blueprint: 13,
                 },
 
                 unlock_building_radio: {
-                    blueprint: 13,
+                	blueprint: 13,
                 },
 
-                upgrade_building_shrine: {
-                    upgrades: {
-                        unlock_building_apothecary: true,
-                    }
+                upgrade_building_hospital: {
+                	blueprint: 13,
+                	upgrades: {
+                		unlock_item_firstaid: true,
+                	}
                 },
 
-                unlock_item_bag3: {
-                    blueprint: 12,
+                unlock_itemclothing_lower_45: {
+                	upgrades: {
+                		unlock_item_scavenger_gear: true,
+                	}
+                },
+
+                unlock_item_weapon58: {
+                	blueprint: 12,
+                	upgrades: {
+                		unlock_item_weapon5: true,
+                	}
+                },
+
+                unlock_item_scavenger_gear: {
+                	blueprint: 12,
+                	upgrades: {
+                		upgrade_worker_chemist: true,
+                	}
                 },
 
                 upgrade_worker_chemist: {
-                    blueprint: 12,
-                    upgrades: {
-                        upgrade_building_library2: true,
-                    }
+                	blueprint: 12,
+                	upgrades: {
+                		upgrade_building_library2: true,
+                	}
+                },
+
+                unlock_item_clothing_upper_4: {
+                	upgrades: {
+                		unlock_item_clothing6: true,
+                	}
+                },
+
+                upgrade_building_shrine: {
+                	upgrades: {
+                		unlock_building_apothecary: true,
+                	}
+                },
+
+                unlock_item_weapon52: {
+                	blueprint: 11,
                 },
 
                 unlock_item_clothing6: {
-                    blueprint: 12,
-                },
-
-                unlock_item_clothing3h: {
-                    upgrades: {
-                        unlock_item_clothing4h: true,
-                    }
-                },
-
-                unlock_building_cementmill: {
-                    blueprint: 11,
-                    upgrades: {
-                        upgrade_building_library: true,
-                    }
-                },
-
-                unlock_item_weapon5: {
-                    blueprint: 11,
+                	blueprint: 11,
                 },
 
                 upgrade_building_storage2: {
-                    blueprint: 11,
-                    upgrades: {
-                        upgrade_building_storage1: true,
-                    }
+                	blueprint: 11,
+                	upgrades: {
+                		upgrade_building_storage1: true,
+                	}
                 },
 
                 upgrade_building_fortifications: {
-                    blueprint: 11,
-                    upgrades: {
-                        unlock_building_cementmill: true,
-                    }
+                	blueprint: 11,
+                	upgrades: {
+                		unlock_building_cementmill: true,
+                	}
                 },
 
-                unlock_building_apothecary: {
-                    upgrades: {
-                        upgrade_building_library: true,
-                    }
+                unlock_item_clothing3h: {
+                	upgrades: {
+                		unlock_item_clothing_hands_25: true,
+                	}
+                },
+
+                unlock_item_clothing4he: {
+                	blueprint: 11,
+                },
+
+                unlock_item_bag3: {
+                	blueprint: 10,
+                },
+
+                unlock_item_weapon5: {
+                	blueprint: 10,
                 },
 
                 unlock_building_aqueduct: {
-                    blueprint: 10,
-                    upgrades: {
-                        upgrade_worker_collector1: true,
-                    }
+                	blueprint: 10,
+                	upgrades: {
+                		upgrade_worker_collector1: true,
+                	}
                 },
 
                 unlock_item_clothing4: {
-                    blueprint: 10,
-                    upgrades: {
-                        unlock_item_shoe1: true,
-                    }
+                	blueprint: 10,
+                	upgrades: {
+                		unlock_item_shoe1: true,
+                	}
                 },
 
                 upgrade_building_library2: {
-                    blueprint: 10,
-                    upgrades: {
-                        unlock_building_apothecary: true,
-                    }
+                	blueprint: 10,
+                	upgrades: {
+                		unlock_building_apothecary: true,
+                	}
                 },
 
-                unlock_building_barracks: {
-                    upgrades: {
-                        unlock_building_fortifications: true,
-                    }
+                unlock_building_apothecary: {
+                	upgrades: {
+                		upgrade_building_library: true,
+                	}
                 },
 
                 upgrade_worker_trapper: {
-                    blueprint: 9,
+                	blueprint: 9,
                 },
 
-				unlock_item_clothing4he: {
+                unlock_building_barracks: {
                 	upgrades: {
-                		unlock_item_clothing4h: true,
+                		unlock_building_fortifications: true,
                 	}
-				},
+                },
+
+                upgrade_building_campfire: {
+                	blueprint: 9,
+                },
 
                 upgrade_building_inn: {
-                    upgrades: {
-                        upgrade_building_campfire: true,
-                    }
+                	upgrades: {
+                		upgrade_building_campfire: true,
+                	}
                 },
 
                 upgrade_building_market2: {
-                    blueprint: 8,
-                    upgrades: {
-                        upgrade_building_market: true,
-                    }
+                	blueprint: 8,
+                	upgrades: {
+                		upgrade_building_market: true,
+                	}
                 },
 
                 unlock_item_weapon4: {
-                    blueprint: 8,
+                	blueprint: 8,
+                },
+
+                unlock_item_clothing5: {
+                	blueprint: 8,
+                	upgrades: {
+                		unlock_building_smithy: true,
+                	}
                 },
 
                 unlock_item_clothing3: {
-                    blueprint: 8,
-                    upgrades: {
-                        unlock_building_passage_hole: true,
-                    }
+                	blueprint: 8,
+                	upgrades: {
+                		unlock_building_passage_hole: true,
+                	}
                 },
 
                 upgrade_outgoing_caravans: {
@@ -1078,123 +1289,130 @@ function (Ash, GameConstants, CampConstants) {
                 	}
                 },
 
-                unlock_item_clothing5: {
-                    blueprint: 7,
-                    upgrades: {
-                        unlock_building_smithy: true,
-                    }
-                },
-
-                unlock_building_bridge: {
-                    blueprint: 5,
-                    upgrades: {
-                        upgrade_worker_scavenger: true,
-                    }
-                },
-
-                unlock_building_spaceship1: {
-                    blueprint: 15,
-                    upgrades: {
-                        unlock_building_bridge: true,
-                    }
-                },
-
-                unlock_building_spaceship2: {
-                    blueprint: 15,
-                    upgrades: {
-                        unlock_building_bridge: true,
-                    }
-                },
-
-                unlock_building_spaceship3: {
-                    blueprint: 15,
-                    upgrades: {
-                        unlock_building_bridge: true,
-                    }
+                unlock_item_clothing_hands_25: {
+                	upgrades: {
+                		unlock_item_bag22: true,
+                	}
                 },
 
                 upgrade_building_storage1: {
-                    blueprint: 7,
-                },
-
-                unlock_item_firstaid: {
-                    upgrades: {
-                        upgrade_worker_collector1: true,
-                    }
-                },
-
-                unlock_item_clothing4h: {
-                    blueprint: 7,
-                    upgrades: {
-                        unlock_item_shoe1: true,
-                    }
-                },
-
-                upgrade_building_market: {
-                    blueprint: 6,
-                    upgrades: {
-                        unlock_building_market: true,
-                    }
-                },
-
-                unlock_building_smithy: {
-                    blueprint: 6,
-                    upgrades: {
-                        upgrade_building_library: true,
-                    }
-                },
-
-                upgrade_worker_collector1: {
-                    blueprint: 6,
-                    upgrades: {
-                        unlock_item_shoe1: true,
-                    }
-                },
-
-                unlock_building_house2: {
-                    upgrades: {
-                        unlock_building_passage_elevator: true,
-                    }
-                },
-
-                unlock_building_passage_elevator: {
-                    blueprint: 6,
-                    upgrades: {
-                        unlock_building_passage_staircase: true,
-                    }
-                },
-
-                unlock_item_bag2: {
-                    upgrades: {
-                        unlock_item_clothing2: true,
-                    }
-                },
-
-                upgrade_building_library: {
-                    upgrades: {
-                        unlock_building_library: true,
-                    }
-                },
-
-                unlock_item_weapon2: {
-                    blueprint: 4,
-                    upgrades: {
-                        unlock_item_shoe1: true,
-                    }
+                	blueprint: 7,
                 },
 
                 unlock_building_passage_hole: {
-                    blueprint: 7,
-                    upgrades: {
-                        unlock_building_passage_staircase: true,
-                    }
+                	blueprint: 7,
+                	upgrades: {
+                		unlock_building_passage_staircase: true,
+                	}
+                },
+
+                unlock_building_house2: {
+                	blueprint: 7,
+                	upgrades: {
+                		unlock_building_passage_elevator: true,
+                	}
+                },
+
+                unlock_building_smithy: {
+                	blueprint: 6,
+                	upgrades: {
+                		upgrade_building_library: true,
+                	}
+                },
+
+                unlock_item_bag2: {
+                	blueprint: 6,
+                	upgrades: {
+                		unlock_item_shoe1: true,
+                	}
+                },
+
+                unlock_item_bag22: {
+                	blueprint: 2,
+                	upgrades: {
+                		unlock_item_bag2: true,
+                	}
+                },
+
+                unlock_item_firstaid: {
+                	upgrades: {
+                		upgrade_worker_collector1: true,
+                	}
+                },
+
+                upgrade_building_market: {
+                	blueprint: 6,
+                	upgrades: {
+                		unlock_building_market: true,
+                	}
+                },
+
+                upgrade_worker_collector1: {
+                	blueprint: 6,
+                	upgrades: {
+                		unlock_item_shoe1: true,
+                	}
+                },
+
+                unlock_building_cementmill: {
+                	blueprint: 6,
+                	upgrades: {
+                		upgrade_building_library: true,
+                	}
+                },
+
+                unlock_item_clothing4h: {
+                	blueprint: 5,
+                	upgrades: {
+                		unlock_item_shoe1: true,
+                	}
+                },
+
+                unlock_building_passage_elevator: {
+                	blueprint: 5,
+                	upgrades: {
+                		unlock_building_passage_staircase: true,
+                	}
+                },
+
+                unlock_item_weapon25: {
+                	upgrades: {
+                		unlock_item_weapon2: true,
+                	}
+                },
+
+                unlock_building_bridge: {
+                	blueprint: 5,
+                	upgrades: {
+                		upgrade_worker_scavenger: true,
+                	}
+                },
+
+                upgrade_building_library: {
+                	upgrades: {
+                		unlock_building_library: true,
+                	}
+                },
+
+                unlock_building_lights: {
+                	blueprint: 5,
+                	upgrades: {
+                		unlock_building_darkfarm: true,
+                	}
+                },
+
+                unlock_item_weapon2: {
+                	blueprint: 4,
+                	upgrades: {
+                		unlock_item_shoe1: true,
+                	}
                 },
 
                 upgrade_worker_scavenger: {
-                    blueprint: 4,
-                    upgrades: {
-                        unlock_item_shoe1: true,
-                    }
+                	blueprint: 4,
+                	upgrades: {
+                		unlock_item_shoe1: true,
+                	}
                 },
 
                 unlock_outgoing_caravans: {
@@ -1204,69 +1422,85 @@ function (Ash, GameConstants, CampConstants) {
                 },
 
                 unlock_building_library: {
-                    blueprint: 3,
+                	blueprint: 3,
                 },
 
                 unlock_building_inn: {
-                    blueprint: 3,
-                    upgrades: {
-                        unlock_building_market: true,
-                    }
-                },
-
-                unlock_building_lights: {
-                    blueprint: 4,
+                	blueprint: 3,
+                	upgrades: {
+                		unlock_building_market: true,
+                	}
                 },
 
                 unlock_building_market: {
-                    blueprint: 3,
-                    upgrades: {
-                        unlock_building_tradingpost: true,
-                    }
+                	blueprint: 3,
+                	upgrades: {
+                		unlock_building_tradingpost: true,
+                	}
                 },
 
                 unlock_building_fortifications: {
-                   blueprint: 3,
-                    upgrades: {
-                        unlock_building_passage_staircase: true,
-                    }
+                	blueprint: 3,
+                	upgrades: {
+                		unlock_building_passage_staircase: true,
+                	}
+                },
+
+                unlock_item_bag2: {
+                	upgrades: {
+                		unlock_clothing_warm: true,
+                	}
+                },
+
+                unlock_weapon_15: {
+                	blueprint: 2,
+                	upgrades: {
+                		unlock_item_shoe1: true,
+                	}
+                },
+
+                unlock_clothing_basic: {
+                	upgrades: {
+                		unlock_item_shoe1: true,
+                	}
                 },
 
                 unlock_clothing_warm: {
-                    blueprint: 2,
-                    upgrades: {
-                        unlock_worker_rope: true,
-                    }
+                	blueprint: 2,
+                	upgrades: {
+                		unlock_worker_rope: true,
+                	}
                 },
 
                 unlock_building_darkfarm: {
-                    blueprint: 2,
+                	blueprint: 2,
                 },
 
                 unlock_building_tradingpost: {
-                    blueprint: 2,
+                	blueprint: 2,
                 },
 
                 unlock_item_clothing2: {
-                    upgrades: {
-                        unlock_item_shoe1: true,
-                    }
+                	upgrades: {
+                		unlock_item_shoe1: true,
+                	}
                 },
 
                 unlock_building_passage_staircase: {
-                    blueprint: 1,
+                	blueprint: 1,
                 },
 
                 unlock_building_hospital: {
-                    upgrades: {
-                        unlock_worker_rope: true,
-                    }
+                	upgrades: {
+                		unlock_worker_rope: true,
+                	}
                 },
 
                 unlock_worker_rope: {
                 },
 
                 unlock_item_shoe1: {
+                    blueprint: 2,
                 },
 
             },
@@ -1274,7 +1508,7 @@ function (Ash, GameConstants, CampConstants) {
             // structure: resource: cost
             // cost can be a simple number (baseCost) or a table with the following values
             // [baseCost, linearScale, e1Scale, e2Scale, requiredOrdinal]
-            // additional keys: cost_source, cost_factor_e1_base, cost_factor_e2_exp
+            // additional keys: cost_factor_e1_base, cost_factor_e2_exp
             // cost = baseCost + (linearScale * ordinal1) + (e1Scale * pow(e1Base, ordinal1-1)) + (e2Scale * (pow(ordinal2, e2Exp)))
 
             costs: {
@@ -1376,18 +1610,11 @@ function (Ash, GameConstants, CampConstants) {
                     resource_food: 2,
                 },
 
-                build_out_bridge: {
-                    resource_metal: 150,
-                    resource_rope: 150,
-                    cost_source: COST_SOURCE_CAMP,
-                },
-
                 build_out_spaceship1: {
                     resource_metal: 20000,
                     resource_rope: 3000,
                     resource_concrete: 10000,
                     resource_tools: 1000,
-                    cost_source: COST_SOURCE_CAMP,
                 },
 
                 build_out_spaceship2: {
@@ -1395,7 +1622,6 @@ function (Ash, GameConstants, CampConstants) {
                     resource_rope: 5000,
                     resource_concrete: 1000,
                     resource_tools: 2000,
-                    cost_source: COST_SOURCE_CAMP,
                 },
 
                 build_out_spaceship3: {
@@ -1405,15 +1631,13 @@ function (Ash, GameConstants, CampConstants) {
                     resource_fuel: 800,
                     resource_medicine: 3000,
                     resource_tools: 1000,
-                    cost_source: COST_SOURCE_CAMP,
                 },
 
                 build_out_passage_up_hole: {
                     resource_metal: [50, 100, 50, 5500, 0],
-                    resource_concrete: 10,
+                    resource_concrete: 50,
                     cost_factor_e1_base: 1.295,
                     cost_factor_e2_exp: 2.3,
-                    cost_source: COST_SOURCE_CAMP,
                 },
 
                 build_out_passage_up_stairs: {
@@ -1421,7 +1645,6 @@ function (Ash, GameConstants, CampConstants) {
                     resource_rope: 10,
                     cost_factor_e1_base: 1.295,
                     cost_factor_e2_exp: 2.3,
-                    cost_source: COST_SOURCE_CAMP,
                 },
 
                 build_out_passage_up_elevator: {
@@ -1429,15 +1652,13 @@ function (Ash, GameConstants, CampConstants) {
                     resource_fuel: 10,
                     cost_factor_e1_base: 1.295,
                     cost_factor_e2_exp: 2.3,
-                    cost_source: COST_SOURCE_CAMP,
                 },
 
                 build_out_passage_down_hole: {
                     resource_metal: [50, 100, 50, 5500, 0],
-                    resource_concrete: 10,
+                    resource_concrete: 50,
                     cost_factor_e1_base: 1.295,
                     cost_factor_e2_exp: 2.3,
-                    cost_source: COST_SOURCE_CAMP,
                 },
 
                 build_out_passage_down_stairs: {
@@ -1445,7 +1666,6 @@ function (Ash, GameConstants, CampConstants) {
                     resource_rope: 10,
                     cost_factor_e1_base: 1.295,
                     cost_factor_e2_exp: 2.3,
-                    cost_source: COST_SOURCE_CAMP,
                 },
 
                 build_out_passage_down_elevator: {
@@ -1453,7 +1673,6 @@ function (Ash, GameConstants, CampConstants) {
                     resource_fuel: 10,
                     cost_factor_e1_base: 1.295,
                     cost_factor_e2_exp: 2.3,
-                    cost_source: COST_SOURCE_CAMP,
                 },
 
                 build_out_collector_food: {
@@ -1463,16 +1682,26 @@ function (Ash, GameConstants, CampConstants) {
                 build_out_collector_water: {
                     resource_metal: 8
                 },
+                
+                clear_debris: {
+                    resource_rope: 50,
+                },
+
+                bridge_gap: {
+                    resource_metal: 150,
+                    resource_rope: 150,
+                },
 
                 build_in_house: {
                     resource_metal: 30,
-                    cost_factor_e1_base: 2.25,
+                    cost_factor_e1_base: 2,
                 },
 
                 build_in_house2: {
-                    resource_metal: 300,
-                    resource_rope: 25,
-                    cost_factor_e1_base: 1.5,
+                    resource_metal: 600,
+                    resource_rope: 20,
+                    resource_concrete: 100,
+                    cost_factor_e1_base: 1.75,
                 },
 
                 build_in_generator: {
@@ -1480,9 +1709,19 @@ function (Ash, GameConstants, CampConstants) {
                     resource_fuel: 100
                 },
 
+                improve_in_generator: {
+                    resource_metal: [0, 0, 20, 0, 0],
+                    resource_fuel: [10, 3, 2, 0, 0],
+                    resource_concrete: 10,
+                    resource_fuel: 10,
+                    cost_factor_e1_base: 1.5,
+                },
+
                 build_in_lights: {
                     resource_metal: 100,
                     resource_rope: 10,
+                    resource_concrete: 10,
+                    resource_fuel: 50,
                 },
 
                 build_in_ceiling: {
@@ -1492,6 +1731,7 @@ function (Ash, GameConstants, CampConstants) {
                 build_in_storage: {
                     resource_metal: [0, 0, 50, 0, 0],
                     resource_rope: [5, 2, 2, 0, 2],
+                    resource_concrete: [20, 2, 2, 0, 8],
                     cost_factor_e1_base: 1.65,
                     cost_factor_e1_base_outpost: 2.5,
                 },
@@ -1499,6 +1739,13 @@ function (Ash, GameConstants, CampConstants) {
                 build_in_campfire: {
                     resource_metal: 5,
                     resource_food: 10,
+                    cost_factor_e1_base: 2,
+                },
+
+                improve_in_campfire: {
+                    resource_metal: [2, 18, 10, 0, 0],
+                    resource_rope: [5, 5, 0, 0, 2],
+                    resource_food: 5,
                     cost_factor_e1_base: 2,
                 },
 
@@ -1510,8 +1757,15 @@ function (Ash, GameConstants, CampConstants) {
                 },
 
                 build_in_square: {
-                    resource_metal: 300,
+                    resource_metal: 200,
                     resource_rope: 100,
+                },
+                
+                improve_in_square: {
+                    resource_metal: [0, 0, 80, 0, 0],
+                    resource_rope: [0, 0, 20, 0, 0],
+                    resource_tools: [0, 0, 10, 0, 2],
+                    cost_factor_e1_base: 1.25,
                 },
 
                 build_in_garden: {
@@ -1522,13 +1776,13 @@ function (Ash, GameConstants, CampConstants) {
                 },
 
                 build_in_hospital: {
-                    resource_metal: 150,
+                    resource_metal: 120,
                     resource_rope: 30,
                 },
 
                 use_in_hospital: {
                     resource_water: 30,
-                    resource_food: 15,
+                    resource_food: 50,
                 },
 
                 use_in_hospital2: {
@@ -1536,21 +1790,21 @@ function (Ash, GameConstants, CampConstants) {
                     resource_food: 15,
                 },
 
-                build_in_tradingPost: {
-                    resource_metal: 78,
+                build_in_tradepost: {
+                    resource_metal: 72,
                 },
 
                 build_in_inn: {
                     resource_metal: 50,
                     resource_rope: 20,
-                    resource_fuel: 10,
+                    resource_fuel: 20,
                 },
 
                 use_in_inn: {
                 },
 
                 use_in_inn_select: {
-                    resource_food: 15,
+                    resource_food: 100,
                     resource_water: 15,
                     cost_factor_e1_base: 1.5,
                 },
@@ -1558,24 +1812,31 @@ function (Ash, GameConstants, CampConstants) {
                 build_in_market: {
                     resource_metal: 50,
                     resource_rope: 100,
+                    resource_fuel: 5,
                     cost_factor_e1_base: 1.5,
                 },
 
                 build_in_library: {
-                    resource_metal: 100,
-                    resource_rope: 100,
+                    resource_metal: 200,
+                    resource_rope: 150,
                     cost_factor_e1_base: 2,
+                },
+
+                improve_in_library: {
+                    resource_metal: [55, 20, 10, 0, 0],
+                    resource_rope: 50,
+                    cost_factor_e1_base: 1.8,
                 },
 
                 build_in_fortification: {
                     resource_metal: 350,
                     resource_rope: 100,
-                    cost_factor_e1_base: 1.75,
+                    cost_factor_e1_base: 1.5,
                 },
 
                 build_in_fortification2: {
                     resource_concrete: 100,
-                    cost_factor_e1_base: 1.75,
+                    cost_factor_e1_base: 1.5,
                 },
 
                 build_in_aqueduct: {
@@ -1584,15 +1845,16 @@ function (Ash, GameConstants, CampConstants) {
                 },
 
                 build_in_stable: {
-                    resource_metal: 100,
+                    resource_metal: 200,
                     resource_rope: 50,
+                    resource_fuel: 30,
                     cost_factor_e1_base: 1.75,
                 },
 
                 build_in_barracks: {
                     resource_metal: 100,
                     resource_rope: 50,
-                    resource_concrete: 50,
+                    resource_concrete: 200,
                     cost_factor_e1_base: 1.2,
                 },
 
@@ -1601,20 +1863,43 @@ function (Ash, GameConstants, CampConstants) {
                     resource_rope: 50,
                     cost_factor_e1_base: 1.5,
                 },
+                
+                improve_in_apothecary: {
+                    resource_metal: [30, 0, 5, 0, 0],
+                    resource_rope: [10, 0, 5, 0, 0],
+                    resource_tools: 10,
+                    cost_factor_e1_base: 2,
+                },
 
                 build_in_smithy: {
-                    resource_metal: 100,
+                    resource_metal: 200,
                     resource_rope: 50,
+                    resource_fuel: 10,
                     cost_factor_e1_base: 1.5,
+                },
+                
+                improve_in_smithy: {
+                    resource_metal: [30, 0, 5, 0, 0],
+                    resource_rope: [20, 0, 5, 0, 0],
+                    resource_tools: 10,
+                    cost_factor_e1_base: 2,
                 },
 
                 build_in_cementmill: {
                     resource_metal: 500,
-                    resource_rope: 50,
+                    resource_rope: 10,
+                    resource_fuel: 10,
                     cost_factor_e1_base: 1.5,
                 },
+                
+                improve_in_cementmill: {
+                    resource_metal: [40, 0, 5, 0, 0],
+                    resource_rope: [10, 0, 5, 0, 0],
+                    resource_tools: 10,
+                    cost_factor_e1_base: 2,
+                },
 
-                build_in_radio: {
+                build_in_radiotower: {
                     resource_metal: 500,
                     resource_rope: 50,
                     cost_factor_e1_base: 1.5,
@@ -1638,55 +1923,75 @@ function (Ash, GameConstants, CampConstants) {
                 craft_light2: {
                     resource_metal: 50,
                     resource_fuel: 20,
-                    item_res_matches: 2
+                    item_res_hairpin: 2,
                 },
 
                 craft_exploration_1: {
                     resource_metal: 5,
-                    item_res_silk: 1,
+                    item_res_hairpin: 1,
                 },
 
                 craft_first_aid_kit_1: {
-                    item_res_bands: 2,
+                    item_res_bands: 3,
                     resource_water: 10,
-                    resource_herbs: 10
-                },
-
-                craft_glowstick_1: {
-                    resource_metal: 2,
-                    resource_water: 10,
-                    resource_fuel: 10
+                    resource_herbs: 10,
+                    item_res_bottle: 1,
                 },
 
                 craft_first_aid_kit_2: {
-                    item_res_bands: 2,
-                    resource_water: 10,
-                    resource_medicine: 5,
+                    item_res_bands: 5,
+                    resource_water: 20,
+                    resource_medicine: 10,
+                    item_res_bottle: 3,
                 },
 
-                craft_shade1: {
+                craft_glowstick_1: {
+                    resource_fuel: 10,
+                    item_res_tape: 2,
+                    item_res_glowbug: 1,
+                },
+                
+                craft_consumable_weapon_1: {
                     resource_metal: 10,
                 },
-
-                craft_shade2: {
-                    resource_metal: 20,
+                
+                craft_flee_1: {
+                    resource_water: 5,
+                    item_res_tape: 1,
+                    item_res_bottle: 1,
                 },
 
                 craft_weapon1: {
                     resource_metal: 10,
-                    resource_rope: 1
+                    resource_rope: 1,
+                },
+
+                craft_weapon12: {
+                    resource_metal: 15,
+                    resource_rope: 5,
+                    item_res_bands: 2,
                 },
 
                 craft_weapon2: {
                     resource_metal: 20,
                     resource_rope: 10,
+                    item_res_bands: 3,
+                    item_res_tape: 1,
+                },
+
+                craft_weapon25: {
+                    resource_metal: 50,
+                    resource_rope: 10,
                     item_res_bands: 1,
+                    item_res_tape: 5,
                 },
 
                 craft_weapon3: {
                     resource_metal: 100,
                     resource_rope: 10,
-                    item_res_bands: 1,
+                    resource_tools: 2,
+                    item_res_tape: 1,
+                    item_res_bottle: 1,
                 },
 
                 craft_weapon4: {
@@ -1694,46 +1999,78 @@ function (Ash, GameConstants, CampConstants) {
                     resource_rope: 5,
                     resource_fuel: 5,
                     item_res_bands: 10,
+                    item_res_hairpin: 1,
                 },
 
                 craft_weapon5: {
                     resource_metal: 200,
                     resource_tools: 20,
                     resource_fuel: 50,
-                    item_res_bands: 50,
+                    item_res_bands: 10,
+                    item_res_hairpin: 1,
+                },
+                
+                craft_weapon52: {
+                    resource_metal: 100,
+                    item_res_leather: 1,
+                    item_res_tape: 5,
+                },
+                
+                craft_weapon58: {
+                    resource_metal: 100,
+                    resource_fuel: 10,
+                    item_res_bands: 10,
+                    item_res_hairpin: 1,
                 },
 
                 craft_weapon6: {
                     resource_metal: 300,
                     resource_tools: 50,
                     resource_fuel: 100,
-                    item_res_bands: 50,
+                    item_res_bands: 20,
+                    item_res_hairpin: 2,
                 },
 
                 craft_weapon7: {
                     resource_metal: 500,
                     resource_tools: 50,
                     resource_fuel: 100,
-                    item_res_bands: 75,
+                    item_res_bands: 20,
+                    item_res_tape: 5,
+                },
+
+                craft_weapon8: {
+                    resource_metal: 300,
+                    resource_tools: 50,
+                    resource_fuel: 100,
+                    item_res_bands: 20,
+                    item_res_hairpin: 3,
                 },
 
                 craft_clothing_head_1: {
                     resource_rope: 10,
+                    item_res_silk: 1,
                 },
 
                 craft_clothing_head_2: {
                     resource_rope: 50,
+                    item_res_silk: 1,
                 },
 
                 craft_clothing_head_3: {
                     resource_metal: 60,
-                    resource_rope: 10
+                    resource_rope: 10,
+                    item_res_tape: 3,
                 },
 
                 craft_clothing_head_4: {
-                    resource_metal: 20,
-                    resource_rope: 10,
-                    item_res_bands: 5
+                    item_res_bands: 5,
+                    item_res_bands: 5,
+                },
+
+                craft_clothing_head_45: {
+                    resource_rope: 50,
+                    item_res_silk: 2,
                 },
 
                 craft_clothing_head_5: {
@@ -1745,37 +2082,53 @@ function (Ash, GameConstants, CampConstants) {
                 },
 
                 craft_clothing_hands_1: {
-                    resource_rope: 10
+                    resource_rope: 10,
+                    item_res_silk: 1,
+                },
+
+                craft_clothing_hands_12: {
+                    resource_rope: 10,
+                    item_res_leather: 2,
                 },
 
                 craft_clothing_hands_2: {
                     resource_rope: 10,
-                    item_res_bands: 2
+                    item_res_leather: 3
+                },
+
+                craft_clothing_hands_25: {
+                    resource_rope: 20,
+                    resource_tools: 10,
+                    item_res_leather: 3,
+                    item_res_silk: 3,
                 },
 
                 craft_clothing_hands_3: {
-                    resource_rope: 10,
-                    item_res_bands: 3
+                    resource_rope: 20,
+                    item_res_leather: 3,
+                    item_res_silk: 5,
                 },
 
                 craft_clothing_hands_4: {
-                    resource_rope: 10,
-                    resource_tools: 1,
-                    item_res_silk: 10
+                    resource_rope: 20,
+                    item_res_tape: 5,
+                    item_res_silk: 5,
                 },
 
                 craft_clothing_over_1: {
                     resource_rope: 10,
+                    item_res_silk: 1
                 },
 
-                craft_clothing_over_2: {
-                    resource_metal: 5,
-                    resource_rope: 10,
-                    item_res_silk: 2
+                craft_clothing_over_15: {
+                    resource_rope: 30,
+                    item_res_leather: 5,
                 },
 
                 craft_clothing_over_3: {
-                    resource_metal: 50
+                    resource_metal: 50,
+                    item_res_tape: 1,
+                    item_res_bands: 2,
                 },
 
                 craft_clothing_over_4: {
@@ -1783,18 +2136,22 @@ function (Ash, GameConstants, CampConstants) {
                     resource_rope: 10,
                     item_res_silk: 10,
                 },
-
-                craft_clothing_over_5: {
-                    resource_metal: 20,
+                
+                craft_clothing_over_45: {
                     resource_rope: 10,
                     item_res_silk: 10,
+                    item_res_tape: 1,
                 },
 
                 craft_clothing_over_6: {
                     resource_metal: 100,
-                    resource_concrete: 10,
-                    item_res_medicine: 10,
+                    resource_fuel: 10,
                     item_res_silk: 10,
+                },
+                
+                craft_clothing_lower_15: {
+                    resource_rope: 10,
+                    item_res_leather: 1,
                 },
 
                 craft_clothing_lower_2: {
@@ -1803,382 +2160,451 @@ function (Ash, GameConstants, CampConstants) {
 
                 craft_clothing_lower_3: {
                     resource_rope: 20,
+                    item_res_silk: 2,
                 },
 
                 craft_clothing_lower_4: {
                     resource_rope: 20,
-                    resource_concrete: 10
+                    item_res_silk: 5,
+                },
+
+                craft_clothing_lower_45: {
+                    resource_rope: 50,
+                    item_res_silk: 3,
+                    item_res_bands: 5,
                 },
 
                 craft_clothing_lower_5: {
-                    resource_rope: 50
+                    resource_rope: 50,
+                    item_res_silk: 10,
                 },
 
                 craft_clothing_upper_1: {
                     resource_rope: 5
                 },
-
-                craft_clothing_upper_2: {
-                    resource_rope: 20
+                
+                craft_clothing_upper_15: {
+                    resource_rope: 10,
+                    item_res_silk: 1,
                 },
-
+                
                 craft_clothing_upper_3: {
-                    resource_rope: 30
+                    resource_rope: 30,
+                    item_res_silk: 3,
                 },
 
                 craft_clothing_upper_4: {
                     resource_rope: 30,
-                    item_res_silk: 2,
+                    item_res_silk: 5,
                 },
 
                 craft_clothing_upper_5: {
                     resource_rope: 5,
-                    resource_medicine: 10,
                     item_res_silk: 20
                 },
 
                 craft_shoe_1: {
                     resource_rope: 10,
+                    item_res_tape: 1,
+                    item_res_leather: 3,
                 },
 
                 craft_bag_0: {
                     resource_rope: 20,
+                    item_res_tape: 1,
                 },
 
                 craft_bag_1: {
-                    resource_rope: 100,
+                    resource_rope: 80,
+                    item_res_leather: 5,
                 },
 
                 craft_bag_2: {
                     resource_rope: 100,
                     resource_herbs: 10,
+                    item_res_leather: 10,
+                    item_res_bands: 3,
                 },
-
-                craft_bag_5: {
-                    resource_rope: 100,
-                    resource_herbs: 10,
-                    resource_fuel: 10,
-                },
-
+                
                 unlock_item_clothing5l: {
-                    rumours: 24882,
+                    rumours: 3418,
                 },
-
-                upgrade_building_apothecary: {
-					evidence: 117,
-					favour: 180,
-                },
-
+                
                 unlock_item_clothing8: {
-                    rumours: 14779,
+                	rumours: 3560,
+                },
+
+                unlock_item_weapon8: {
+                	evidence: 81,
+                	favour: 277,
                 },
 
                 unlock_building_ceiling: {
-                	rumours: 8868,
-                	evidence: 129,
-                },
-
-                improve_building_market3: {
-					rumours: 25976,
-					evidence: 127,
-					favour: 296,
-                },
-
-                upgrade_building_cementmill: {
-					evidence: 102,
-                },
-
-                unlock_building_researchcenter: {
-					evidence: 76,
-                },
-
-                unlock_item_weapon7: {
-					rumours: 31171,
-					evidence: 153,
-                },
-
-                upgrade_building_hospital: {
-					rumours: 11040,
-                },
-
-                unlock_item_clothing7: {
-					rumours: 12988,
-                },
-
-                unlock_item_weapon6: {
-					evidence: 99,
-                },
-
-                unlock_building_radio: {
-					rumours: 12988,
-					evidence: 117,
-                },
-
-				unlock_item_clothing4he: {
-					rumours: 2893,
-					favour: 11,
-				},
-
-                upgrade_building_shrine: {
-					rumours: 10105,
-					favour: 76,
-                },
-
-                unlock_item_bag3: {
-					rumours: 7579,
-                },
-
-                upgrade_worker_chemist: {
-					evidence: 322,
-					favour: 76,
-                },
-
-                unlock_item_clothing6: {
-					rumours: 10105,
-                },
-
-                unlock_item_clothing3h: {
-					rumours: 5071,
-                },
-
-                unlock_building_cementmill: {
-					evidence: 92,
-                },
-
-                unlock_item_weapon5: {
-					rumours: 3803,
-					evidence: 69,
-                },
-
-                upgrade_building_storage2: {
-					rumours: 5071,
-					evidence: 92,
-                },
-
-                upgrade_building_fortifications: {
-					rumours: 5071,
-                },
-
-                unlock_building_apothecary: {
-					favour: 91,
-                },
-
-                unlock_building_aqueduct: {
-					evidence: 104,
-                },
-
-                unlock_item_clothing4: {
-					evidence: 87,
-                },
-
-                upgrade_building_library2: {
-					rumours: 10504,
-					evidence: 87,
-                },
-
-                unlock_building_barracks: {
-					rumours: 2314,
-					favour: 9,
-                },
-
-                upgrade_worker_trapper: {
-					favour: 9,
-                },
-
-                upgrade_building_campfire: {
-					rumours: 2314,
-					evidence: 178,
-					favour: 9,
-                },
-
-                upgrade_building_inn: {
-					rumours: 2314,
-					favour: 9,
-                },
-
-                upgrade_building_market2: {
-					rumours: 1139,
-                },
-
-                unlock_item_weapon4: {
-					evidence: 162,
-                },
-
-                unlock_item_clothing3: {
-					rumours: 912,
-                },
-
-				upgrade_outgoing_caravans: {
-					rumours: 855,
-					favour: 58,
-				},
-
-                unlock_item_clothing5: {
-					rumours: 481,
-                },
-
-                unlock_building_bridge: {
-					evidence: 171,
+                	rumours: 2136,
+                	evidence: 61,
                 },
 
                 unlock_building_spaceship1: {
-                	rumours: 14779,
-                	evidence: 215,
+                	rumours: 3560,
+                	evidence: 101,
                 },
 
                 unlock_building_spaceship2: {
-        			rumours: 17735,
-        			evidence: 258,
+                	rumours: 4272,
+                	evidence: 122,
                 },
 
                 unlock_building_spaceship3: {
-					rumours: 17735,
-					evidence: 258,
+                	rumours: 4272,
+                	evidence: 122,
+                },
+
+                unlock_item_bag_4: {
+                	evidence: 88,
+                	favour: 48,
+                },
+
+                improve_building_market3: {
+                	rumours: 5724,
+                	evidence: 110,
+                	favour: 60,
+                },
+
+                upgrade_building_cementmill: {
+                	evidence: 88,
+                },
+
+                unlock_building_researchcenter: {
+                	evidence: 66,
+                },
+
+                unlock_item_weapon7: {
+                	rumours: 6869,
+                	evidence: 132,
+                },
+
+                unlock_item_clothing_head_5: {
+                	favour: 23,
+                },
+
+                upgrade_building_apothecary: {
+                	evidence: 142,
+                	favour: 30,
+                },
+
+                unlock_item_weapon6: {
+                	evidence: 121,
+                },
+
+                unlock_building_radio: {
+                	rumours: 2588,
+                	evidence: 142,
+                },
+
+                upgrade_building_hospital: {
+                	rumours: 2200,
+                },
+
+                unlock_itemclothing_lower_45: {
+                	rumours: 2588,
+                	favour: 30,
+                },
+
+                unlock_item_weapon58: {
+                	evidence: 131,
+                },
+
+                unlock_item_scavenger_gear: {
+                	rumours: 2210,
+                },
+
+                upgrade_worker_chemist: {
+                	evidence: 99,
+                	favour: 19,
+                },
+
+                unlock_item_clothing_upper_4: {
+                	rumours: 1989,
+                	evidence: 118,
+                	favour: 22,
+                },
+
+                upgrade_building_shrine: {
+                	rumours: 1768,
+                	favour: 20,
+                },
+
+                unlock_item_weapon52: {
+                	evidence: 124,
+                	favour: 13,
+                },
+
+                unlock_item_clothing6: {
+                	rumours: 1002,
+                },
+
+                upgrade_building_storage2: {
+                	rumours: 1113,
+                	evidence: 124,
+                },
+
+                upgrade_building_fortifications: {
+                	rumours: 1113,
+                },
+
+                unlock_item_clothing3h: {
+                	rumours: 1002,
+                	favour: 11,
+                },
+
+                unlock_item_clothing4he: {
+                	evidence: 93,
+                	favour: 9,
+                },
+
+                unlock_item_bag3: {
+                	rumours: 1048,
+                	evidence: 55,
+                },
+
+                unlock_item_weapon5: {
+                	rumours: 1398,
+                	evidence: 73,
+                },
+
+                unlock_building_aqueduct: {
+                	evidence: 88,
+                },
+
+                unlock_item_clothing4: {
+                	evidence: 73,
+                },
+
+                upgrade_building_library2: {
+                	rumours: 1538,
+                	evidence: 81,
+                },
+
+                unlock_building_apothecary: {
+                	favour: 35,
+                },
+
+                upgrade_worker_trapper: {
+                	favour: 4,
+                },
+
+                unlock_building_barracks: {
+                	rumours: 1499,
+                	favour: 4,
+                },
+
+                upgrade_building_campfire: {
+                	rumours: 1349,
+                	evidence: 301,
+                	favour: 3,
+                },
+
+                upgrade_building_inn: {
+                	rumours: 1499,
+                	favour: 4,
+                },
+
+                upgrade_building_market2: {
+                	rumours: 595,
+                	favour: 25,
+                },
+
+                unlock_item_weapon4: {
+                	evidence: 164,
+                },
+
+                unlock_item_clothing5: {
+                	rumours: 595,
+                	evidence: 164,
+                },
+
+                unlock_item_clothing3: {
+                	rumours: 476,
+                },
+
+                upgrade_outgoing_caravans: {
+                	rumours: 446,
+                	favour: 19,
+                },
+
+                unlock_item_clothing_hands_25: {
+                	rumours: 759,
                 },
 
                 upgrade_building_storage1: {
-					evidence: 96,
-                },
-
-                unlock_item_firstaid: {
-                   rumours: 577,
-                },
-
-                unlock_item_clothing4h: {
-                	rumours: 481,
-                	evidence: 64,
-                },
-
-                upgrade_building_market: {
-					rumours: 278,
-                },
-
-                unlock_building_smithy: {
-                    evidence: 64,
-                },
-
-                upgrade_worker_collector1: {
-					rumours: 278,
-                },
-
-                unlock_building_house2: {
-					rumours: 347,
-					evidence: 80,
-                },
-
-                unlock_building_passage_elevator: {
-					rumours: 278,
-					evidence: 64,
-                },
-
-                unlock_item_bag2: {
-					rumours: 184,
-                },
-
-                upgrade_building_library: {
-					rumours: 245,
-                },
-
-                unlock_item_weapon2: {
-                	rumours: 110,
-                	evidence: 55,
+                	evidence: 156,
                 },
 
                 unlock_building_passage_hole: {
-					evidence: 80,
+                	evidence: 115,
                 },
 
-                upgrade_worker_scavenger: {
-                	rumours: 110,
-                	evidence: 55,
+                unlock_building_house2: {
+                	rumours: 1265,
+                	evidence: 130,
                 },
 
-				unlock_outgoing_caravans: {
-					rumours: 110,
-				},
-
-                unlock_building_library: {
-					rumours: 24,
+                unlock_building_smithy: {
+                	evidence: 125,
                 },
 
-                unlock_building_inn: {
-                	rumours: 32,
-                	evidence: 84,
+                unlock_item_bag22: {
+                	evidence: 110,
+                },
+
+                unlock_item_firstaid: {
+                	rumours: 596,
+                },
+
+                upgrade_building_market: {
+                	rumours: 596,
+                },
+
+                upgrade_worker_collector1: {
+                	rumours: 745,
+                },
+
+                unlock_building_cementmill: {
+                	evidence: 110,
+                },
+
+                unlock_item_clothing4h: {
+                	rumours: 147,
+                	evidence: 54,
+                },
+
+                unlock_building_passage_elevator: {
+                	rumours: 195,
+                	evidence: 71,
+                },
+
+                unlock_item_weapon25: {
+                	rumours: 195,
+                },
+
+                unlock_building_bridge: {
+                	evidence: 89,
+                },
+
+                upgrade_building_library: {
+                	rumours: 166,
                 },
 
                 unlock_building_lights: {
-                    evidence: 69,
+                	evidence: 89,
+                },
+
+                unlock_item_weapon2: {
+                	rumours: 167,
+                	evidence: 109,
+                },
+
+                upgrade_worker_scavenger: {
+                	rumours: 208,
+                	evidence: 136,
+                },
+
+                unlock_outgoing_caravans: {
+                	rumours: 229,
+                },
+
+                unlock_building_library: {
+                	evidence: 91,
+                },
+
+                unlock_building_inn: {
+                	rumours: 60,
+                	evidence: 91,
                 },
 
                 unlock_building_market: {
-					rumours: 32,
+                	rumours: 60,
                 },
 
                 unlock_building_fortifications: {
-					rumours: 24,
-					evidence: 63,
+                	rumours: 54,
+                	evidence: 82,
+                },
+
+                unlock_item_bag2: {
+                	rumours: 54,
+                },
+
+                unlock_weapon_15: {
+                	rumours: 42,
+                    evidence: 62,
+                },
+
+                unlock_clothing_basic: {
+                	rumours: 33,
                 },
 
                 unlock_clothing_warm: {
-					evidence: 79,
+                	evidence: 46,
                 },
 
                 unlock_building_darkfarm: {
-					rumours: 29,
+                	rumours: 62,
                 },
 
                 unlock_building_tradingpost: {
-					rumours: 12,
-					evidence: 40,
+                	evidence: 31,
                 },
 
                 unlock_item_clothing2: {
-					evidence: 17,
+                	rumours: 8,
                 },
 
                 unlock_building_passage_staircase: {
-					evidence: 26,
+                	evidence: 43,
                 },
 
                 unlock_building_hospital: {
-					evidence: 12,
+                	evidence: 19,
                 },
 
                 unlock_worker_rope: {
-					rumours: 4,
+                	rumours: 8,
                 },
 
                 unlock_item_shoe1: {
-					rumours: 6,
+                	rumours: 17,
+                	evidence: 30,
                 },
 
             },
 
             cooldowns: {
                 scavenge: 10,
-                use_spring: 30,
+                use_spring: 60,
                 use_in_campfire: 60,
                 use_in_home: 180,
+                use_in_market: 300,
                 scout_locale_i: 60,
                 scout_locale_u: 60,
                 clear_workshop: 60,
                 fight_gang: 60,
                 send_caravan: 60 * 10,
                 use_in_inn: 60 * 30,
-                despair: 60,
-                nap: 120,
+                despair: 10
             },
 
             durations: {
                 use_in_hospital: 60 * 3,
                 use_in_campfire: 5,
+                use_in_market: 10,
                 use_in_home: 60,
                 send_caravan: 60 * 10
             },
 
             // [ base-value, vision-dependent-value ]
             randomEncounterProbabilities: {
-                scavenge: [0.01, 0.01],
+                scavenge: [0.02, 0.02],
                 scout_locale_i: [0.2, 0.1],
                 scout_locale_u: [0.1, 0.1],
                 use_spring: [0.1, 0.1],
@@ -2191,18 +2617,18 @@ function (Ash, GameConstants, CampConstants) {
             // [ base-value, vision-dependent-value ]
             injuryProbabilities: {
                 scout: [0.005, 0.01],
-                scavenge: [0.001, 0.005],
+                scavenge: [0.0005, 0.005],
                 despair: [0.75, 0], // TODO make dynamic and link to cases in FaintingSystem
             },
 
             loseInventoryProbabilities: {
-                scout: [0, 0.01],
-                scavenge: [0, 0.01],
+                scout: [0, 0.03],
+                scavenge: [0, 0.03],
                 despair: [0.75, 0], // TODO make dynamic and link to cases in FaintingSystem
             },
 
+            // build_in action descriptions are based on building descriptions on ImprovementConstants
             descriptions: {
-                build_in_home: "Set up camp.",
                 scout: "Scout the area for evidence.",
                 scout_locale_i: "Find out if there is anyone living here.",
                 scout_locale_u: "Scout for additional resources and evidence.",
@@ -2210,6 +2636,8 @@ function (Ash, GameConstants, CampConstants) {
                 investigate: "Look for resources.",
                 clear_workshop: "Scout the workshop to see if it can be used.",
                 clear_waste: "Clear the pollution.",
+                clear_debris: "Clear the debris blocking the way.",
+                bridge_gap: "Build a bridge to cross the gap",
                 enter_camp: "Rest and manage camp.",
                 use_spring: "Get water.",
                 fight_gang: "Clear the enemies blocking passage.",
@@ -2224,29 +2652,16 @@ function (Ash, GameConstants, CampConstants) {
                 build_out_collector_food: "Accumulates food.",
                 build_out_collector_water: "Accumulates water.",
                 build_out_camp: "A place to rest.",
-                build_in_house: "A place for " + CampConstants.POPULATION_PER_HOUSE + " people to stay.",
-                build_in_house2: "Houses " + CampConstants.POPULATION_PER_HOUSE2 + " people.",
-                build_in_storage: "Increases resource storage.",
-                build_in_generator: "Increases reputation bonus from housing (" + CampConstants.REPUTATION_PER_HOUSE_FROM_GENERATOR + "% per house)",
-                build_in_campfire: "Increases rumour generation and unlocks upgrades.",
-                build_in_library: "Accumulate and store more evidence.",
-                build_in_hospital: "Enables healing injuries.",
-                build_in_hospital2: "Improve your general health.",
-                build_in_inn: "Increases rumours and enables recruitment.",
-                build_in_darkfarm: "Produces food",
-                build_in_square: "A place to relax and socialize.",
-                build_in_garden: "A dash of beauty in the concrete desert.",
-                build_in_tradingPost: "Connect camps to a trade network.",
-                build_in_market: "Enables foreign traders to visit.",
-                build_in_barracks: "Allows 10 soldiers.",
-                build_in_lights: "Keep the darkness at bay for good.",
-                build_in_smithy: "Workspace for toolsmiths.",
-                build_in_aqueduct: "Water infrastructure to improve collecting efficiency.",
-                build_in_stable: "Space to set up a trading caravan.",
-                build_in_fortification: "Camp defences: +" + CampConstants.FORTIFICATION_1_DEFENCE,
-                build_in_fortification2: "Camp defences: +" + CampConstants.FORTIFICATION_2_DEFENCE,
+                improve_in_campfire: "Increase rumour generation",
+                improve_in_library: "Increase evidence generation",
+                improve_in_square: "Increase reputation bonus",
+                improve_in_generator: "Increase reputation bonus",
+                improve_in_apothecary: "Increase efficiency",
+                improve_in_smithy: "Increase efficiency",
+                improve_in_cementmill: "Increase efficiency",
                 use_in_home: "Recover stamina.",
                 use_in_campfire: "Collect rumours from the population.",
+                use_in_market: "Go hear the latest gossip.",
                 use_in_hospital: "Heal injuries.",
                 use_in_inn: "Recruit followers.",
                 use_item_glowstick_1: "Create a temporary light in this location.",
@@ -2264,6 +2679,7 @@ function (Ash, GameConstants, CampConstants) {
                 use_in_inn_cancel: false,
                 scavenge: true,
                 scout: true,
+                use_spring: true,
                 investigate: true,
                 clear_workshop: true,
                 despair: true,
@@ -2271,12 +2687,11 @@ function (Ash, GameConstants, CampConstants) {
 
             UNAVAILABLE_REASON_LOCKED_RESOURCES: "Requires undiscovered resources.",
             UNAVAILABLE_REASON_BAG_FULL: "Bag full.",
+            UNAVAILABLE_REASON_NOT_IN_CAMP: "Must be in camp to do this.",
             DISABLED_REASON_NOT_ENOUGH_LEVEL_POP: "Not enough people on this level.",
 
-            getCostSource: function (action) {
-                var rawSource = this.costs[action].cost_source;
-                if (rawSource) return rawSource;
-                return COST_SOURCE_DEFAULT;
+            hasAction: function (action) {
+                return this.requirements[action] || this.costs[action] || this.cooldowns[action] || this.durations[action] || this.descriptions[action] || false;
             },
 
             getCooldown: function (action) {
@@ -2291,7 +2706,7 @@ function (Ash, GameConstants, CampConstants) {
                 var speed = this.isExplorationAction(baseActionID) ? GameConstants.gameSpeedExploration : GameConstants.gameSpeedCamp;
                 // TODO make send_caravan duration dependent on the trade partner's location
                 if (this.durations[baseActionID]) {
-                    return this.durations[baseActionID] / speed;
+                    return parseInt(this.durations[baseActionID]) / speed;
                 }
                 return 0;
             },
@@ -2314,7 +2729,9 @@ function (Ash, GameConstants, CampConstants) {
                     var baseProbability = this.injuryProbabilities[action][0];
                     var visionFactor = Math.pow(1 - (vision / 100), 2);
                     var visionProbability = this.injuryProbabilities[action][1] * visionFactor;
-                    return baseProbability + visionProbability;
+                    var result = baseProbability + visionProbability;
+                    if (result < 0.001) result = 0;
+                    return result;
                 }
                 return 0;
             },
@@ -2323,7 +2740,7 @@ function (Ash, GameConstants, CampConstants) {
                 if (vision === undefined) vision = 100;
                 if (this.loseInventoryProbabilities[action]) {
                     var baseProbability = this.loseInventoryProbabilities[action][0];
-                    var visionFactor = Math.pow(1 - (vision / 100), 2);
+                    var visionFactor = Math.pow(1 - (vision / 100), 4);
                     var visionProbability = this.loseInventoryProbabilities[action][1] * visionFactor;
                     return baseProbability + visionProbability;
                 }

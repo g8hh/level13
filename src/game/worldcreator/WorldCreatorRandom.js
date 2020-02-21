@@ -15,6 +15,7 @@ function (Ash, PathFinding, PositionConstants, GameConstants, MovementConstants,
         // options:
         // - requireCentral (boolean): only include central sectors (default false)
         // - excludingFeature (string): exclude sectors that have this featue (for example "camp")
+        // - excludedZones (array of strings): exclude sectors assigned to give zone
         // - pathConstraints (array of PathConstraintVO): all paths must be satisfied if present
         // - numDuplicates (int): how many of the returned sectors can be the same (default 1 -> no duplicates) (0 -> no limit)
 		randomSectors: function (seed, worldVO, levelVO, min, max, options) {
@@ -48,6 +49,11 @@ function (Ash, PathFinding, PositionConstants, GameConstants, MovementConstants,
 			var checkExclusion = function (sectorVO) {
                 if (!sectorVO) return false;
 				if (options.excludingFeature && sectorVO[options.excludingFeature]) return false;
+                if (options.excludedZones) {
+                    for (var i = 0; i < options.excludedZones.length; i++) {
+                        if (sectorVO.zone == options.excludedZones[i]) return false;
+                    }
+                }
 				return true;
 			};
 			for (var i = 0; i < numSectors; i++) {
@@ -56,10 +62,10 @@ function (Ash, PathFinding, PositionConstants, GameConstants, MovementConstants,
 				do {
 					sector = this.randomSector(seed + (i + 1) * 369 + additionalRandom * 55, worldVO, levelVO, options.requireCentral, options.pathConstraints);
 					additionalRandom++;
-                    if (additionalRandom > 50) {
-                        console.log("WARN: getRandomSectorsSmall: Couldn't find random sector " + i + "/" + numSectors + "(level: " + levelVO.level + ")");
-                        console.log(options);
-                        console.log(counts)
+                    if (additionalRandom > 100) {
+                        log.w("getRandomSectorsSmall: Couldn't find random sector " + (i+1) + "/" + numSectors + " (level: " + levelVO.level + ")");
+                        log.i(options);
+                        log.i(counts)
                         return sectors;
                     }
 				} while (!checkDuplicates(sector) || !checkExclusion(sector));
@@ -82,6 +88,11 @@ function (Ash, PathFinding, PositionConstants, GameConstants, MovementConstants,
 				if (options.excludingFeature && sectorVO[options.excludingFeature]) {
 					return false;
 				}
+                if (options.excludedZones) {
+                    for (var i = 0; i < options.excludedZones.length; i++) {
+                        if (sectorVO.zone == options.excludedZones[i]) return false;
+                    }
+                }
                 if (!WorldCreatorRandom.checkPathRequirements(worldVO, sector, options.pathConstraints)) {
                     return false;
                 }
@@ -97,7 +108,7 @@ function (Ash, PathFinding, PositionConstants, GameConstants, MovementConstants,
             }
             
             if (numSectors > possibleSectors.length) {
-                console.log("WARN: Not enough valid sectors (" + possibleSectors.length + ") to pick random sectors (" + numSectors + ") (level: " + levelVO.level + ")");
+                log.w("Not enough valid sectors (" + possibleSectors.length + ") to pick random sectors (" + numSectors + ") (level: " + levelVO.level + ")");
                 return possibleSectors;
             }
             
@@ -142,11 +153,18 @@ function (Ash, PathFinding, PositionConstants, GameConstants, MovementConstants,
 			return neighbour;
 		},
 		
-		// Pseudo-random sector position on the given level, within the given area (distance from 0,0)
-		randomSectorPosition: function (seed, level, areaSize) {
+		// Pseudo-random sector position on the given level, within the given area (distance from 0,0 or centerPos)
+		randomSectorPosition: function (seed, level, areaSize, centerPos, minDist) {
+            centerPos = centerPos || new PositionVO(level, 0, 0);
+            minDist = minDist || 0;
 			var sectorX = this.randomInt(seed * 335, -areaSize, areaSize + 1);
+            if (sectorX > 0 && sectorX < minDist) sectorX = minDist;
+            if (sectorX < 0 && sectorX > minDist) sectorX =- minDist;
 			var sectorY = this.randomInt(seed * 7812 + level, -areaSize, areaSize + 1);
-			return new PositionVO(level, sectorX, sectorY);
+            if (sectorY > 0 && sectorY < minDist) sectorY = minDist;
+            if (sectorY < 0 && sectorY > minDist) sectorY =- minDist;
+            var result = new PositionVO(level, Math.round(centerPos.sectorX + sectorX), Math.round(centerPos.sectorY + sectorY));
+			return result;
 		},
 		
 		// Pseudo-random existing sector on the given level
@@ -171,7 +189,7 @@ function (Ash, PathFinding, PositionConstants, GameConstants, MovementConstants,
             }
             
             // print some debug info about the failed sector and paths
-            console.log("WARN: Failed to find random sector that fulfills requirements: central: " + isCentral + ", " + (pathConstraints ? pathConstraints.length : 0) + " paths, " + sectors.length + " sectors (level: " + levelVO.level + ")");
+            log.w("Failed to find random sector that fulfills requirements: central: " + isCentral + ", " + (pathConstraints ? pathConstraints.length : 0) + " paths, " + sectors.length + " sectors (level: " + levelVO.level + ")");
             var fails = [];
             for (var j = 0; j < pathConstraints.length; j++) {
                 fails[j] = 0;
@@ -181,7 +199,7 @@ function (Ash, PathFinding, PositionConstants, GameConstants, MovementConstants,
                         fails[j]++;
                     }
                 }
-                console.log("- " + pathConstraints[j].pathType + " max len " + pathConstraints[j].maxLength + ", start pos " + pathConstraints[j].startPosition + ": " + fails[j] + "/" + sectors.length + " fails");
+                log.i("- " + pathConstraints[j].pathType + " max len " + pathConstraints[j].maxLength + ", start pos " + pathConstraints[j].startPosition + ": " + fails[j] + "/" + sectors.length + " fails");
             }
             return null;
 		},
@@ -190,12 +208,14 @@ function (Ash, PathFinding, PositionConstants, GameConstants, MovementConstants,
             if (!pathConstraints || pathConstraints.length === 0) return true;
             for (var j = 0; j < pathConstraints.length; j++) {
                 if (pathConstraints[j].maxLength <= 0) {
-                    console.log("WARN: Max path length is <= 0, skipping check.");
+                    log.w("Max path length is <= 0, skipping check.");
                     continue;
                 }
-                var pathLen = this.findPath(worldVO, pathConstraints[j].startPosition, sector.position, false, true).length;
+                var path = this.findPath(worldVO, pathConstraints[j].startPosition, sector.position, false, true);
+                if (!path) return false;
+                var pathLen = path.length;
                 if (pathLen > pathConstraints[j].maxLength) {
-                    if (logFails) console.log("path too long: " + pathLen + " / " + pathConstraints[j].maxLength + ", start: " + pathConstraints[j].startPosition + ", candidate " + sector.position);
+                    if (logFails) log.i("path too long: " + pathLen + " / " + pathConstraints[j].maxLength + ", start: " + pathConstraints[j].startPosition + ", candidate " + sector.position);
                     return false;
                 }
                 if (pathLen <= 0) return false;
@@ -210,6 +230,11 @@ function (Ash, PathFinding, PositionConstants, GameConstants, MovementConstants,
             }
 			return Math.floor(Math.min(max - 1, Math.floor(this.random(seed) * (max - min + 1)) + min));
 		},
+        
+        randomBool: function (seed, probability) {
+            probability = probability || 0.5;
+            return this.random(seed) < probability;
+        },
 		
 		// Pseudo-random number based on the seed, evenly distributed between 0-1
 		random: function (seed) {
@@ -225,11 +250,11 @@ function (Ash, PathFinding, PositionConstants, GameConstants, MovementConstants,
         
         findPath: function (worldVO, startPos, endPos, blockByBlockers, omitWarnings) {
             if (!startPos) {
-                console.log("WARN: No start pos defined.");
+                log.w("No start pos defined.");
             }
             
             if (!endPos) {
-                console.log("WARN: No goal pos defined.");
+                log.w("No goal pos defined.");
             }
             
             var cachedPath = worldVO.getPath(startPos, endPos, blockByBlockers);
@@ -252,21 +277,21 @@ function (Ash, PathFinding, PositionConstants, GameConstants, MovementConstants,
             var utilities = {
                 findPassageDown: function (level) {
                     var levelVO = worldVO.getLevel(level);
-                    var result = levelVO.findPassageOown();
-                    return makePathSectorVO(result.position);
+                    var result = levelVO.findPassageDown();
+                    return result ? makePathSectorVO(result.position) : null;
                 },
                 findPassageUp: function (level) {
                     var levelVO = worldVO.getLevel(level);
                     var result = levelVO.findPassageUp();
-                    return makePathSectorVO(result.position);
+                    return result ? makePathSectorVO(result.position) : null;
                 },
                 getSectorByPosition: function (level, sectorX, sectorY) {
                     return makePathSectorVO(new PositionVO(level, sectorX, sectorY));
                 },
                 getSectorNeighboursMap: function (pathSectorVO) {
                     var levelVO = worldVO.getLevel(pathSectorVO.position.level);
-                    return levelVO.getNeighbours(pathSectorVO.result.sectorX, pathSectorVO.result.sectorY,
-                        function (sector) { return makePathSectorVO(sector.position);
+                    return levelVO.getNeighbours(pathSectorVO.result.sectorX, pathSectorVO.result.sectorY, function (sector) {
+                        return makePathSectorVO(sector.position);
                     });
                 },
                 isBlocked: function (pathSectorVO, direction) {

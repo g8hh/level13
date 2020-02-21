@@ -5,7 +5,8 @@ define([
 	'game/worldcreator/WorldCreatorRandom',
 	'game/constants/WorldCreatorConstants',
 	'game/constants/LevelConstants',
-], function (Ash, ResourcesVO, WorldCreatorRandom, WorldCreatorConstants, LevelConstants) {
+	'game/constants/PositionConstants',
+], function (Ash, ResourcesVO, WorldCreatorRandom, WorldCreatorConstants, LevelConstants, PositionConstants) {
 
     var WorldCreatorHelper = {
         
@@ -191,6 +192,137 @@ define([
             
             return result;
         },
+        
+        getClosestPair: function (sectors1, sectors2) {
+            var result = [null, null];
+            var resultDist = 9999;
+            for (var i = 0; i < sectors1.length; i++) {
+                for (var j = 0; j < sectors2.length; j++) {
+                    var dist = PositionConstants.getDistanceTo(sectors1[i].position, sectors2[j].position);
+                    if (dist < resultDist) {
+                        result = [ sectors1[i], sectors2[j] ];
+                        resultDist = dist;
+                    }
+                    if (resultDist == 0) {
+                        return result;
+                    }
+                }
+            }
+            return result;
+        },
+        
+        getClosestSector: function (sectors, pos) {
+            var result = null;
+            var resultDist = 0;
+            for (var i = 0; i < sectors.length; i++) {
+                var dist = PositionConstants.getDistanceTo(sectors[i].position, pos);
+                if (!result || dist < resultDist) {
+                    result = sectors[i];
+                    resultDist = dist;
+                }
+            }
+            return result;
+        },
+        
+        getDistanceToCamp: function (worldVO, levelVO, sector) {
+            if (sector.distanceToCamp >= 0) return sector.distanceToCamp;
+            var result = 9999;
+            for (var s = 0; s < levelVO.campSectors.length; s++) {
+                var campSector = levelVO.campSectors[s];
+                var path = WorldCreatorRandom.findPath(worldVO, sector.position, campSector.position, false, true);
+                if (path && path.length >= 0) {
+                    var dist = path.length;
+                    result = Math.min(result, dist);
+                }
+            }
+            sector.distanceToCamp = result;
+            return result;
+        },
+        
+        getQuickDistanceToCamp: function (worldVO, levelVO, sector) {
+            var result = 9999;
+            for (var s = 0; s < levelVO.campSectors.length; s++) {
+                var campSector = levelVO.campSectors[s];
+                var dist = PositionConstants.getDistanceTo(sector.position, campSector.position);
+                result = Math.min(result, dist);
+            }
+            return result;
+        },
+        
+        sortSectorsByPathLenTo: function (worldVO, sector) {
+            return function (a, b) {
+                var patha = WorldCreatorRandom.findPath(worldVO, sector.position, a.position);
+                var pathb = WorldCreatorRandom.findPath(worldVO, sector.position, b.position);
+                return patha.length - pathb.length;
+            };
+        },
+        
+        sortSectorsByDistanceTo: function (worldVO, sector) {
+            return function (a, b) {
+                var dista = PositionConstants.getDistanceTo(sector.position, a.position);
+                var distb = PositionConstants.getDistanceTo(sector.position, b.position);
+                return dista - distb;
+            };
+        },
+        
+        getVornoiPoints: function (seed, worldVO, levelVO, passage1, camp) {
+            var level = levelVO.level;
+            var points = [];
+            var addPoint = function (position, zone, minDistance) {
+                if (minDistance) {
+                    for (var i = 0; i < points.length; i++) {
+                        if (PositionConstants.getDistanceTo(points[i].position, position) <= minDistance) return false;
+                    }
+                }
+                points.push({ position: position, zone: zone, sectors: [] });
+                return true;
+            };
+            
+            // camp
+            addPoint(camp.position, WorldCreatorConstants.ZONE_POI_TEMP);
+            
+            // two sectors furthest away from the camp (but not next to each other)
+            var sectorsByDistance = levelVO.sectors.slice(0).sort(WorldCreatorHelper.sortSectorsByDistanceTo(worldVO, camp));
+            addPoint(sectorsByDistance[sectorsByDistance.length - 1].position, WorldCreatorConstants.ZONE_EXTRA_CAMPABLE);
+            var i = 1;
+            while (i < sectorsByDistance.length) {
+                i++;
+                var added = addPoint(sectorsByDistance[sectorsByDistance.length - i].position, WorldCreatorConstants.ZONE_POI_TEMP, 8);
+                if (added) break;
+            }
+            
+            // randomish positions in 8 cardinal directions from camp
+            var directions = PositionConstants.getLevelDirections();
+            for (var i in directions) {
+                var direction = directions[i];
+                var pointDist = 7 + WorldCreatorRandom.randomInt(10101 + seed % 11 * 182 + i*549 + level * 28, 0, 7);
+                var pointPos = PositionConstants.getPositionOnPath(camp.position, direction, pointDist);
+                if (levelVO.containsPosition(pointPos)) {
+                    addPoint(pointPos, WorldCreatorConstants.ZONE_POI_TEMP, 6);
+                }
+            }
+            
+            return points;
+        },
+        
+        getBorderSectorsForZone: function (levelVO, zone, includeAllPairs) {
+            var result = [];
+            var directions = PositionConstants.getLevelDirections();
+            for (var i = 0; i < levelVO.sectors.length; i++) {
+                var sector = levelVO.sectors[i];
+                if (sector.zone == zone) continue;
+                var neighbours = levelVO.getNeighbours(sector.position.sectorX, sector.position.sectorY);
+                for (var d in directions) {
+                    var direction = directions[d];
+                    var neighbour = neighbours[direction];
+                    if (neighbour && neighbour.zone == zone) {
+                        result.push({ sector: sector, neighbour: neighbour });
+                        if (!includeAllPairs) break;
+                    }
+                }
+            }
+            return result;
+        },
 		
 		getBottomLevel: function (seed) {
             switch (seed % 5) {
@@ -246,14 +378,14 @@ define([
             var levelOrdinal = campOrdinal;
             var camplessLevelOrdinals = this.getCamplessLevelOrdinals(seed);
             for (var i = 0; i < camplessLevelOrdinals.length; i++) {
-                if (camplessLevelOrdinals[i] <= levelOrdinal) 
+                if (camplessLevelOrdinals[i] <= levelOrdinal)
                     levelOrdinal++;
             }
             return levelOrdinal;
         },
         
         isCampableLevel: function (seed, level) {
-            var camplessLevelOrdinals = this.getCamplessLevelOrdinals(seed);            
+            var camplessLevelOrdinals = this.getCamplessLevelOrdinals(seed);
             var levelOrdinal = this.getLevelOrdinal(seed, level);
             var campOrdinal = this.getCampOrdinal(seed, level);
             return camplessLevelOrdinals.indexOf(levelOrdinal) < 0 && campOrdinal <= WorldCreatorConstants.CAMP_ORDINAL_LIMIT;
@@ -270,9 +402,9 @@ define([
             
             var levelOrdinal = this.getLevelOrdinal(seed, level);
             var rand = WorldCreatorRandom.random(seed % 4 + level + level * 8 + 88);
-            if (rand < 0.33 && levelOrdinal >= WorldCreatorConstants.MIN_LEVEL_ORDINAL_HAZARD_RADIATION) 
+            if (rand < 0.33 && levelOrdinal >= WorldCreatorConstants.MIN_LEVEL_ORDINAL_HAZARD_RADIATION)
                 return LevelConstants.UNCAMPABLE_LEVEL_TYPE_RADIATION;
-            if (rand < 0.66 && levelOrdinal >= WorldCreatorConstants.MIN_LEVEL_HAZARD_POISON) 
+            if (rand < 0.66 && levelOrdinal >= WorldCreatorConstants.MIN_LEVEL_ORDINAL_HAZARD_POISON)
                 return LevelConstants.UNCAMPABLE_LEVEL_TYPE_POLLUTION;
             return LevelConstants.UNCAMPABLE_LEVEL_TYPE_SUPERSTITION;
         },

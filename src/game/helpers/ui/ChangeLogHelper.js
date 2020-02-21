@@ -1,5 +1,6 @@
 // Loader for the changelog.json
-define(['ash', 'game/GlobalSignals'], function (Ash, GlobalSignals) {
+define(['ash', 'game/GameGlobals', 'game/GlobalSignals', 'game/constants/GameConstants'],
+function (Ash, GameGlobals, GlobalSignals, GameConstants) {
 
     var ChangeLogHelper = Ash.Class.extend({
 		
@@ -9,22 +10,39 @@ define(['ash', 'game/GlobalSignals'], function (Ash, GlobalSignals) {
 		constructor: function () {
 			var helper = this;
             $.getJSON('changelog.json', function (json) {
-				helper.loadingSuccessfull = true;
+				helper.loadingSuccessful = true;
 				helper.versions = json.versions;
                 var version = helper.getCurrentVersionNumber();
-                console.log("Loaded version: " + version);
+                log.i("Loaded version: " + version);
                 gtag('set', { 'app_version': version });
-                GlobalSignals.changelogLoadedSignal.dispatch();
+                GlobalSignals.changelogLoadedSignal.dispatch(true);
+                helper.displayVersionWarnings();
 			})
 			.fail(function (jqxhr, textStatus, error) {
-				helper.loadingSuccessfull = false;
+				helper.loadingSuccessful = false;
+                helper.versions = [];
+                log.w("Failed to load version.");
 				var err = "";
                 if (jqxhr && jqxhr.status) err += "[" + jqxhr.status + "] ";
                 err += textStatus;
 				if (error) err += ", " + error;
                 gtag('set', { 'app_version': 'unknown' });
+                GlobalSignals.changelogLoadedSignal.dispatch(false);
+                helper.displayVersionWarnings();
 			});
 		},
+        
+        displayVersionWarnings: function () {
+            if (GameConstants.isDebugVersion) return;
+			var currentVersion = this.getCurrentVersion();
+            if (!currentVersion || !currentVersion.final) {
+                GameGlobals.uiFunctions.showInfoPopup(
+                    "Warning",
+                    "Looks like you are playing an unsupported version of Level 13.</br>Continue at your own risk or play the latest official version <a href='" + GameConstants.gameURL + "'>here</a>.",
+                    "Continue"
+                );
+            }
+        },
 		
 		getCurrentVersionNumber: function () {
 			var currentVersion = this.getCurrentVersion();
@@ -42,31 +60,6 @@ define(['ash', 'game/GlobalSignals'], function (Ash, GlobalSignals) {
 			return "[no time stamp]";
         },
 		
-		getChangeLogHTML: function () {
-			var html = "";
-			var v;
-			for (var i in this.versions) {
-				v = this.versions[i];
-				if (v.changes.length === 0) continue;
-				html += "<div class='changelog-version'>";
-				html += "<b>version " + this.getVersionNumber(v);
-				if (v.final) html += " released: " + v.released + "";
-                else html += " (work in progress)";
-                html += "</b>";
-				html += "<ul>";
-				for (var j in v.changes) {
-					var change = v.changes[j];
-                    var summary = change.summary.trim().replace(/\.$/, "");
-					html += "<li class='changelog-" + change.type + "'>";
-					html += "<span class='changelog-summary'>" + summary + "</span>";
-					html += "</li>";
-				}
-				html += "</ul>";
-				html += "</div>";
-			}
-			return html;
-		},
-		
 		getVersionNumber: function (version) {
 			return version.version + " (" + version.phase + ")";
 		},
@@ -81,7 +74,35 @@ define(['ash', 'game/GlobalSignals'], function (Ash, GlobalSignals) {
 				i++;
 			}
 			return version;
-		}
+		},
+        
+        getVersion: function (version) {
+            for (var i = 0; i < this.versions.legnth; i++) {
+                if (this.versions[i].version == version) {
+                    return this.versions[i];
+                }
+            }
+            return null;
+        },
+        
+        getVersionDigits: function (version) {
+            var parts1 = version.split(" ");
+            var parts2 = parts1[0].split(".");
+            return { major: parts2[0], minor: parts2[1], patch: parts2[2] };
+        },
+        
+        isOldVersion: function (version) {
+            var currentVersionNumber = this.getCurrentVersionNumber();
+            var currentVersionDetails = this.getCurrentVersion();
+            var requiredVersion = currentVersionDetails && currentVersionDetails.requiredVersion || currentVersionNumber;
+            var requiredVersionDigits = this.getVersionDigits(requiredVersion);
+            var compareVersionDigits = this.getVersionDigits(version);
+            
+            log.i("isOldVersion? " + version + ", current: " + currentVersionNumber + ", required: " + requiredVersion);
+            if (!requiredVersionDigits) return false;
+            if (!compareVersionDigits) return false;
+            return compareVersionDigits.major < requiredVersionDigits.major || compareVersionDigits.minor < requiredVersionDigits.minor || compareVersionDigits.patch < requiredVersionDigits.patch;
+        },
 	
     });
     

@@ -2,22 +2,30 @@ define(['ash'], function (Ash) {
     
     var CampConstants = {
     
+        // population
         POPULATION_PER_HOUSE: 4,
         POPULATION_PER_HOUSE2: 10,
-        POOL_RUMOURS_PER_POPULATION: 2,
+        POOL_RUMOURS_PER_POPULATION: 3,
         
         // Storage
         BASE_STORAGE: 50,
         STORAGE_PER_IMPROVEMENT: 50,
-        STORAGE_PER_IMPROVEMENT_LEVEL_2: 150,
-        STORAGE_PER_IMPROVEMENT_LEVEL_3: 450,
+        STORAGE_PER_IMPROVEMENT_LEVEL_2: 100,
+        STORAGE_PER_IMPROVEMENT_LEVEL_3: 200,
         
         // Rumours
-        RUMOURS_PER_POP_PER_SEC_BASE: 0.0001,
-        RUMOUR_BONUS_PER_CAMPFIRE_BASE: 1.1,
-        RUMOURS_BONUS_PER_CAMPFIRE_PER_UPGRADE: 0.15,
-        RUMOUR_BONUS_PER_INN_BASE: 1.03,
-        RUMOURS_BONUS_PER_INN_PER_UPGRADE: 0.06,
+        RUMOURS_PER_POP_PER_SEC_BASE: 0.0003,
+        RUMOUR_BONUS_PER_CAMPFIRE_BASE: 1.2,
+        RUMOURS_BONUS_PER_CAMPFIRE_PER_LEVEL: 0.1,
+        RUMOURS_BONUS_PER_CAMPFIRE_PER_UPGRADE: 0.2,
+        RUMOUR_BONUS_PER_MARKET_BASE: 1.1,
+        RUMOURS_BONUS_PER_MARKET_PER_UPGRADE: 0.01,
+        RUMOUR_BONUS_PER_INN_BASE: 1.1,
+        RUMOURS_BONUS_PER_INN_PER_UPGRADE: 0.01,
+        RUMOURS_PER_VISIT_MARKET: 2,
+        
+        // Evidence
+        EVIDENCE_BONUS_PER_LIBRARY_LEVEL: 0.15,
         
         // Cost of workers
         CONSUMPTION_WATER_PER_WORKER_PER_S: 0.02,
@@ -35,11 +43,14 @@ define(['ash'], function (Ash) {
         PRODUCTION_MEDICINE_PER_WORKER_PER_S: 0.01,
         PRODUCTION_TOOLS_PER_WORKER_PER_S: 0.02,
         PRODUCTION_CONCRETE_PER_WORKER_PER_S: 0.03,
-        PRODUCTION_EVIDENCE_PER_WORKER_PER_S: 0.000375,
+        PRODUCTION_EVIDENCE_PER_WORKER_PER_S: 0.0005,
         
         // reputation
+        REPUTATION_TO_POPULATION_FACTOR: 0.82,
+        REPUTATION_TO_POPULATION_OFFSET: -0.25,
         REPUTATION_PER_RADIO_PER_SEC: 0.1,
         REPUTATION_PER_HOUSE_FROM_GENERATOR: 0.3,
+        REPUTATION_PENALTY_DEFENCES_THRESHOLD: 0.25,
         REPUTATION_PENALTY_TYPE_FOOD: "FOOD",
         REPUTATION_PENALTY_TYPE_WATER: "WATER",
         REPUTATION_PENALTY_TYPE_DEFENCES: "DEFENCES",
@@ -104,8 +115,14 @@ define(['ash'], function (Ash) {
         
         getRequiredReputation: function (pop) {
             if (pop < 1) return 0;
-            var rawValue = Math.max(0, pop)/(pop+100)*100;
-            return Math.max(1, Math.floor(rawValue * 100) / 100);
+            pop = Math.ceil(pop);
+            var result = Math.max(1, Math.pow(pop, CampConstants.REPUTATION_TO_POPULATION_FACTOR) + CampConstants.REPUTATION_TO_POPULATION_OFFSET);
+            return Math.floor(result * 100) / 100;
+        },
+        
+        getMaxPopulation: function (reputation) {
+            if (reputation < 1) return 0;
+            return Math.floor(Math.pow(reputation - CampConstants.REPUTATION_TO_POPULATION_OFFSET, 1 / CampConstants.REPUTATION_TO_POPULATION_FACTOR));
         },
         
         getSoldierDefence: function (upgradeLevel) {

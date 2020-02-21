@@ -86,13 +86,15 @@ define(['ash',
             node.autoPlay.isExploring = !inCamp;
             node.autoPlay.isManagingCamps = inCamp;
             this.cheatSystem.applyCheat("speed " + this.speed);
+            GameGlobals.gameState.isAutoPlaying = true;
         },
 
         onAutoPlayNodeRemoved: function (node) {
+            GameGlobals.gameState.isAutoPlaying = false;
             this.cheatSystem.applyCheat("speed 1");
         },
 
-        update: function (time) {
+        update: function () {
 			if (!this.autoPlayNodes.head)
                 return;
 
@@ -310,7 +312,9 @@ define(['ash',
                 return false;
 			};
 
-            GameGlobals.levelHelper.forEverySectorFromLocation(playerPosition, checkSector, autoPlayComponent.isExpedition);
+            if (!autoPlayComponent.forcedExpeditionType) {
+                GameGlobals.levelHelper.forEverySectorFromLocation(playerPosition, checkSector, autoPlayComponent.isExpedition);
+            }
 
             // 3. set goal
 
@@ -322,18 +326,20 @@ define(['ash',
             var ratioUnscoutedSectors = numUnscoutedSectors / numAccessibleSectors;
             var startSector = GameGlobals.playerActionFunctions.playerPositionNodes.head.entity;
             var hasCamp = GameGlobals.playerActionFunctions.nearestCampNodes.head;
+            
+            var prioritizeScavenge = autoPlayComponent.forcedExpeditionType == AutoPlayConstants.GOALTYPES.SCAVENGE_RESOURCES;
 
-            if (hasCamp && !prioritizeHeal && nearestUnclearedWorkshopSector) {
+            if (hasCamp && !prioritizeHeal && !prioritizeScavenge && nearestUnclearedWorkshopSector) {
                 goal = AutoPlayConstants.GOALTYPES.CLEAR_WORKSHOP;
                 sector = nearestUnclearedWorkshopSector;
                 path = GameGlobals.levelHelper.findPathTo(startSector, sector);
             }
-            else if (hasCamp && !prioritizeHeal && hasLockPick && nearestUnscoutedLocaleSector) {
+            else if (hasCamp && !prioritizeHeal && !prioritizeScavenge && hasLockPick && nearestUnscoutedLocaleSector) {
                 goal = AutoPlayConstants.GOALTYPES.SCOUT_LOCALE;
                 sector = nearestUnscoutedLocaleSector;
                 path = GameGlobals.levelHelper.findPathTo(startSector, sector);
             }
-            else if (hasCamp && !prioritizeHeal && nearestUnscoutedSector && numUnscoutedSectors > 0 && Math.random() < (prioritizeScouting ? 0.75 : 0.5)) {
+            else if (hasCamp && !prioritizeHeal && !prioritizeScavenge && nearestUnscoutedSector && numUnscoutedSectors > 0 && Math.random() < (prioritizeScouting ? 0.75 : 0.5)) {
                 goal = AutoPlayConstants.GOALTYPES.SCOUT_SECTORS;
                 sector = nearestUnscoutedSector;
                 path = GameGlobals.levelHelper.findPathTo(startSector, sector);
@@ -413,8 +419,7 @@ define(['ash',
                 if (actionAvailable)
                     continue;
 
-                var costFactor =  GameGlobals.playerActionsHelper.getCostFactor(actionName);
-                var costs = GameGlobals.playerActionsHelper.getCosts(actionName, costFactor);
+                var costs = GameGlobals.playerActionsHelper.getCosts(actionName);
 
                 var costFactor = 1;
                 var costFactorRes = null;
@@ -464,7 +469,7 @@ define(['ash',
             var result = {};
 			var checkSector = function (sector) {
                 if (Object.keys(result).length === resourceNames.length) {
-                    console.log("[getNearestSectorsByRes] all found.");
+                    log.i("[getNearestSectorsByRes] all found.");
                     return true;
                 }
                 var featuresComponent = sector.get(SectorFeaturesComponent);
@@ -550,6 +555,7 @@ define(['ash',
 		},
 
         buildOutImprovements: function () {
+            if (!GameGlobals.playerActionFunctions.playerLocationNodes.head) return;
 			var improvementsComponent = GameGlobals.playerActionFunctions.playerLocationNodes.head.entity.get(SectorImprovementsComponent);
 
             // traps & buckets
@@ -737,7 +743,7 @@ define(['ash',
                 var currentFoodRatio = currentFood / maxStorage;
                 var currentWaterRatio = currentWater / maxStorage;
 
-                var canRope = this.hasUpgrade(GameGlobals.upgradeEffectsHelper.getUpgradeIdForWorker("rope-maker"));
+                var canRope = this.hasUpgrade(GameGlobals.upgradeEffectsHelper.getUpgradeIdForWorker("weaver"));
                 var upgradesComponent = GameGlobals.playerActionFunctions.tribeUpgradesNodes.head.upgrades;
 
                 var maxApothecaries = improvementsComponent.getCount(improvementNames.apothecary) * CampConstants.getApothecariesPerShop(GameGlobals.upgradeEffectsHelper.getBuildingUpgradeLevel(improvementNames.apothecary, upgradesComponent));
@@ -795,7 +801,7 @@ define(['ash',
 			var improvementsComponent = GameGlobals.playerActionFunctions.playerLocationNodes.head.entity.get(SectorImprovementsComponent);
             var maxPopulation = CampConstants.getHousingCap(improvementsComponent);
 
-            if (GameGlobals.playerActionsHelper.checkAvailability("build_in_tradingPost")) {
+            if (GameGlobals.playerActionsHelper.checkAvailability("build_in_tradepost")) {
                 this.printStep("build trading post");
                 GameGlobals.playerActionFunctions.buildTradingPost();
                 return true;
@@ -1028,6 +1034,8 @@ define(['ash',
                 if (autoPlayComponent.isExploreGoalComplete)
                     this.printStep("complete resource goal (" + goalres + " " + goalamount + ")");
             }
+            
+            GameGlobals.playerActionFunctions.completeAction(GameGlobals.playerActionFunctions.currentAction);
         },
 
         printStep: function (message) {
@@ -1035,7 +1043,7 @@ define(['ash',
             var status = "idle";
             if (this.autoPlayNodes.head.autoPlay.isExploring) status = "exploring";
             if (this.autoPlayNodes.head.autoPlay.isManagingCamps) status = "managing";
-            console.log("autoplay (" + this.isExpress + ") (" + status + ") " + playerPosition.level + "-" + playerPosition.sectorId() + ": " + message);
+            log.i("autoplay (" + this.isExpress + ") (" + status + ") " + playerPosition.level + "-" + playerPosition.sectorId() + ": " + message);
         },
 
         hasUpgrade: function (upgradeId) {

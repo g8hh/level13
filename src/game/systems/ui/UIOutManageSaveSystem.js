@@ -47,8 +47,7 @@ var UIOutManageSaveSystem = Ash.System.extend({
             GlobalSignals.removeAll(this);
 		},
 
-        update: function (time) {
-        },
+        update: function () { },
 
         initialize: function () {
             this.spanSaveSeed.text(GameGlobals.gameState.worldSeed);
@@ -63,7 +62,6 @@ var UIOutManageSaveSystem = Ash.System.extend({
             GameGlobals.uiFunctions.toggle(this.spanMsg, false);
             GameGlobals.uiFunctions.toggle(this.textField, false);
             GameGlobals.uiFunctions.toggle(this.loadImportcontainer, false);
-
         },
 
         openExport: function () {
@@ -122,14 +120,15 @@ var UIOutManageSaveSystem = Ash.System.extend({
 			if (typeof(Storage) !== "undefined") {
                 try {
                     localStorage.save = saveSystem.getCompressedSaveJSON(importJSON);
-                    console.log("Replaced save.");
+                    log.i("Replaced save.");
                 } catch (ex) {
-                    console.log("Failed to replace save.");
+                    log.i("Failed to replace save.");
                 }
 			} else {
-                console.log("Failed to replace save.");
+                log.i("Failed to replace save.");
 			}
-            this.engine.getSystem(GameManager).restartGame();
+            GlobalSignals.restartGameSignal.dispatch(false);
+			GameGlobals.uiFunctions.showGame(true);
         }
 
     });

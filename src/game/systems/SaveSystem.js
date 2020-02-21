@@ -33,7 +33,7 @@ define([
 			this.saveNodes = null;
         },
 
-        update: function (time) {
+        update: function () {
             if (this.paused) return;
             if (!GameConstants.isAutosaveEnabled) return;
 			var timeStamp = new Date().getTime();
@@ -57,7 +57,7 @@ define([
 			if (typeof(Storage) !== "undefined") {
                 try {
                     localStorage.save = this.getCompressedSaveJSON();
-                    console.log("Saved");
+                    log.i("Saved");
                 } catch (ex) {
                     this.error = "Failed to save.";
                 }
@@ -87,7 +87,7 @@ define([
             save.version = version;
 
             var result = JSON.stringify(save);
-            // console.log("Total save size: " + result.length + ", " + nodes + " nodes");
+            // log.i("Total save size: " + result.length + ", " + nodes + " nodes");
             return result;
         },
 
@@ -120,9 +120,9 @@ define([
 				}
 			}
 
-            //console.log(JSON.stringify(biggestComponent));
-			//console.log(biggestComponentSize + " / " + totalSize + " " + JSON.stringify(entityObject).length);
-            //console.log(entityObject);
+            //log.i(JSON.stringify(biggestComponent));
+			//log.i(biggestComponentSize + " / " + totalSize + " " + JSON.stringify(entityObject).length);
+            //log.i(entityObject);
 
 			return entityObject;
 		},
@@ -134,16 +134,17 @@ define([
 
         getCompressedSaveJSON: function (json) {
             var json = json || this.getSaveJSON();
-            console.log("basic json: " + json.length);
+            log.i("basic json: " + json.length);
             var compressed = LZString.compressToBase64(json);
-            console.log("compressed: " + compressed.length);
+            log.i("compressed: " + compressed.length);
             return compressed;
         },
 
-        onRestart: function () {
+        onRestart: function (resetSave) {
+            if (!resetSave) return;
 			if(typeof(Storage) !== "undefined") {
 				localStorage.removeItem("save");
-                console.log("Removed save");
+                log.i("Removed save");
 			}
         }
 

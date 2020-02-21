@@ -18,14 +18,16 @@ define(['ash', 'game/constants/MovementConstants'], function (Ash, MovementConst
 				case MovementConstants.BLOCKER_TYPE_GAP: return "Gap";
 				case MovementConstants.BLOCKER_TYPE_WASTE: return "Toxic waste";
 				case MovementConstants.BLOCKER_TYPE_GANG: return "Gang";
+                case MovementConstants.BLOCKER_TYPE_DEBRIS: return "Debris";
 	 	 	}
 		},
 		
 		getActionBaseId: function () {
 			switch (this.type) {
-				case MovementConstants.BLOCKER_TYPE_GAP: return "build_out_bridge";
+				case MovementConstants.BLOCKER_TYPE_GAP: return "bridge_gap";
 				case MovementConstants.BLOCKER_TYPE_WASTE: return "clear_waste";
 				case MovementConstants.BLOCKER_TYPE_GANG: return "fight_gang";
+				case MovementConstants.BLOCKER_TYPE_DEBRIS: return "clear_debris";
 	 	 	}
 		},
 		

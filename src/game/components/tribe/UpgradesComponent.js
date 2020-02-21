@@ -37,11 +37,12 @@ function (Ash, UpgradeConstants, UpgradeVO, BlueprintVO) {
                 this.newBlueprints.splice(this.newBlueprints.indexOf(blueprintVO), 1);
                 this.availableBlueprints.push(blueprintVO);
             } else {
-                console.log("WARN: No such blueprint found: " + upgradeId);
+                log.w("No such blueprint found: " + upgradeId);
             }
         },
 
         addNewBlueprintPiece: function (upgradeId) {
+            if (this.hasUpgrade(upgradeId)) return;
             var blueprintVO = this.getBlueprint(upgradeId);
             if (!blueprintVO) {
                 var maxPieces = UpgradeConstants.getMaxPiecesForBlueprint(upgradeId);
@@ -67,6 +68,12 @@ function (Ash, UpgradeConstants, UpgradeVO, BlueprintVO) {
 
         hasAvailableBlueprint: function (upgradeId) {
             return this.availableBlueprints.indexOf(this.getBlueprint(upgradeId)) >= 0;
+        },
+        
+        hasAllPieces: function (upgradeId) {
+            var blueprintVO = this.getBlueprint(upgradeId);
+            if (!blueprintVO) return false;
+            return blueprintVO.currentPieces >= blueprintVO.maxPieces;
         },
 
         hasNewBlueprint: function (upgradeId) {

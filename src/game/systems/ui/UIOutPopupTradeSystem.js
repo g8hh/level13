@@ -45,7 +45,7 @@ define([
         initElements: function () {
             var sys = this;
             $("#incoming-caravan-popup-reset").click(function (e) {
-                console.log("reset");
+                log.i("reset");
                 sys.clearSelection();
                 sys.updateLists();
             });
@@ -118,10 +118,13 @@ define([
 			}
 
 			// camp items: create
+            var count = 0;
 			for (var itemID in this.campTotalItems) {
 				var item = ItemConstants.getItemByID(itemID);
 				var li = UIConstants.getItemSlot(itemsComponent, item, 0, false, true);
 				addLis(li, itemID, "camp")
+                count++;
+                if (count >= 23) break;
 			}
 
 			// trader and camp resources
@@ -141,7 +144,7 @@ define([
     					addLis(li, key, "camp")
     				}
                         
-                    console.log("create " + name + " " + traderInventoryAmount + " " + campInventoryAmount)
+                    log.i("create " + name + " " + traderInventoryAmount + " " + campInventoryAmount)
                     highestAmount = Math.max(highestAmount, traderInventoryAmount, campInventoryAmount);
                 }
 			}
@@ -173,7 +176,7 @@ define([
 				var isCampOffer = $li.parents("#inventorylist-incoming-caravan-camp-offer").length > 0;
                 
                 var amount = Math.max(1, HorizontalSelect.getSelection(sys.multiplierSelect).value);
-                console.log("moveItem " + amount);
+                log.i("moveItem " + amount);
 
 				if (isCurrency) {
 					if (isTraderInventory) {
@@ -218,6 +221,7 @@ define([
 				}
 
 				sys.updateLists();
+                GlobalSignals.updateButtonsSignal.dispatch();
 			};
 
 			var onLiClicked = function (e) {

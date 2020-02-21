@@ -6,12 +6,13 @@ define([
 	'game/components/sector/ReputationComponent',
 	'game/components/common/VisitedComponent',
 	'game/components/common/RevealedComponent',
+	'game/components/player/ExcursionComponent',
 	'game/components/sector/LastVisitedCampComponent',
 	'game/components/sector/OutgoingCaravansComponent',
 	'game/components/sector/events/CampEventTimersComponent',
 	'game/components/sector/events/RaidComponent',
 	'game/components/sector/events/TraderComponent',
-], function (Ash, CampComponent, CurrencyComponent, ReputationComponent, VisitedComponent, RevealedComponent, LastVisitedCampComponent, OutgoingCaravansComponent, CampEventTimersComponent, RaidComponent, TraderComponent) {
+], function (Ash, CampComponent, CurrencyComponent, ReputationComponent, VisitedComponent, RevealedComponent, ExcursionComponent, LastVisitedCampComponent, OutgoingCaravansComponent, CampEventTimersComponent, RaidComponent, TraderComponent) {
 
 	var SaveHelper = Ash.Class.extend({
 
@@ -20,9 +21,10 @@ define([
 			tribe: "tribe",
 			sector: "s-",
 			level: "level-",
+            gang: "gang-"
 		},
 
-		optionalComponents: [CampComponent, CurrencyComponent, ReputationComponent, VisitedComponent, RevealedComponent, LastVisitedCampComponent, OutgoingCaravansComponent, TraderComponent, CampEventTimersComponent, RaidComponent],
+		optionalComponents: [CampComponent, CurrencyComponent, ReputationComponent, VisitedComponent, RevealedComponent, LastVisitedCampComponent, OutgoingCaravansComponent, TraderComponent, CampEventTimersComponent, RaidComponent, ExcursionComponent],
 
 		constructor: function () {},
 
@@ -34,17 +36,17 @@ define([
 			try {
 				result = JSON.parse(json);
 			} catch (ex) {
-				console.log("WARN: Error parsing save JSON. " + ex);
+				log.w("Error parsing save JSON. " + ex);
 				return null;
 			}
 
 			if (!result.gameState) {
-				console.log("WARN: Save JSON is missing a GameState.");
+				log.w("Save JSON is missing a GameState.");
 				return null;
 			}
 
 			if (!result.entitiesObject) {
-				console.log("WARN: Save JSON is missing an entities object.");
+				log.w("Save JSON is missing an entities object.");
 				return null;
 			}
 
@@ -98,8 +100,8 @@ define([
 				}
 
 				if (!component) {
-					console.log("WARN: Component not found while loading:");
-					console.log(componentKey);
+					log.w("Component not found while loading:");
+					log.i(componentKey);
 					failedComponents++;
 					continue;
 				}
@@ -116,16 +118,16 @@ define([
 		},
 
 		loadComponent: function (component, componentValues, saveKey) {
-			// console.log(component);
+			// log.i(component);
 			for (var valueKey in componentValues) {
-				// console.log(valueKey + ": " + componentValues[valueKey]);
+				// log.i(valueKey + ": " + componentValues[valueKey]);
 				if (typeof componentValues[valueKey] != 'object') {
 					component[valueKey] = componentValues[valueKey];
 				} else {
 					if (typeof component[valueKey] == "undefined") continue;
 					for (var valueKey2 in componentValues[valueKey]) {
 						var value2 = componentValues[valueKey][valueKey2];
-						// console.log(valueKey2 + ": " + value2)
+						// log.i(valueKey2 + ": " + value2)
 						if (value2 === null) {
 							continue;
 						} else if (typeof value2 != 'object') {
@@ -140,7 +142,7 @@ define([
 							this.loadObject(component[valueKey][valueKey2], componentValues[valueKey][valueKey2Int]);
 						} else {
 							if (typeof component[valueKey][valueKey2] == "undefined") {
-								console.log("WARN: Error loading. Unknown value key " + valueKey2 + " for object " + valueKey + " in " + saveKey);
+								log.w("Error loading. Unknown value key " + valueKey2 + " for object " + valueKey + " in " + saveKey);
 								continue;
 							}
 							this.loadObject(component[valueKey][valueKey2], value2);

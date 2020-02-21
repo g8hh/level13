@@ -39,7 +39,7 @@ define([
         update: function (time) {
             if (GameGlobals.gameState.isPaused) return;
             for (var node = this.nodeList.head; node; node = node.next) {
-                this.updateNode(node, time + this.engine.extraUpdateTime);
+                this.updateNode(node, time);
             }
         },
 
@@ -57,9 +57,13 @@ define([
             var newHealth = Math.max(PlayerStatConstants.HEALTH_MINIMUM, Math.round(200 * healthEffects * injuryEffects) / 2);
             var oldHealth = staminaComponent.health;
 			staminaComponent.health = newHealth;
+            staminaComponent.maxHP = newHealth;
+            if (staminaComponent.hp > newHealth) staminaComponent.hp = newHealth;
             
-            if (newHealth !== oldHealth)
+            if (newHealth !== oldHealth) {
+                staminaComponent.resetHP();
                 GlobalSignals.healthChangedSignal.dispatch();
+            }
 			
             // stamina
             var healthVal = staminaComponent.health;
@@ -98,12 +102,12 @@ define([
             if (isWarning && !this.isWarning) {
                 var logComponent = node.entity.get(LogMessagesComponent);
                 var hasCamp = GameGlobals.gameState.unlockedFeatures.camp;
-                if (node.position.inCamp)
-                    logComponent.addMessage(LogConstants.MSG_ID_STAMINA_WARNING, "Getting tired. Should have a rest soon.");
-                else if (hasCamp)
-                    logComponent.addMessage(LogConstants.MSG_ID_STAMINA_WARNING, "Getting tired. Should head back to camp soon.");
-                else
-                    logComponent.addMessage(LogConstants.MSG_ID_STAMINA_WARNING, "Getting tired. Should find a place to rest soon.");
+                if (!node.position.inCamp) {
+                    if (hasCamp)
+                        logComponent.addMessage(LogConstants.MSG_ID_STAMINA_WARNING, "Getting tired. Should head back to camp soon.");
+                    else
+                        logComponent.addMessage(LogConstants.MSG_ID_STAMINA_WARNING, "Getting tired. Should find a place to rest soon.");
+                }
             }
             this.isWarning = isWarning;
         },

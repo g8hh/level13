@@ -47,7 +47,9 @@ define([
             GlobalSignals.add(this, GlobalSignals.improvementBuiltSignal, this.updateTabVisibility);
             GlobalSignals.add(this, GlobalSignals.featureUnlockedSignal, this.updateTabVisibility);
             GlobalSignals.add(this, GlobalSignals.inventoryChangedSignal, this.updateTabVisibility);
+            GlobalSignals.add(this, GlobalSignals.upgradeUnlockedSignal, this.updateTabVisibility);
             GlobalSignals.add(this, GlobalSignals.playerMovedSignal, this.updateTabVisibility);
+            GlobalSignals.add(this, GlobalSignals.popupClosedSignal, this.updateTabVisibility);
             
 			this.updateTabVisibility();
         },
@@ -104,8 +106,6 @@ define([
             if (currentCamp) {
                 var campComponent = currentCamp.get(CampComponent);
                 $("#switch-tabs #switch-in .name").text(campComponent.getType());
-                $("#switch-tabs #switch-in").toggleClass("disabled", !posHasCamp);
-                $("#switch-tabs #switch-world").toggleClass("disabled", !posHasCamp);
             }
         },
     });

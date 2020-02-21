@@ -1,7 +1,9 @@
 define([
     'ash',
     'core/ExceptionHandler',
+    'core/ConsoleLogger',
     'game/GameGlobals',
+    'game/GameFlowLogger',
     'game/GlobalSignals',
 	'game/constants/GameConstants',
     'game/constants/SystemPriorities',
@@ -40,6 +42,7 @@ define([
     'game/systems/LevelPassagesSystem',
     'game/systems/CollectorSystem',
     'game/systems/FightSystem',
+    'game/systems/FollowerSystem',
     'game/systems/PopulationSystem',
     'game/systems/WorkerSystem',
     'game/systems/FaintingSystem',
@@ -76,7 +79,9 @@ define([
 ], function (
     Ash,
     ExceptionHandler,
+    ConsoleLogger,
     GameGlobals,
+    GameFlowLogger,
     GlobalSignals,
 	GameConstants,
     SystemPriorities,
@@ -115,6 +120,7 @@ define([
     LevelPassagesSystem,
     CollectorSystem,
     FightSystem,
+    FollowerSystem,
     PopulationSystem,
     WorkerSystem,
     FaintingSystem,
@@ -158,22 +164,26 @@ define([
         constructor: function (plugins) {
             var game = this;
             this.engine = new Ash.Engine();
-            this.engine.extraUpdateTime = 0;
 			this.tickProvider = new TickProvider(null, function (ex) { game.handleException(ex) });
-			this.gameManager = new GameManager(this.tickProvider);
+			this.gameManager = new GameManager(this.tickProvider, this.engine);
 
             this.initializeGameGlobals();
 			this.addSystems();
             this.initializePlugins(plugins);
 
+            GameGlobals.uiFunctions.init();
+            GlobalSignals.pageSetUpSignal.dispatch();
+            
             ExceptionHandler.exceptionCallback = function (ex) { game.handleException(ex) };
             GlobalSignals.exceptionCallback = function (ex) { game.handleException(ex) };
-            GlobalSignals.worldReadySignal.addOnce(function () {
+            GlobalSignals.gameStateReadySignal.addOnce(function () {
                 game.start();
             });
-
-            ExceptionHandler.wrapCall(this, function () {
-                this.gameManager.setupGame();
+            
+            GlobalSignals.changelogLoadedSignal.addOnce(function () {
+                ExceptionHandler.wrapCall(this, function () {
+                    game.gameManager.setupGame();
+                });
             });
         },
 
@@ -192,10 +202,11 @@ define([
             GameGlobals.campVisHelper = new CampVisHelper();
 			GameGlobals.playerActionResultsHelper = new PlayerActionResultsHelper(this.engine);
 
-            GameGlobals.itemsHelper = new ItemsHelper();
+            GameGlobals.itemsHelper = new ItemsHelper(this.engine);
 			GameGlobals.upgradeEffectsHelper = new UpgradeEffectsHelper();
 			GameGlobals.saveHelper = new SaveHelper();
             GameGlobals.changeLogHelper = new ChangeLogHelper();
+            GameGlobals.gameFlowLogger = new GameFlowLogger();
 
             GameGlobals.uiMapHelper = new UIMapHelper(this.engine);
             GameGlobals.uiTechTreeHelper = new UITechTreeHelper(this.engine);
@@ -208,7 +219,7 @@ define([
             if (!plugins) return;
             var game = this;
             for (var i = 0; i < plugins.length; i++) {
-                console.log("Add plugin " + (i+1) + "/" + plugins.length + ": " + plugins[i]);
+                log.i("Add plugin " + (i+1) + "/" + plugins.length + ": " + plugins[i]);
                 require([plugins[i]], function (plugin) {
                     game.engine.addSystem(new plugin(), SystemPriorities.update);
                 });
@@ -216,9 +227,7 @@ define([
         },
 
 		addSystems: function () {
-			this.engine.addSystem(this.gameManager, SystemPriorities.preUpdate);
-
-			if (GameConstants.logInfo) console.log("START " + GameConstants.STARTTimeNow() + "\t initializing systems");
+			log.i("START " + GameConstants.STARTTimeNow() + "\t initializing systems");
 
 			this.engine.addSystem(new SaveSystem(), SystemPriorities.preUpdate);
 			this.engine.addSystem(new PlayerPositionSystem(), SystemPriorities.preupdate);
@@ -230,6 +239,7 @@ define([
 			this.engine.addSystem(new HazardSystem(), SystemPriorities.update);
 			this.engine.addSystem(new CollectorSystem(), SystemPriorities.update);
 			this.engine.addSystem(new FightSystem(), SystemPriorities.update);
+			this.engine.addSystem(new FollowerSystem(), SystemPriorities.update);
 			this.engine.addSystem(new PopulationSystem(), SystemPriorities.update);
 			this.engine.addSystem(new WorkerSystem(), SystemPriorities.update);
 			this.engine.addSystem(new FaintingSystem(), SystemPriorities.update);
@@ -275,21 +285,26 @@ define([
 		},
 
 		start: function () {
-			this.tickProvider.add(this.engine.update, this.engine);
+			this.tickProvider.add(this.gameManager.update, this.gameManager);
 			this.tickProvider.start();
             this.gameManager.startGame();
 		},
 
         handleException: function (ex) {
-            var exshortdesc = (ex.name ? ex.name : "Unknown") + ": " + (ex.message ? ex.message.replace(/\'/g, "%27") : "No message");
+            var exshortdesc = (ex.name ? ex.name : "Unknown") + ": " + (ex.message ? ex.message : "No message");
             var stack = (ex.stack ? ex.stack : "Not available");
             var stackParts = stack.split("\n");
+            
+            var cleanString = function (s) {
+                var result = s.replace(/\n/g, "%0A").replace(/\'/g, "%27");
+                return encodeURI(result);
+            }
 
             // track to ga
             var gastack = stackParts[0];
             if (stackParts.length > 0) gastack += " " + stackParts[1];
             gastack = gastack.replace(/\s+/g, ' ');
-            gastack = gastack.replace(/\(.*:[\/\\]+.*[\/\\]/g, '(/../');
+            gastack = gastack.replace(/\(.*:[\/\\]+.*[\/\\]/g, '(');
             var gadesc = exshortdesc + " | " + gastack;
             gtag('event', 'exception', {
                 'description': gadesc,
@@ -297,11 +312,10 @@ define([
             });
             
             // show popup
-            var cleanedStack = stack.replace(/\n/g, "%0A").replace(/\'/g, "%27");
-            var bugTitle = "[JS Error] " + exshortdesc;
+            var bugTitle = "[JS Error] " + cleanString(exshortdesc);
             var bugBody =
                "Details:%0A[Fill in any details here that you think will help tracking down this bug, such as what you did in the game just before it happened.]" +
-               "%0A%0AStacktrace:%0A" + cleanedStack;
+               "%0A%0AStacktrace:%0A" + cleanString(stack);
             var url = "https://github.com/nroutasuo/level13/issues/new?title=" + bugTitle + "&body=" + bugBody + "&labels=exception";
             GameGlobals.uiFunctions.showInfoPopup(
                 "Error",

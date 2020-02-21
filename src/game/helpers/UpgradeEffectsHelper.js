@@ -13,7 +13,7 @@ define([
         constructor: function () {},
 		
 		upgradesByWorker: {
-			"rope-maker": UpgradeConstants.upgradeIds.unlock_worker_rope,
+			"weaver": UpgradeConstants.upgradeIds.unlock_worker_rope,
 			"apothecary": UpgradeConstants.upgradeIds.unlock_building_apothecary,
 			"concrete": UpgradeConstants.upgradeIds.unlock_building_cementmill,
 			"smith": UpgradeConstants.upgradeIds.unlock_building_smithy,
@@ -234,9 +234,20 @@ define([
 			return upgradeLevel;
         },
         
+        getExpectedBuildingUpgradeLevel: function (building, campOrdinal) {
+			var upgradeLevel = 1;
+			var buildingUpgrades = this.getUpgradeIdsForImprovement(building);
+			var buildingUpgrade;
+			for (var i in buildingUpgrades) {
+				buildingUpgrade = buildingUpgrades[i];
+                var requiredTechCampOrdinal = UpgradeConstants.getMinimumCampOrdinalForUpgrade(buildingUpgrade);
+				if (requiredTechCampOrdinal <= campOrdinal) upgradeLevel++;
+			}
+			return upgradeLevel;
+        },
+        
         getWorkerLevel: function (worker, upgradesComponent) {
             var result = 0;
-            
             var isUnlocked = true;
             var unlockingUpgrade = this.upgradesByWorker[worker];
             if (unlockingUpgrade) {
