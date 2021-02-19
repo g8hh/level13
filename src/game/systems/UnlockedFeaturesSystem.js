@@ -5,17 +5,18 @@ define([
     'game/GlobalSignals',
     'game/constants/ItemConstants',
     'game/constants/UpgradeConstants',
+    'game/nodes/player/ItemsNode',
     'game/nodes/sector/CampNode',
 	'game/nodes/tribe/TribeUpgradesNode',
     'game/components/sector/improvements/SectorImprovementsComponent',
-    'game/components/player/ItemsComponent',
     'game/vos/ResourcesVO'
-], function (Ash, GameGlobals, GlobalSignals, ItemConstants, UpgradeConstants, CampNode, TribeUpgradesNode, SectorImprovementsComponent, ItemsComponent, ResourcesVO) {
+], function (Ash, GameGlobals, GlobalSignals, ItemConstants, UpgradeConstants, ItemsNode, CampNode, TribeUpgradesNode, SectorImprovementsComponent, ResourcesVO) {
     var UnlockedFeaturesSystem = Ash.System.extend({
 	    
 		gameState: null,
 		campNodes: null,
         tribeUpgradesNodes: null,
+        itemNodes: null,
 	
         constructor: function () {
         },
@@ -24,6 +25,7 @@ define([
             this.engine = engine;
 			this.campNodes = engine.getNodeList(CampNode);
             this.tribeUpgradesNodes = engine.getNodeList(TribeUpgradesNode);
+			this.itemNodes = engine.getNodeList(ItemsNode);
         },
 
         removeFromEngine: function (engine) {
@@ -34,16 +36,11 @@ define([
         update: function (time) {
 			var numCamps = 0;
 			var numTradePostCamps = 0;
-            
-            GameGlobals.gameState.gamePlayedSeconds += time;
 			
 			// Global improvements
 			for (var node = this.campNodes.head; node; node = node.next) {
 				var improvementsComponent = node.entity.get(SectorImprovementsComponent);
 				if (improvementsComponent.getCount(improvementNames.tradepost) > 0) {
-                    if (!GameGlobals.gameState.unlockedFeatures.trade)
-                        GlobalSignals.featureUnlockedSignal.dispatch();
-					GameGlobals.gameState.unlockedFeatures.trade = true;
 					numTradePostCamps++;
 				}
 				if (improvementsComponent.getCount(improvementNames.inn) > 0) {
@@ -61,6 +58,13 @@ define([
                 }
 				numCamps++;
 			}
+            
+            if (!GameGlobals.gameState.unlockedFeatures.followers) {
+                var itemsComponent = this.itemNodes.head.items;
+    			var numFollowers = itemsComponent.getAllByType(ItemConstants.itemTypes.follower, true).length;
+                GameGlobals.gameState.unlockedFeatures.followers = GameGlobals.gameState.unlockedFeatures.followers || numFollowers > 0;
+            }
+            
             if (GameGlobals.gameState.numCamps !== numCamps) {
                 GameGlobals.gameState.numCamps = numCamps;
                 gtag('set', { 'max_camp': GameGlobals.gameState.numCamps });

@@ -143,7 +143,6 @@ define([
             
             var sys = this;
             if (updateTables) {
-            
                 GameGlobals.uiFunctions.toggle("#container-in-improvements-level-hidden", hiddenRegular > 0);
                 this.elements.hiddenImprovementsMsg.text(hiddenRegular + " projects hidden");
             
@@ -207,7 +206,7 @@ define([
                 var levels = this.getProjectLevels(project);
                 info = "connecting levels <span class='hl-functionality'>" + levels[0] + "</span> and <span class='hl-functionality'>" + levels[1] + "</span> at " + location;
             }
-            if (project.action == "clear_debris" || project.action == "bridge_gap") {
+            if (project.action == "clear_debris_e" || project.action == "clear_debris_l" || project.action == "bridge_gap") {
                 var neighbourPosition = PositionConstants.getPositionOnPath(project.position.getPosition(), project.direction, 1);
                 var neighbourLocation = neighbourPosition.getInGameFormat();
                 info = "between " + location + " and " + neighbourLocation + " on level " + project.level;
@@ -220,7 +219,7 @@ define([
             result += "<td class='list-description'>" + info + "</td>";
             if (isAvailable) {
                 result += "<td class='minwidth'>";
-                if (project.action == "clear_debris" || project.action == "bridge_gap") {
+                if (project.action == "clear_debris_e" || project.action == "clear_debris_l" || project.action == "bridge_gap") {
                     result += "<button class='btn-mini btn-meta hide-project' data-project='" + projectID + "'>hide</button>";
                 }
                 result += "</td>";

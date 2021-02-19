@@ -5,7 +5,7 @@ define([
     'game/GlobalSignals',
     'game/constants/PositionConstants',
     'game/constants/LocaleConstants',
-    'game/constants/HazardConstants',
+    'game/constants/MovementConstants',
     'game/nodes/sector/SectorNode',
     'game/nodes/PlayerLocationNode',
     'game/nodes/player/ItemsNode',
@@ -23,7 +23,7 @@ define([
     GlobalSignals,
 	PositionConstants,
 	LocaleConstants,
-	HazardConstants,
+    MovementConstants,
 	SectorNode,
 	PlayerLocationNode,
     ItemsNode,
@@ -69,6 +69,9 @@ define([
 			GlobalSignals.equipmentChangedSignal.add(function () {
 				sys.updateCurrentLocation();
 			});
+			GlobalSignals.movementBlockerClearedSignal.add(function () {
+				sys.updateCurrentLocation();
+			});
 			GlobalSignals.gameResetSignal.add(function () {
 				sys.reset();
 			});
@@ -102,6 +105,7 @@ define([
             
 			this.updateGangs(entity);
 			this.updateMovementOptions(entity);
+            this.updateHazardReduction(entity);
 			
 			sectorStatusComponent.canBuildCamp = isScouted && !hasCampLevel && featuresComponent.canHaveCamp();
 			
@@ -149,22 +153,24 @@ define([
 			var passagesComponent = entity.get(PassagesComponent);
 			var positionComponent = entity.get(PositionComponent);
             var featuresComponent = entity.get(SectorFeaturesComponent);
+            var statusComponent = entity.get(SectorStatusComponent);
             
 			var sectorKey = this.getSectorKey(positionComponent);
 			if (!this.neighboursDict[sectorKey]) this.findNeighbours(entity);
             
-            var isAffectedByHazard = HazardConstants.isAffectedByHazard(featuresComponent, this.itemsNodes.head.items);
+            var isAffectedByHazard = GameGlobals.sectorHelper.isAffectedByHazard(featuresComponent, statusComponent, this.itemsNodes.head.items);
             
 			// Allow n/s/w/e movement if neighbour exists and there is no active blocker AND no hazard
 			for (var i in PositionConstants.getLevelDirections()) {
 				var direction = PositionConstants.getLevelDirections()[i];
 				var neighbour = this.getNeighbour(sectorKey, direction);
-                var isBlockedByHazard = neighbour ? isAffectedByHazard && !(neighbour.has(VisitedComponent) && !HazardConstants.isAffectedByHazard(neighbour.get(SectorFeaturesComponent), this.itemsNodes.head.items)) : false;
+                var isNeighbourAffectedByHazard = neighbour ? GameGlobals.sectorHelper.isAffectedByHazard(neighbour.get(SectorFeaturesComponent), neighbour.get(SectorStatusComponent), this.itemsNodes.head.items) : false;
+                var isBlockedByHazard = neighbour ? isAffectedByHazard && !(neighbour.has(VisitedComponent) && !isNeighbourAffectedByHazard) : false;
 				movementOptions.canMoveTo[direction] = neighbour != null;
                 movementOptions.canMoveTo[direction] = movementOptions.canMoveTo[direction] && !isBlockedByHazard;
 				movementOptions.canMoveTo[direction] = movementOptions.canMoveTo[direction] && !GameGlobals.movementHelper.isBlocked(entity, direction);
 				movementOptions.cantMoveToReason[direction] = GameGlobals.movementHelper.getBlockedReason(entity, direction);
-                if (isBlockedByHazard) movementOptions.cantMoveToReason[direction] = HazardConstants.getHazardDisabledReason(featuresComponent, this.itemsNodes.head.items);
+                if (isBlockedByHazard) movementOptions.cantMoveToReason[direction] = GameGlobals.sectorHelper.getHazardDisabledReason(featuresComponent, statusComponent, this.itemsNodes.head.items);
 				if (!neighbour) movementOptions.cantMoveToReason[direction] = "Nothing here.";
                 
                 //log.i(PositionConstants.getDirectionName(direction) + "\t" + isBlockedByHazard + " | " + movementOptions.cantMoveToReason[direction]);
@@ -177,6 +183,53 @@ define([
 			movementOptions.cantMoveToReason[PositionConstants.DIRECTION_DOWN] = GameGlobals.movementHelper.getBlockedReason(entity, PositionConstants.DIRECTION_DOWN);
 		},
 		
+        updateHazardReduction: function (entity) {
+            if (GameGlobals.gameState.uiStatus.isHidden) return;
+            var statusComponent = entity.get(SectorStatusComponent);
+			var passagesComponent = entity.get(PassagesComponent);
+    		var positionComponent = entity.get(PositionComponent);
+			var sectorKey = this.getSectorKey(positionComponent);
+            
+            statusComponent.hazardReduction = { radiation: 0, poison: 0 };
+            
+            var reductionSelf = this.getHazardReduction(entity, 0);
+            statusComponent.hazardReduction.radiation += reductionSelf.radiation;
+            statusComponent.hazardReduction.poison += reductionSelf.poison;
+            
+            var directions = PositionConstants.getLevelDirections();
+			for (var i in directions) {
+				var direction = directions[i];
+                var neighbour = this.getNeighbour(sectorKey, direction);
+                if (!neighbour) continue;
+                var reductionNeighbour = this.getHazardReduction(neighbour, 1);
+                statusComponent.hazardReduction.radiation += reductionNeighbour.radiation;
+                statusComponent.hazardReduction.poison += reductionNeighbour.poison;
+            }
+        },
+        
+        getHazardReduction: function (entity, distance) {
+            var passagesComponent = entity.get(PassagesComponent);
+            var result = { radiation: 0, poison: 0 };
+            var reduction = Math.pow(Math.max(0, 2-distance), 2) * 5;
+            var directions = PositionConstants.getLevelDirections();
+            for (var i in directions) {
+                var direction = directions[i];
+                var blocker = passagesComponent.getBlocker(direction);
+                if (!blocker) continue;
+                if (GameGlobals.movementHelper.isCleaned(entity, direction)) {
+                    switch (blocker.type) {
+                        case MovementConstants.BLOCKER_TYPE_WASTE_TOXIC:
+                            result.poison += reduction;
+                            break;
+                        case MovementConstants.BLOCKER_TYPE_WASTE_RADIOACTIVE:
+                            result.radiation += reduction;
+                            break;
+                    }
+                }
+            }
+            return result;
+        },
+        
 		getNeighbour: function (sectorKey, direction) {
             switch (direction) {
                 case PositionConstants.DIRECTION_NORTH: return this.neighboursDict[sectorKey].north;

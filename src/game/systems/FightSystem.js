@@ -9,7 +9,6 @@ define([
     'game/nodes/FightNode',
     'game/nodes/player/PlayerStatsNode',
     'game/components/common/PositionComponent',
-    'game/components/sector/FightComponent',
     'game/components/sector/FightEncounterComponent',
     'game/components/sector/SectorControlComponent',
     'game/components/player/ItemsComponent',
@@ -17,7 +16,7 @@ define([
 ], function (Ash, GameGlobals, GlobalSignals, FightConstants, PositionConstants, EnemyConstants,
     FightNode, PlayerStatsNode,
     PositionComponent,
-    FightComponent, FightEncounterComponent, SectorControlComponent,
+    FightEncounterComponent, SectorControlComponent,
     ItemsComponent, PlayerActionResultComponent) {
 	
     var FightSystem = Ash.System.extend({
@@ -158,7 +157,7 @@ define([
             playerStamina.hp -= playerChange;
             playerStamina.hp = Math.max(playerStamina.hp, 0);
             
-            if (playerChange !== 0 || enemyChange !== 0) {
+            if (playerChange !== 0 || enemyChange !== 0 || extraEnemyDamage !== 0) {
                 GlobalSignals.fightUpdateSignal.dispatch(playerChange, enemyChange);
             }
         },
@@ -184,19 +183,22 @@ define([
             
             this.fightNodes.head.fight.finishedPending = true;
             setTimeout(function () {
-                if (won) {
-                    var sectorControlComponent = sector.get(SectorControlComponent);
-    				var encounterComponent = sector.get(FightEncounterComponent);
-                    if (encounterComponent.gangComponent) {
-                        encounterComponent.gangComponent.addWin();
-                    } else {
+                var encounterComponent = sector.get(FightEncounterComponent);
+                if (encounterComponent.gangComponent) {
+                    // gang
+                    encounterComponent.gangComponent.addAttempt();
+                    if (won) encounterComponent.gangComponent.addWin();
+                } else {
+                    // random encounter
+                    if (won) {
+                        var sectorControlComponent = sector.get(SectorControlComponent);
         				var baseActionID = GameGlobals.playerActionsHelper.getBaseActionID(encounterComponent.context);
         				var localeId = FightConstants.getEnemyLocaleId(baseActionID, encounterComponent.context);
         				sectorControlComponent.addWin(localeId);
                     }
                 }
                 
-                this.fightNodes.head.fight.resultVO = GameGlobals.playerActionResultsHelper.getFightRewards(won);
+                this.fightNodes.head.fight.resultVO = GameGlobals.playerActionResultsHelper.getFightRewards(won, enemy);
                 this.playerStatsNodes.head.entity.add(new PlayerActionResultComponent(this.fightNodes.head.fight.resultVO));
                 
                 enemy.resetHP();

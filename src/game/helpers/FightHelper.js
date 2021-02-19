@@ -44,7 +44,9 @@ define([
 			var hasEnemies = this.hasEnemiesCurrentLocation(action);
 			if (hasEnemies && GameGlobals.gameState.unlockedFeatures.camp) {
                 var vision = this.playerStatsNodes.head.vision.value;
-				var encounterProbability = PlayerActionConstants.getRandomEncounterProbability(baseActionID, vision);
+                var encounterFactor = GameGlobals.playerActionsHelper.getEncounterFactor(action);
+                var sectorFactor = GameGlobals.sectorHelper.getDangerFactor(this.playerLocationNodes.head.entity);
+				var encounterProbability = PlayerActionConstants.getRandomEncounterProbability(baseActionID, vision, sectorFactor, encounterFactor);
 				if (Math.random() < encounterProbability) {
 					this.pendingEnemies = this.getEnemyCount(action);
                     this.totalEnemies = this.pendingEnemies;
@@ -78,7 +80,7 @@ define([
             sector.remove(FightComponent);
             var enemiesComponent = sector.get(EnemiesComponent);
             enemiesComponent.selectNextEnemy();
-            log.i("init fight: " + action);
+            if (GameGlobals.gameFlowLogger.isEnabled) log.i("init fight: " + action);
 			var baseActionID = GameGlobals.playerActionsHelper.getBaseActionID(action);
             var gangComponent = null;
             if (baseActionID == "fight_gang") {
@@ -86,7 +88,7 @@ define([
                 var position = this.playerLocationNodes.head.position;
                 var gangEntity = GameGlobals.levelHelper.getGang(position, direction);
                 gangComponent = gangEntity.get(GangComponent);
-                log.i("gang enemy: " + gangComponent.enemyID);
+                log.i("gang enemy: " + gangComponent.enemyID + ", previous attempts: " + gangComponent.numAttempts);
             }
             var enemy = this.getEnemy(enemiesComponent, gangComponent);
 			sector.add(new FightEncounterComponent(enemy, action, this.pendingEnemies, this.totalEnemies, gangComponent));
@@ -94,7 +96,6 @@ define([
         },
 
         startFight: function () {
-            log.i("start fight");
             // TODO move to PlayerActionFunctions
             if (GameGlobals.playerActionsHelper.checkAvailability("fight", true)) {
                 GameGlobals.playerActionsHelper.deductCosts("fight");
@@ -106,7 +107,7 @@ define([
 					if (GameGlobals.logWarnings) log.w("Encounter or enemy not initialized - cannot start fight.");
 				}
             } else {
-                if (GameGlobals.logWarnings) log.w("Can't start fight- availability check failed");
+                if (GameGlobals.logWarnings) log.w("Can't start fight - availability check failed");
             }
         },
 

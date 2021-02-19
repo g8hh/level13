@@ -19,6 +19,10 @@ function (Ash, MovementConstants, PositionConstants, PassageVO, MovementBlockerV
             }
         },
         
+        hasLevelPassage: function () {
+            return this.passageUp || this.passageDown;
+        },
+        
         getBlocker: function (direction) {
             return typeof this.blockers[direction] === 'undefined' ? null : this.blockers[direction];
         },
@@ -66,7 +70,8 @@ function (Ash, MovementConstants, PositionConstants, PassageVO, MovementBlockerV
             }
             var blocker = this.getBlocker(direction);
             if (blocker == null) return false;
-            if (blocker.type == MovementConstants.BLOCKER_TYPE_WASTE) return true;
+            if (blocker.type == MovementConstants.BLOCKER_TYPE_WASTE_TOXIC) return true;
+            if (blocker.type == MovementConstants.BLOCKER_TYPE_WASTE_RADIOACTIVE) return true;
             if (blocker.type == MovementConstants.BLOCKER_TYPE_DEBRIS) return true;
             if (blocker.type == MovementConstants.BLOCKER_TYPE_GAP) return true;
             return false;

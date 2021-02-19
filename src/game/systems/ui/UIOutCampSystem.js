@@ -49,8 +49,6 @@
         lastShownAvailableBuildingCount: 0,
         currentEvents: 0,
         lastShownEvents: 0,
-        currentPopulation: 0,
-        lastShownPopulation: 0,
 
         elements: {
             improvementRows: [],
@@ -59,6 +57,7 @@
 
         constructor: function () {
             this.initImprovements();
+            this.initWorkers();
         },
 
         addToEngine: function (engine) {
@@ -142,10 +141,15 @@
         },
 
         updateBubble: function () {
+            var campComponent = this.playerLocationNodes.head.entity.get(CampComponent);
+            if (!campComponent) return;
             var buildingNum = this.availableBuildingCount - this.lastShownAvailableBuildingCount + this.visibleBuildingCount - this.lastShownVisibleBuildingCount;
             var eventNum = this.currentEvents - this.lastShownEvents;
-            var populationNum = this.currentPopulation - this.lastShownPopulation;
-            var newBubbleNumber = buildingNum + eventNum + populationNum;
+
+            let currentPopulation = Math.floor(campComponent.population);
+            var freePopulation = campComponent.getFreePopulation();
+
+            var newBubbleNumber = buildingNum + eventNum + freePopulation;
             if (this.bubbleNumber === newBubbleNumber)
                 return;
             this.bubbleNumber = newBubbleNumber;
@@ -158,8 +162,7 @@
             var campComponent = this.playerLocationNodes.head.entity.get(CampComponent);
 			if (!campComponent) return;
 
-            this.currentPopulation = Math.floor(campComponent.population);
-            if (isActive) this.lastShownPopulation = this.currentPopulation;
+            let currentPopulation = Math.floor(campComponent.population);
 
             if (!isActive) return;
             
@@ -170,8 +173,7 @@
 
         getCampMaxPopulation: function () {
             if (!this.playerLocationNodes.head) return;
-            var improvements = this.playerLocationNodes.head.entity.get(SectorImprovementsComponent);
-            return CampConstants.getHousingCap(improvements);
+            return GameGlobals.campHelper.getCampMaxPopulation(this.playerLocationNodes.head.entity);
         },
 
         updateWorkerStepper: function (campComponent, id, workerType, maxWorkers, showMax) {
@@ -182,7 +184,6 @@
             var maxAssigned = Math.min(assignedWorkers + freePopulation, maxWorkers);
             GameGlobals.uiFunctions.updateStepper(id, assignedWorkers, 0, maxAssigned);
 
-            if (maxWorkers === 0) return;
 			$(id).parent().siblings(".in-assign-worker-limit").children(".callout-container").children(".info-callout-target").html(showMax ? "<span>/ " + maxWorkers + "</span>" : "");
         },
 
@@ -199,7 +200,7 @@
             $("#in-population-next").text(campComponent.populationChangePerSec >= 0 ? "Next worker:" : "Worker leaving:");
             $("#in-population-reputation").text("Reputation required: " + reqRepCur + " (current) " + reqRepNext + " (next)");
             $("#in-population h3").text("Population: " + Math.floor(campComponent.population) + " / " + (maxPopulation));
-            $("#in-population p#in-population-status").text("Free workers: " + freePopulation);
+            $("#in-population p#in-population-status").text("Unassigned workers: " + freePopulation);
 
             if (!isPopulationStill) {
                 var secondsToChange = 0;
@@ -233,95 +234,34 @@
         updateAssignedWorkers: function (campComponent) {
             var campComponent = this.playerLocationNodes.head.entity.get(CampComponent);
 			if (!campComponent) return;
-
-            var maxPopulation = this.getCampMaxPopulation();
-            var posComponent = this.playerPosNodes.head.position;
-            var improvements = this.playerLocationNodes.head.entity.get(SectorImprovementsComponent);
-            var hasUnlockedRopers = GameGlobals.upgradeEffectsHelper.getWorkerLevel("weaver", this.tribeUpgradesNodes.head.upgrades) > 0;
-            var hasUnlockedScientists = GameGlobals.upgradeEffectsHelper.getWorkerLevel("scientist", this.tribeUpgradesNodes.head.upgrades) > 0;
-            var soldierLevel = GameGlobals.upgradeEffectsHelper.getWorkerLevel("soldier", this.tribeUpgradesNodes.head.upgrades);
-
-            var workerConsumptionS =
-                "<br/><span class='warning'>water -" + UIConstants.roundValue(GameGlobals.campHelper.getWaterConsumptionPerSecond(1), true, true) + "/s</span>" +
-                "<br/><span class='warning'>food -" + UIConstants.roundValue(GameGlobals.campHelper.getFoodConsumptionPerSecond(1), true, true) + "/s</span>";
-            UIConstants.updateCalloutContent("#in-assign-water .in-assing-worker-desc .info-callout-target",
-                "water +" + UIConstants.roundValue(GameGlobals.campHelper.getWaterProductionPerSecond(1, improvements), true, true) + "/s" +
-                workerConsumptionS, true);
-            UIConstants.updateCalloutContent("#in-assign-scavenger .in-assing-worker-desc .info-callout-target",
-                "metal +" + UIConstants.roundValue(GameGlobals.campHelper.getMetalProductionPerSecond(1, improvements), true, true) + "/s" +
-                workerConsumptionS, true);
-            UIConstants.updateCalloutContent("#in-assign-trapper .in-assing-worker-desc .info-callout-target",
-                "food +" + UIConstants.roundValue(GameGlobals.campHelper.getFoodProductionPerSecond(1, improvements), true, true) + "/s" +
-                workerConsumptionS, true);
-            UIConstants.updateCalloutContent("#in-assign-weaver .in-assing-worker-desc .info-callout-target",
-                "rope +" + UIConstants.roundValue(GameGlobals.campHelper.getRopeProductionPerSecond(1, improvements), true, true) + "/s" +
-                workerConsumptionS, true);
-            UIConstants.updateCalloutContent("#in-assign-chemist .in-assing-worker-desc .info-callout-target",
-                "fuel +" + UIConstants.roundValue(GameGlobals.campHelper.getFuelProductionPerSecond(1, improvements), true, true) + "/s" +
-                workerConsumptionS, true);
-            UIConstants.updateCalloutContent("#in-assign-apothecary .in-assing-worker-desc .info-callout-target",
-                "medicine +" + UIConstants.roundValue(GameGlobals.campHelper.getMedicineProductionPerSecond(1, improvements), true, true) + "/s" +
-                workerConsumptionS +
-                "<br/><span class='warning'>herbs -" + GameGlobals.campHelper.getHerbsConsumptionPerSecond(1) + "/s</span>", true);
-            UIConstants.updateCalloutContent("#in-assign-concrete .in-assing-worker-desc .info-callout-target",
-                "concrete +" + UIConstants.roundValue(GameGlobals.campHelper.getConcreteProductionPerSecond(1, improvements), true, true) + "/s" +
-                workerConsumptionS +
-                "<br/><span class='warning'>metal -" + GameGlobals.campHelper.getMetalConsumptionPerSecondConcrete(1) + "/s</span>", true);
-            UIConstants.updateCalloutContent("#in-assign-smith .in-assing-worker-desc .info-callout-target",
-                "tools +" + UIConstants.roundValue(GameGlobals.campHelper.getToolsProductionPerSecond(1, improvements), true, true) + "/s" +
-                workerConsumptionS +
-                "<br/><span class='warning'>metal -" + GameGlobals.campHelper.getMetalConsumptionPerSecondSmith(1) + "/s</span>", true);
-            UIConstants.updateCalloutContent("#in-assign-scientist .in-assing-worker-desc .info-callout-target",
-                "evidence +" + UIConstants.roundValue(GameGlobals.campHelper.getEvidenceProductionPerSecond(1, improvements), true, true) + "/s" +
-                workerConsumptionS, true);
-            UIConstants.updateCalloutContent("#in-assign-soldier .in-assing-worker-desc .info-callout-target",
-                "camp defence +" + CampConstants.getSoldierDefence(soldierLevel) +
-                workerConsumptionS, true);
-
-            var refineriesOnLevel = GameGlobals.levelHelper.getLevelClearedWorkshopCount(posComponent.level, resourceNames.fuel);
-            var apothecariesInCamp = improvements.getCount(improvementNames.apothecary);
-            var cementMillsInCamp = improvements.getCount(improvementNames.cementmill);
-            var smithiesInCamp = improvements.getCount(improvementNames.smithy);
-            var barracksInCamp = improvements.getCount(improvementNames.barracks);
-            var librariesInCamp = improvements.getCount(improvementNames.library);
-
-            var maxRopers = hasUnlockedRopers ? maxPopulation : 0;
-            var maxApothecaries = apothecariesInCamp * CampConstants.getApothecariesPerShop(GameGlobals.upgradeEffectsHelper.getBuildingUpgradeLevel(improvementNames.apothecary, this.tribeUpgradesNodes.head.upgrades));
-            var maxConcrete = cementMillsInCamp * CampConstants.getWorkersPerMill(GameGlobals.upgradeEffectsHelper.getBuildingUpgradeLevel(improvementNames.cementmill, this.tribeUpgradesNodes.head.upgrades));
-            var maxSmiths = smithiesInCamp * CampConstants.getSmithsPerSmithy(GameGlobals.upgradeEffectsHelper.getBuildingUpgradeLevel(improvementNames.smithy, this.tribeUpgradesNodes.head.upgrades));
-            var maxSoldiers = barracksInCamp * CampConstants.getSoldiersPerBarracks(GameGlobals.upgradeEffectsHelper.getBuildingUpgradeLevel(improvementNames.barracks, this.tribeUpgradesNodes.head.upgrades));
-            var maxScientists = hasUnlockedScientists ? librariesInCamp * CampConstants.getScientistsPerLibrary(GameGlobals.upgradeEffectsHelper.getBuildingUpgradeLevel(improvementNames.library, this.tribeUpgradesNodes.head.upgrades)) : 0;
-            var maxChemists = refineriesOnLevel * CampConstants.CHEMISTS_PER_WORKSHOP;
-
-            this.updateWorkerStepper(campComponent, "#stepper-scavenger", "scavenger", maxPopulation, false);
-            this.updateWorkerStepper(campComponent, "#stepper-trapper", "trapper", maxPopulation, false);
-            this.updateWorkerStepper(campComponent, "#stepper-water", "water", maxPopulation, false);
-            this.updateWorkerStepper(campComponent, "#stepper-rope", "ropemaker", maxRopers, false);
-            this.updateWorkerStepper(campComponent, "#stepper-fuel", "chemist", maxChemists, true);
-            this.updateWorkerStepper(campComponent, "#stepper-medicine", "apothecary", maxApothecaries, true);
-            this.updateWorkerStepper(campComponent, "#stepper-concrete", "concrete", maxConcrete, true);
-            this.updateWorkerStepper(campComponent, "#stepper-smith", "toolsmith", maxSmiths, true);
-            this.updateWorkerStepper(campComponent, "#stepper-soldier", "soldier", maxSoldiers, true);
-            this.updateWorkerStepper(campComponent, "#stepper-scientist", "scientist", maxScientists, true);
+                
+            for (var key in CampConstants.workerTypes) {
+                var def = CampConstants.workerTypes[key];
+                UIConstants.updateCalloutContent("#in-assign-" + key + " .in-assign-worker-desc .info-callout-target", this.getWorkerDescription(def), true);
+            }
+            
+            for (var key in CampConstants.workerTypes) {
+                var def = CampConstants.workerTypes[key];
+                var maxWorkers = GameGlobals.campHelper.getMaxWorkers(this.playerLocationNodes.head.entity, key);
+                var showMax = maxWorkers >= 0;
+                if (maxWorkers < 0) maxWorkers = GameGlobals.campHelper.getCampMaxPopulation(this.playerLocationNodes.head.entity);
+                this.updateWorkerStepper(campComponent, "#stepper-" + def.id, def.id, maxWorkers, showMax);
+            }
         },
 
         updateWorkerMaxDescriptions: function () {
             var improvements = this.playerLocationNodes.head.entity.get(SectorImprovementsComponent);
             var posComponent = this.playerPosNodes.head.position;
-
-            var refineriesOnLevel = GameGlobals.levelHelper.getLevelClearedWorkshopCount(posComponent.level, resourceNames.fuel);
-            var apothecariesInCamp = improvements.getCount(improvementNames.apothecary);
-            var cementMillsInCamp = improvements.getCount(improvementNames.cementmill);
-            var smithiesInCamp = improvements.getCount(improvementNames.smithy);
-            var librariesInCamp = improvements.getCount(improvementNames.library);
-            var barracksInCamp = improvements.getCount(improvementNames.barracks);
-
-            UIConstants.updateCalloutContent("#in-assign-chemist .in-assign-worker-limit .info-callout-target", refineriesOnLevel + " refineries found", true);
-            UIConstants.updateCalloutContent("#in-assign-apothecary .in-assign-worker-limit .info-callout-target", apothecariesInCamp + " apothecaries built", true);
-            UIConstants.updateCalloutContent("#in-assign-concrete .in-assign-worker-limit .info-callout-target", cementMillsInCamp + " cement mills built", true);
-            UIConstants.updateCalloutContent("#in-assign-smith .in-assign-worker-limit .info-callout-target", smithiesInCamp + " smithies built", true);
-            UIConstants.updateCalloutContent("#in-assign-scientist .in-assign-worker-limit .info-callout-target", librariesInCamp + " libraries built", true);
-            UIConstants.updateCalloutContent("#in-assign-soldier .in-assign-worker-limit .info-callout-target", barracksInCamp + " barracks built", true);
+			var campOrdinal = GameGlobals.gameState.getCampOrdinal(posComponent.level);
+            
+            for (var key in CampConstants.workerTypes) {
+                var def = CampConstants.workerTypes[key];
+                var maxWorkers = GameGlobals.campHelper.getMaxWorkers(this.playerLocationNodes.head.entity, key);
+                if (maxWorkers <= 0) continue;
+                var num = def.getLimitNum(campOrdinal, improvements);
+                var text = def.getLimitText(num);
+                UIConstants.updateCalloutContent("#in-assign-" + def.id + " .in-assign-worker-limit .info-callout-target", text, true);
+            }
         },
 
         initImprovements: function () {
@@ -349,11 +289,15 @@
                 }
                 tds += "<td>" + buildButton + "</td>";
                 tds += "<td><span class='improvement-badge improvement-count'>0</span></td>";
-                tds += "<td style='position:relative'><span class='improvement-badge improvement-level'>0</span><span class='improvement-badge improvement-upgrade-level'>0</span></td>";
+                tds += "<td style='position:relative'><span class='improvement-badge improvement-level'>0</span>";
+                tds += "<span class='improvement-badge improvement-upgrade-level'>0</span>";
+                tds += "</td>";
                 tds += "<td>" + improveButton + "</td>";
                 tds += "<td>" + useButton + "</td>";
                 trs += "<tr id='in-improvements-" + key + "'>" + tds + "</tr>";
             }
+            let ths = "<tr class='header-mini'><th></th><th>count</th><th>lvl</th><th></th><th></th></tr>"
+            $table.append(ths);
             $table.append(trs);
             
             // TODO save elements already in the previous loop
@@ -376,6 +320,20 @@
                 result.push({ tr: $(this), btnUse: btnUse, btnImprove: btnImprove, count: count, level: level, upgradeLevel: upgradeLevel, id: id, action: buildAction, improveAction: improveAction, improvementName: improvementName });
             });
             this.elements.improvementRows = result;
+        },
+        
+        initWorkers: function () {
+            var $table = $("#in-assign-workers");
+            var trs = "";
+            for (var key in CampConstants.workerTypes) {
+                var def = CampConstants.workerTypes[key];
+                var tds = "";
+                tds += "<td class='in-assign-worker-desc'><div class='info-callout-target info-callout-target-small'>" + (def.displayName || def.id) + "</div></td>";
+                tds += "<td><div class='stepper' id='stepper-" + def.id + "'></div></td>";
+                tds += "<td class='in-assign-worker-limit'><div class='info-callout-target info-callout-target-small'></div></td>"
+                trs += "<tr id='in-assign-" + key + "'>" + tds + "</tr>";
+            }
+            $table.append(trs);
         },
 
         updateImprovements: function () {
@@ -491,6 +449,7 @@
                 });
                 for (var i = 0; i < numCaravans; i++) {
                     var caravan = caravansComponent.outgoingCaravans[i];
+                    // TODO fix to use game time (and check other usages)
                     var duration = caravan.returnDuration * 1000;
                     var timeLeft = caravan.returnTimeStamp - new Date().getTime();
                     $("#in-occurrences-outgoing-caravans-" + i).data("progress-percent",  (1 - timeLeft / duration) * 100);
@@ -554,15 +513,73 @@
 
             var showLevelStats = GameGlobals.gameState.numCamps > 1;
             if (showLevelStats) {
-                var levelVO = this.playerLevelNodes.head.level.levelVO;
-				$("#in-demographics-level-population .value").text(levelVO.populationGrowthFactor * 100 + "%");
+                var levelComponent = this.playerLevelNodes.head.level;
+				$("#in-demographics-level-population .value").text(levelComponent.populationFactor * 100 + "%");
             }
 
             GameGlobals.uiFunctions.toggle("#id-demographics-level", showLevelStats);
             GameGlobals.uiFunctions.toggle("#in-demographics", showCalendar || showRaid || showLevelStats);
         },
 
-        onTabChanged: function () {
+        getWorkerDescription: function (def) {
+            var improvements = this.playerLocationNodes.head.entity.get(SectorImprovementsComponent);
+            var productionS = "";
+            var generalConsumptionS =
+                "<br/><span class='warning'>water -" + UIConstants.roundValue(GameGlobals.campHelper.getWaterConsumptionPerSecond(1), true, true) + "/s</span>" +
+                "<br/><span class='warning'>food -" + UIConstants.roundValue(GameGlobals.campHelper.getFoodConsumptionPerSecond(1), true, true) + "/s</span>";
+            var specialConsumptionS = "";
+            switch (def.id) {
+                case CampConstants.workerTypes.scavenger.id:
+                    productionS = "metal +" + UIConstants.roundValue(GameGlobals.campHelper.getMetalProductionPerSecond(1, improvements), true, true) + "/s";
+                    break;
+                case CampConstants.workerTypes.trapper.id:
+                    productionS = "food +" + UIConstants.roundValue(GameGlobals.campHelper.getFoodProductionPerSecond(1, improvements), true, true) + "/s";
+                    break;
+                case CampConstants.workerTypes.water.id:
+                    productionS = "water +" + UIConstants.roundValue(GameGlobals.campHelper.getWaterProductionPerSecond(1, improvements), true, true) + "/s";
+                    break;
+                case CampConstants.workerTypes.ropemaker.id:
+                    productionS = "rope +" + UIConstants.roundValue(GameGlobals.campHelper.getRopeProductionPerSecond(1, improvements), true, true) + "/s";
+                    break;
+                case CampConstants.workerTypes.chemist.id:
+                    productionS = "fuel +" + UIConstants.roundValue(GameGlobals.campHelper.getFuelProductionPerSecond(1, improvements), true, true) + "/s";
+                    break;
+                case CampConstants.workerTypes.rubbermaker.id:
+                    productionS = "rubber +" + UIConstants.roundValue(GameGlobals.campHelper.getRubberProductionPerSecond(1, improvements), true, true) + "/s";
+                    break;
+                case CampConstants.workerTypes.gardener.id:
+                    productionS = "herbs +" + UIConstants.roundValue(GameGlobals.campHelper.getHerbsProductionPerSecond(1, improvements), true, true) + "/s";
+                    break;
+                case CampConstants.workerTypes.apothecary.id:
+                    productionS = "medicine +" + UIConstants.roundValue(GameGlobals.campHelper.getMedicineProductionPerSecond(1, improvements), true, true) + "/s";
+                    specialConsumptionS = "<br/><span class='warning'>herbs -" + GameGlobals.campHelper.getHerbsConsumptionPerSecond(1) + "/s</span>";
+                    break;
+                case CampConstants.workerTypes.concrete.id:
+                    productionS = "concrete +" + UIConstants.roundValue(GameGlobals.campHelper.getConcreteProductionPerSecond(1, improvements), true, true) + "/s";
+                    specialConsumptionS = "<br/><span class='warning'>metal -" + GameGlobals.campHelper.getMetalConsumptionPerSecondConcrete(1) + "/s</span>";
+                    break;
+                case CampConstants.workerTypes.toolsmith.id:
+                    productionS = "tools +" + UIConstants.roundValue(GameGlobals.campHelper.getToolsProductionPerSecond(1, improvements), true, true) + "/s";
+                    specialConsumptionS = "<br/><span class='warning'>metal -" + GameGlobals.campHelper.getMetalConsumptionPerSecondSmith(1) + "/s</span>";
+                    break;
+                case CampConstants.workerTypes.scientist.id:
+                    productionS = "evidence +" + UIConstants.roundValue(GameGlobals.campHelper.getEvidenceProductionPerSecond(1, improvements), true, true) + "/s";
+                    break;
+                case CampConstants.workerTypes.cleric.id:
+                    productionS = "favour +" + UIConstants.roundValue(GameGlobals.campHelper.getFavourProductionPerSecond(1, improvements), true, true, 100000) + "/s";
+                    break;
+                case CampConstants.workerTypes.soldier.id:
+                    var soldierLevel = GameGlobals.upgradeEffectsHelper.getWorkerLevel("soldier", this.tribeUpgradesNodes.head.upgrades);
+                    productionS = "camp defence +" + CampConstants.getSoldierDefence(soldierLevel);
+                    break;
+                default:
+                    log.w("no description defined for worker type: " + def.id);
+                    break;
+            }
+            return productionS + generalConsumptionS + specialConsumptionS;
+        },
+
+        onTabChanged: function () {            
             if (GameGlobals.gameState.uiStatus.currentTab === GameGlobals.uiFunctions.elementIDs.tabs.in) {
                 this.refresh();
             }

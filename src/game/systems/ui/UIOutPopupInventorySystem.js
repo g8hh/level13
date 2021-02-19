@@ -32,18 +32,19 @@ define([
 
         onNodeAdded: function (node) {
             this.pendingListUpdate = true;
+            this.pendingButtonsUpdate = true;
         },
 
         update: function () {
 		    if (GameGlobals.gameState.uiStatus.isHidden) return;
             if (!this.playerActionResultNodes.head)
                 return;
-            if (!($(".popup").is(":visible")) || $(".popup").data("fading") == true)
-                return;
-            if (!($(".popup #info-results").is(":visible")) && !($(".popup #fight-popup-results").is(":visible")))
-                return;
+                
+            if (!this.playerActionResultNodes.head.result.pendingResultVO) return;
 
-            this.updateButtons();
+            if (this.pendingButtonsUpdate) {
+                this.updateButtons();
+            }
 
             if (this.pendingListUpdate) {
                 this.updateLists();
@@ -54,10 +55,11 @@ define([
             var resultNode = this.playerActionResultNodes.head;
             if (resultNode) {
                 var rewards = resultNode.result.pendingResultVO;
-                var hasPickedSomething = rewards.selectedItems.length > 0 || rewards.selectedResources.getTotal() > 0 || rewards.discardedItems.length > 0 || rewards.discardedResources.getTotal() > 0;
-                var canPickSomething = rewards.gainedResources.getTotal() > 0 || rewards.gainedItems.length > 0;
+                var hasPickedSomething = rewards && (rewards.selectedItems.length > 0 || rewards.selectedResources.getTotal() > 0 || rewards.discardedItems.length > 0 || rewards.discardedResources.getTotal() > 0);
+                var canPickSomething = rewards && (rewards.gainedResources.getTotal() > 0 || rewards.gainedItems.length > 0);
                 $(".inventory-selection-ok .btn-label").text(hasPickedSomething ? "Take selected" : canPickSomething ? "Leave all" : "Continue");
                 $(".inventory-selection-ok").toggleClass("btn-secondary", !hasPickedSomething && canPickSomething);
+                this.pendingButtonsUpdate = false;
             }
         },
 
@@ -139,6 +141,7 @@ define([
                 }
 
                 sys.updateLists();
+                sys.pendingButtonsUpdate = true;
             };
 
             this.addItemsToLists(rewards, playerAllItems);
@@ -166,7 +169,6 @@ define([
             BagConstants.updateCapacity(bagComponent, rewards, resultNode.resources, playerAllItems);
 
             var selectedCapacityPercent = bagComponent.selectedCapacity / bagComponent.totalCapacity * 100;
-            log.i("update capacity: " + selectedCapacityPercent + " = " + bagComponent.selectedCapacity + "/" + bagComponent.totalCapacity);
             $("#inventory-popup-bar").data("progress-percent", selectedCapacityPercent);
             $("#inventory-popup-bar .progress-label").text((Math.ceil( bagComponent.selectedCapacity * 10) / 10) + " / " + bagComponent.totalCapacity);
 
@@ -175,6 +177,8 @@ define([
 
         addItemsToLists: function (rewards, playerAllItems) {
 			var itemsComponent = this.itemNodes.head.items;
+            
+            if (!rewards) return;
 
             var lostItemCounts = {};
             var lostItemVOs = {};
@@ -260,6 +264,7 @@ define([
         },
 
         addResourcesToLists: function (rewards, resultNode) {
+            if (!rewards) return;
             // bag resources: non-discarded to kept, discarded to found
             // gained resources: non-selected to found, selected to kept
             for (var key in resourceNames) {

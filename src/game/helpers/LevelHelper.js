@@ -4,11 +4,13 @@ define([
     'game/GameGlobals',
     'utils/PathFinding',
     'utils/VOCache',
+    'game/constants/EnemyConstants',
+    'game/constants/FightConstants',
     'game/constants/LocaleConstants',
     'game/constants/PositionConstants',
     'game/constants/MovementConstants',
     'game/constants/SectorConstants',
-    'game/constants/WorldCreatorConstants',
+    'game/constants/WorldConstants',
     'game/nodes/level/LevelNode',
     'game/nodes/sector/SectorNode',
     'game/nodes/GangNode',
@@ -17,6 +19,7 @@ define([
     'game/components/common/CampComponent',
     'game/components/common/VisitedComponent',
     'game/components/type/LevelComponent',
+    'game/components/type/GangComponent',
     'game/components/sector/SectorStatusComponent',
     'game/components/sector/SectorLocalesComponent',
     'game/components/sector/SectorFeaturesComponent',
@@ -33,11 +36,13 @@ define([
     GameGlobals,
     PathFinding,
     VOCache,
+    EnemyConstants,
+    FightConstants,
 	LocaleConstants,
 	PositionConstants,
 	MovementConstants,
 	SectorConstants,
-    WorldCreatorConstants,
+    WorldConstants,
 	LevelNode,
     SectorNode,
     GangNode,
@@ -46,6 +51,7 @@ define([
     CampComponent,
     VisitedComponent,
     LevelComponent,
+    GangComponent,
 	SectorStatusComponent,
 	SectorLocalesComponent,
 	SectorFeaturesComponent,
@@ -132,6 +138,56 @@ define([
 			return null;
 		},
         
+        getSectorsByLevel: function (level) {
+            this.saveSectorsForLevel(level);
+			return this.sectorEntitiesByLevel[level];
+        },
+        
+        getNumAvailableGangs: function (campOrdinal, playerStamina, itemsComponent) {
+            let result = 0;
+            
+            for (var node = this.gangNodes.head; node; node = node.next) {
+				let gangPosition = node.entity.get(PositionComponent);
+                let gangCampOrdinal = GameGlobals.gameState.getCampOrdinal(gangPosition.level);
+                // wrong level
+                if (gangCampOrdinal != campOrdinal) {
+                    continue;
+                }
+                // already defeated
+                if (node.gang.isDefeated()) {
+                    continue;
+                }
+                // too many failed attempts, player not likely to back
+                if (node.gang.numAttempts - node.gang.numEnemiesDefeated > 1) {
+                    continue;
+                }
+                // too low win chance
+                var enemy = EnemyConstants.getEnemy(node.gang.enemyID);
+                var winChance = FightConstants.getFightWinProbability(enemy, playerStamina, itemsComponent);
+                if (winChance < 0.5) {
+                    continue;
+                }
+                // not visible and accessible
+                var sectors = this.getSectorsForGang(gangPosition);
+                var hasValidSector = false;
+                for (var i = 0; i < sectors.length; i++) {
+                    let pos = sectors[i].get(PositionComponent);
+                    let visited = sectors[i].has(VisitedComponent);
+                    let canExplore = GameGlobals.sectorHelper.canExploreSector(sectors[i], itemsComponent);
+                    if (visited && canExplore) {
+                        hasValidSector = true;
+                        break;
+                    }
+                }
+                if (!hasValidSector) {
+                    continue;
+                }
+                
+                result++;
+            }
+            return result;
+        },
+        
         getGang: function (position, direction) {
             // TODO do some caching here
             var level = position.level;
@@ -146,6 +202,40 @@ define([
                 }
 			}
             return null;
+        },
+        
+        getGangComponent: function (position, direction) {
+            var gangEntity = GameGlobals.levelHelper.getGang(position, direction);
+            if (!gangEntity) return null;
+            return gangEntity.get(GangComponent);
+        },
+        
+        getSectorsForGang: function (gangPosition) {
+            var level = gangPosition.level;
+            var result = [];
+            var sectorX = [];
+            if (gangPosition.sectorX % 1 == 0) {
+                sectorX.push(gangPosition.sectorX);
+            } else {
+                sectorX.push(Math.floor(gangPosition.sectorX));
+                sectorX.push(Math.ceil(gangPosition.sectorX));
+            }
+            var sectorY = [];
+            if (gangPosition.sectorY % 1 == 0) {
+                sectorY.push(gangPosition.sectorY);
+            } else {
+                sectorY.push(Math.floor(gangPosition.sectorY));
+                sectorY.push(Math.ceil(gangPosition.sectorY));
+            }
+            for (var x = 0; x < sectorX.length; x++) {
+                for (var y = 0; y < sectorY.length; y++) {
+                    let sector = this.getSectorByPosition(level, sectorX[x], sectorY[y]);
+                    if (sector) {
+                        result.push(sector);
+                    }
+                }
+            }
+            return result;
         },
 
         // todo use neighboursmap so we benefit from the same cache
@@ -180,8 +270,9 @@ define([
                 rawResult = cachedMap;
             } else {
     			var startingPos = sectorPos.getPosition();
-    			for (var i in PositionConstants.getLevelDirections()) {
-    				var direction = PositionConstants.getLevelDirections()[i];
+                var directions = PositionConstants.getLevelDirections();
+    			for (var i in directions) {
+    				var direction = directions[i];
     				var neighbourPos = PositionConstants.getPositionOnPath(startingPos, direction, 1);
                     var neighbour = this.getSectorByPosition(neighbourPos.level, neighbourPos.sectorX, neighbourPos.sectorY);
                     rawResult[direction] = neighbour;
@@ -199,12 +290,17 @@ define([
 
 			return result;
         },
+        
+        getNeighbour: function (sector, direction) {
+            let map = this.getSectorNeighboursMap(sector);
+            return map[direction];
+        },
 
         getCampStep: function (pos) {
             var sector = this.getSectorByPosition(pos.level, pos.sectorX, pos.sectorY);
             if (!sector) return 1;
             var featuresComponent = sector.get(SectorFeaturesComponent);
-            return WorldCreatorConstants.getCampStep(featuresComponent.zone);
+            return WorldConstants.getCampStep(featuresComponent.zone);
         },
 
         findPathTo: function (startSector, goalSector, settings) {
@@ -284,48 +380,31 @@ define([
             return null;
         },
 
-        forEverySectorFromLocation: function (playerPosition, func, limitToCurrentLevel) {
-            // TODO go by path distance, not distance in coordinates
+        forEverySectorFromLocation: function (pos, func, limitToCurrentLevel) {
+            // TODO go by path distance, not distance in coordinates / make that an option
 
 			var doLevel = function (level) {
                 if (!this.isLevelUnlocked(level))
                     return false;
-                // spiralling search: find sectors closest to current position first
-                var levelComponent = this.getLevelEntityForPosition(level).get(LevelComponent);
-                var levelVO = levelComponent.levelVO;
-                var checkPos = playerPosition.clone();
-                var spiralRadius = 0;
-                var spiralEdgeLength;
-                while ((checkPos.sectorX >= levelVO.minX && checkPos.sectorX <= levelVO.maxX) || (checkPos.sectorY >= levelVO.minY && checkPos.sectorY <= levelVO.maxY)) {
-                    spiralEdgeLength = spiralRadius * 2 + 1;
-                    checkPos = new PositionVO(playerPosition.level, playerPosition.sectorX - spiralRadius, playerPosition.sectorY - spiralRadius);
-                    for (var spiralEdge = 0; spiralEdge < 4; spiralEdge++) {
-                        for (var spiralEdgeI = 0; spiralEdgeI < spiralEdgeLength; spiralEdgeI++) {
-                            if (spiralEdgeI > 0) {
-                                if (spiralEdge === 0) checkPos.sectorX++;
-                                if (spiralEdge === 1) checkPos.sectorY++;
-                                if (spiralEdge === 2) checkPos.sectorX--;
-                                if (spiralEdge === 3) checkPos.sectorY--;
-
-                                var sector = this.getSectorByPosition(level, checkPos.sectorX, checkPos.sectorY);
-                                if (sector) {
-                                    var isDone = func(sector);
-                                    if (isDone) {
-                                        return true;
-                                    }
-                                }
-                            }
-                        }
-                        spiralRadius++;
+                let sectors = this.getSectorsByLevel(level).slice(0);
+                sectors.sort(function  (a, b) {
+                    let posA = a.get(PositionComponent).getPosition();
+                    let posB = b.get(PositionComponent).getPosition();
+                    return PositionConstants.getDistanceTo(posA, pos) - PositionConstants.getDistanceTo(posB, pos);
+                });
+                for (let i = 0; i < sectors.length; i++) {
+                    let sector = sectors[i];
+                    let done = func(sector);
+                    if (done) {
+                        return true;
                     }
                 }
-
                 return false;
             };
 
-			var currentLevel = playerPosition.level;
+			var currentLevel = pos.level;
             var isDone;
-            var dlimit  = limitToCurrentLevel ? 1 : WorldCreatorConstants.LEVEL_NUMBER_MAX;
+            var dlimit  = limitToCurrentLevel ? 1 : WorldConstants.LEVEL_NUMBER_MAX;
 			for (var ld = 0; ld < dlimit; ld++) {
                 if (ld === 0) {
                     isDone = doLevel.call(this, currentLevel);
@@ -486,6 +565,8 @@ define([
 			var sectorPosition = sectorEntity.get(PositionComponent);
             var statusComponent = sectorEntity.get(SectorStatusComponent);
             var sectorPassagesComponent = sectorEntity.get(PassagesComponent);
+            var featuresComponent = sectorEntity.get(SectorFeaturesComponent);
+            var improvementsComponent = sectorEntity.get(SectorImprovementsComponent);
             var levelOrdinal = GameGlobals.gameState.getLevelOrdinal(sectorPosition.level);
 
             var scouted = statusComponent && statusComponent.scouted;
@@ -560,7 +641,13 @@ define([
                             projects.push(new LevelProjectVO(null, "bridge_gap", sectorPosition, direction, "Gap", "bridge"));
                             break;
         				case MovementConstants.BLOCKER_TYPE_DEBRIS:
-                            projects.push(new LevelProjectVO(null, "clear_debris", sectorPosition, direction, "Debris", "clear"));
+                            let actionName = "clear_debris_e";
+                            let neighbour = this.getNeighbour(sectorEntity, direction);
+                            let neighbourFeaturesComponent = neighbour.get(SectorFeaturesComponent);
+                            if (!featuresComponent.isEarlyZone() || !neighbourFeaturesComponent.isEarlyZone()) {
+                                actionName = "clear_debris_l";
+                            }
+                            projects.push(new LevelProjectVO(null, actionName, sectorPosition, direction, "Debris", "clear"));
                             break;
                     }
                 }
@@ -576,6 +663,16 @@ define([
                             var improvement = GameGlobals.playerActionsHelper.getImprovementNameForAction(actions[i]);
                             projects.push(new LevelProjectVO(new ImprovementVO(improvement), actions[i], sectorPosition));
                         }
+                    }
+                }
+            }
+            
+            // buildable workshops
+            if (featuresComponent.sunlit) {
+                if (improvementsComponent.getCount(improvementNames.greenhouse) <= 0) {
+                    let workshopComponent = sectorEntity.get(WorkshopComponent);
+                    if (workshopComponent && workshopComponent.resource == resourceNames.herbs) {
+                        projects.push(new LevelProjectVO(new ImprovementVO(improvementNames.greenhouse), "build_out_greenhouse", sectorPosition));
                     }
                 }
             }
@@ -596,10 +693,28 @@ define([
                 var improvement = improvementList[i];
                 if (improvement.name === improvementNames.collector_food) continue;
                 if (improvement.name === improvementNames.collector_water) continue;
+                if (improvement.name === improvementNames.beacon) continue;
                 projects.push(new LevelProjectVO(improvement, "", sectorPosition));
             }
 
             return projects;
+        },
+        
+        getTotalClearedWorkshopCount: function (resourceName) {
+            var result = 0;
+            for (var i = 1; i <= 15; i++) {
+                result += this.getCampClearedWorkshopCount(i, resourceName);
+            }
+            return result;
+        },
+        
+        getCampClearedWorkshopCount: function (campOrdinal, resourceName) {
+            var levels = GameGlobals.gameState.getLevelsForCamp(campOrdinal);
+            var result = 0;
+            for (var i = 0; i < levels.length; i++) {
+                result += this.getLevelClearedWorkshopCount(levels[i], resourceName);
+            }
+            return result;
         },
 
         getLevelClearedWorkshopCount: function (level, resourceName) {
@@ -629,12 +744,34 @@ define([
 			featuresComponent = sectorEntity.get(SectorFeaturesComponent);
 			sectorControlComponent = sectorEntity.get(SectorControlComponent);
 			if (sectorEntity.has(WorkshopComponent)) {
-				if (!sectorControlComponent.hasControlOfLocale(LocaleConstants.LOCALE_ID_WORKSHOP)) {
+                let workshopComponent = sectorEntity.get(WorkshopComponent);
+				if (workshopComponent.isClearable && !sectorControlComponent.hasControlOfLocale(LocaleConstants.LOCALE_ID_WORKSHOP)) {
 					count++;
 				}
 			}
             return count;
 		},
+
+        getCampBuiltOutImprovementsCount: function (campOrdinal, improvement) {
+            var levels = GameGlobals.gameState.getLevelsForCamp(campOrdinal);
+            var result = 0;
+            for (var i = 0; i < levels.length; i++) {
+                result += this.getLevelBuiltOutImprovementsCount(levels[i], improvement);
+            }
+            return result;
+        },
+        
+        getLevelBuiltOutImprovementsCount: function (level, improvement) {
+			var count = 0;
+            var improvementsComponent;
+            this.saveSectorsForLevel(level);
+			for (var i = 0; i < this.sectorEntitiesByLevel[level].length; i++) {
+                var sectorEntity = this.sectorEntitiesByLevel[level][i];
+                improvementsComponent = sectorEntity.get(SectorImprovementsComponent);
+                count += improvementsComponent.getCount(improvement);
+            }
+            return count;
+        },
 
 		isLevelUnlocked: function (level) {
 			if (level === 13) return true;
@@ -666,19 +803,17 @@ define([
             return path && path.length >= 0;
         },
         
-		getLevelLocales: function (level, includeScouted, localeBracket, excludeLocaleVO) {
+		getLevelLocales: function (level, includeScouted, localeBracket, excludeLocaleVO, requireBlueprints) {
 			var locales = [];
 			var sectorPosition;
-			for (var node = this.sectorNodes.head; node; node = node.next) {
-				sectorPosition = node.entity.get(PositionComponent);
-				if (sectorPosition.level === level) {
-					locales = locales.concat(this.getSectorLocales(node.entity, includeScouted, localeBracket, excludeLocaleVO));
-				}
+			for (var i = 0; i < this.sectorEntitiesByLevel[level].length; i++) {
+                var sectorEntity = this.sectorEntitiesByLevel[level][i];
+				locales = locales.concat(this.getSectorLocales(sectorEntity, includeScouted, localeBracket, excludeLocaleVO, requireBlueprints));
 			}
 			return locales;
 		},
 
-		getSectorLocales: function (sectorEntity, includeScouted, localeBracket, excludeLocaleVO) {
+		getSectorLocales: function (sectorEntity, includeScouted, localeBracket, excludeLocaleVO, requireBlueprints) {
 			var locales = [];
 			var sectorLocalesComponent = sectorEntity.get(SectorLocalesComponent);
 			var sectorStatus = sectorEntity.get(SectorStatusComponent);
@@ -688,6 +823,7 @@ define([
 				if (locale === excludeLocaleVO) continue;
                 if (localeBracket && localeBracket !== locale.getBracket()) continue;
                 if (!includeScouted && sectorStatus.isLocaleScouted(i)) continue;
+                if (requireBlueprints && !locale.hasBlueprints()) continue;
 				locales.push(locale);
 			}
 			return locales;
@@ -702,7 +838,7 @@ define([
 				locale = sectorLocalesComponent.locales[i];
 				var action = "scout_locale_" + locale.getCategory() + "_" + i;
 				if (!sectorStatus.isLocaleScouted(i)) {
-					if (GameGlobals.playerActionsHelper.checkAvailability(action, true, sectorEntity))
+					if (GameGlobals.playerActionsHelper.checkAvailability(action, false, sectorEntity))
 						locales.push(locale);
                 }
 			}
@@ -715,8 +851,35 @@ define([
 			for (var i = 0; i < this.sectorEntitiesByLevel[level].length; i++) {
                 var sectorEntity = this.sectorEntitiesByLevel[level][i];
                 var featuresComponent = sectorEntity.get(SectorFeaturesComponent);
-                if (featuresComponent.stash) {
+                if (featuresComponent.stashes.length > 0) {
                     sectors.push(sectorEntity);
+                }
+			}
+            return sectors;
+        },
+        
+        getNearestBeacon: function (pos) {
+            let result = null;
+            let checkSector = function (sector) {
+                let improvementsComponent = sector.get(SectorImprovementsComponent);
+                if (improvementsComponent.getCount(improvementNames.beacon) > 0) {
+                    result = sector;
+                    return true;
+                }
+                return false;
+            };
+            this.forEverySectorFromLocation(pos, checkSector, true);
+            return result;
+        },
+        
+        getAllSectorsWithImprovement: function (level, improvementName) {
+            var sectors = [];
+            this.saveSectorsForLevel(level);
+			for (var i = 0; i < this.sectorEntitiesByLevel[level].length; i++) {
+                var sector = this.sectorEntitiesByLevel[level][i];
+                let improvementsComponent = sector.get(SectorImprovementsComponent);
+                if (improvementsComponent.getCount(improvementName) > 0) {
+                    sectors.push(sector);
                 }
 			}
             return sectors;

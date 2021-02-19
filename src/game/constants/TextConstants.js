@@ -1,48 +1,268 @@
+// Level 13 specific text helpers
+
 define(
 ['ash',
-    'game/constants/GameConstants', 'game/constants/WorldCreatorConstants', 'game/constants/PositionConstants', 'game/constants/MovementConstants'],
-function (Ash, GameConstants, WorldCreatorConstants, PositionConstants, MovementConstants) {
-
-    SECTOR_TYPE_NOLIGHT = -1;
+    'utils/DescriptionMapper', 'text/Text', 'text/TextBuilder',
+    'game/constants/GameConstants',
+    'game/constants/EnemyConstants',
+    'game/constants/ItemConstants',
+    'game/constants/SectorConstants',
+    'game/constants/PositionConstants',
+    'game/constants/MovementConstants'],
+function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstants, ItemConstants, SectorConstants, PositionConstants, MovementConstants) {
     
     var TextConstants = {
-	
-		densityBrackets: [
-			[0, 0], [1, 4], [5, 8], [9, 10]
-		],
 		
-		repairBrackets: [
-			[0, 1], [2, 4], [5, 7], [8, 10]
-		],
-		
-		sectorDescriptions: {
-		},
-        
         getActionName: function (baseActionID) {
             switch (baseActionID) {
                 case "scout_locale_i":
                 case "scout_locale_u":
                     return "Scout";
+                case "clear_waste_r": return "clear radioactive waste";
+                case "clear_waste_t": return "clear toxic waste";
+                case "build_out_greenhouse": return "build greenhouse";
+                case "bridge_gap": return "bridge gap";
                 default:
                     return baseActionID;
             }
         },
+        
+        getSectorName: function (isScouted, features) {
+            var template = "[a-sectortype] [n-street]";
+            var params = this.getSectorTextParams(features);
+            var phrase = TextBuilder.build(template, params);
+            return Text.capitalize(phrase);
+        },
 		
-		getSectorDescription: function (hasLight, sunlit, sectorType, density, repair) {
-			if (!hasLight && !sunlit) {
-				sectorType = SECTOR_TYPE_NOLIGHT;
-			}
-			 
-			var densityBracket = this.getDensityBracket(density);
-			var repairBracket = this.getRepairBracket(repair);
-			
-			var description = this.sectorDescriptions[sectorType][densityBracket][repairBracket];
-			if (description && sunlit) {
-				description = description.replace("artificial light", "sunlight");
-				description = description.replace("vast darkness", "vast brightness");
-			}
-			return description;
+        getSectorHeader: function (hasVision, features) {
+            var template = "[a-street] [a-sectortype] [n-street]";
+            if (features.hasCamp) {
+                template = "[n-street] with camp";
+            }
+            if (features.hasGrove) {
+                template = "[a-street] park";
+            }
+            if (!hasVision) {
+                if (features.sunlit) {
+                    template = "sunlit [n-street]";
+                } else {
+                    template = "dark [n-street]";
+                }
+            }
+            var params = this.getSectorTextParams(features);
+            var phrase = TextBuilder.build(template, params);
+            return Text.capitalize(phrase);
+        },
+        
+		getSectorDescription: function (hasVision, features) {
+            var type = hasVision ? "sector-vision" : "sector-novision";
+            var template = DescriptionMapper.get(type, features);
+            if (features.hasGrove) {
+                template = " [A] [a-street] park overrun by plantlife. In the middle there is a grove of mature trees. Though strange and wild, it also seems somehow peaceful";
+            }
+            var params = this.getSectorTextParams(features);
+            var phrase = TextBuilder.build(template, params);
+            return Text.capitalize(phrase);
 		},
+        
+        getSectorTextParams: function (features) {
+            // 1) Collect options for each param based on several features
+            var options = {};
+            var addOptions = function (param, values) {
+                if (!options[param]) options[param] = [];
+                for (var i = 0; i < values.length; i++) {
+                    options[param].push(values[i]);
+                }
+            };
+            // - general: options always available
+            addOptions("a-street", [ "quiet" ]);
+            addOptions("n-building", [ "building" ]);
+            addOptions("n-buildings", [ "buildings" ]);
+            addOptions("a-building", [ "towering", "tall", "gloomy", "abandoned", "nondescript", "small", "typical", "regular", "unusual", "symmetrical", "monolithic", "blocky", "massive", "functional", "colossal", "immense", "enormous" ]);
+            addOptions("an-decos", [ "stranded benches", "broken elevators" ]);
+            addOptions("an-items", [ "debris" ]);
+            // - sector type: determines n-sector and affects many others
+            switch (features.sectorType) {
+                case SectorConstants.SECTOR_TYPE_RESIDENTIAL:
+                    addOptions("n-sector", [ "apartment complex" ]);
+                    addOptions("a-street-past", [ "beautiful", "calm", "orderly", "relaxed" ]);
+                    addOptions("n-building", [ "residential tower", "apartment house", "residential building with countless of rows of identical balconies" ]);
+                    addOptions("n-buildings", [ "residential towers", "apartments", "tower blocks", "identical residential towers" ]);
+                    addOptions("an-decos", [ "tram tracks" ]);
+                    addOptions("a-building", [ "silent" ]);
+                    addOptions("an-items", [ "garbage" ]);
+                    break;
+                case SectorConstants.SECTOR_TYPE_INDUSTRIAL:
+                    addOptions("n-sector", [ "industrial complex" ]);
+                    addOptions("a-street-past", [ "high-security" ]);
+                    addOptions("n-building", [ "power plant", "factory", "storehouse", "workshop" ]);
+                    addOptions("n-buildings", [ "factories", "workshops", "storehouses", "warehouses", "workshops", "refineries" ]);
+                    addOptions("a-building", [ "decommissioned" ]);
+                    addOptions("an-items", [ "broken machinery" ]);
+                    break;
+                case SectorConstants.SECTOR_TYPE_MAINTENANCE:
+                    addOptions("n-sector", [ "transport hall", "maintenance area", "transport hub" ]);
+                    addOptions("a-street", [ "strange", "chaotic", "cluttered" ]);
+                    addOptions("a-street-past", [ "orderly" ]);
+                    addOptions("n-building", [ "maintenace hub", "cable car station", "utility building", "water treatment station" ]);
+                    addOptions("n-buildings", [ "utility buildings", "data centers", "control rooms", "automated control units" ]);
+                    addOptions("a-building", [ "decommissioned", "inaccessible" ]);
+                    addOptions("an-decos", [ "broken pipes", "broken trams" ]);
+                    addOptions("an-items", [ "electrical wiring" ]);
+                    break;
+                case SectorConstants.SECTOR_TYPE_COMMERCIAL:
+                    addOptions("n-sector", [ "shopping mall", "shopping center", "office complex" ]);
+                    addOptions("a-street-past", [ "glamorous", "buzzling" ]);
+                    addOptions("n-building", [ "shopping center", "department store", "office building", "cafe", "bar" ]);
+                    addOptions("n-buildings", [ "shopping towers", "shopping malls", "shops", "stores", "offices", "office towers" ]);
+                    addOptions("a-building", [ "empty", "deserted" ]);
+                    addOptions("an-decos", [ "empty fountains", "abandoned stalls" ]);
+                    addOptions("an-items", [ "broken glass" ]);
+                    break;
+                case SectorConstants.SECTOR_TYPE_PUBLIC:
+                    addOptions("n-sector", ["prison complex", "amusement park", "library"]);
+                    addOptions("a-street-past", [ "leisurely", "orderly", "cheerful" ]);
+                    addOptions("n-building", [ "library", "prison", "school", "university", "park", "public square", "sports field", "metro station", "research laboratory", "government building" ]);
+                    addOptions("n-buildings", [ "public buildings", "government buildings" ]);
+                    addOptions("a-building", [ "empty", "inaccessible" ]);
+                    addOptions("an-decos", [ "withered trees" ]);
+                    addOptions("an-items", [ "research samples", "trash" ]);
+                    break;
+                case SectorConstants.SECTOR_TYPE_SLUM:
+                    addOptions("n-sector", [ "shanty town", "landfill site" ]);
+                    addOptions("a-street-past", [ "gloomy", "crowded", "lively" ]);
+                    addOptions("n-building", [ "apartment building" ]);
+                    addOptions("a-building", [ "abandoned", "sketchy" ]);
+                    addOptions("n-buildings", [ "shacks", "huts", "slum residences", "residential towers that don't seem to have ever been connected to the grid" ]);
+                    addOptions("an-decos", [ "collapsed shacks", "garbage piles" ]);
+                    addOptions("an-items", [ "rusted pipes" ]);
+                    break;
+            }
+            // - building density
+            if (features.buildingDensity < 3) {
+                addOptions("n-street", [ "sector", "space", "square" ]);
+                if (features.sectorType == SectorConstants.SECTOR_TYPE_RESIDENTIAL || features.sectorType == SectorConstants.SECTOR_TYPE_COMMERCIAL)
+                    addOptions("n-street", [ "plaza", "courtyard" ]);
+                addOptions("a-street", [ "wide", "spacious", "enormous" ]);
+            } else if (features.buildingDensity < 6) {
+                addOptions("n-street", [ "throughfare", "square", "area", "hall" ]);
+                if (features.sectorType == SectorConstants.SECTOR_TYPE_RESIDENTIAL || features.sectorType == SectorConstants.SECTOR_TYPE_COMMERCIAL)
+                    addOptions("n-street", [ "boulevard", "avenue" ]);
+                addOptions("a-street", [ "wide", "spacious" ]);
+            } else if (features.buildingDensity < 9) {
+                addOptions("n-street", [ "street", "street", "alley", "complex", "sector" ]);
+                addOptions("a-street", [ "narrow" ]);
+            } else {
+                addOptions("n-street", [ "corridor", "passage", "alley" ]);
+                addOptions("a-street", [ "narrow", "cramped", "dense", "low" ]);
+            }
+            // - wear and damage
+            switch (features.condition) {
+                case SectorConstants.SECTOR_CONDITION_RUINED:
+                    addOptions("a-street", [ "ruined", "crumbling" ]);
+                    addOptions("n-buildings", [ "crumbling ruins" ]);
+                    addOptions("n-buildings", [ "crumbling ruins" ]);
+                    addOptions("a-building", [ "ruined", "skeletal" ]);
+                    break;
+                case SectorConstants.SECTOR_CONDITION_DAMAGED:
+                    addOptions("a-street", [ "damaged", "destroyed", "broken" ]);
+                    addOptions("a-building", [ "damaged" ]);
+                    addOptions("an-decos", [ "collapsed tunnels" ]);
+                    break;
+                case SectorConstants.SECTOR_CONDITION_ABANDONED:
+                    addOptions("a-building", [ "decaying", "desolate", "slowly decomposing", "long since abandoned", "crumbling" ]);
+                    break;
+                case SectorConstants.SECTOR_CONDITION_WORN:
+                    addOptions("a-building", [ "desolate", "abandoned", "bleak" ]);
+                    break;
+                case SectorConstants.SECTOR_CONDITION_RECENT:
+                    addOptions("a-building", [ "well-preserved", "modern" ]);
+                    break;
+                case SectorConstants.SECTOR_CONDITION_MAINTAINED:
+                    break;
+            }
+            // - sunlight
+            if (features.sunlit) {
+                addOptions("a-street", [ "sunlit", "sun-swathed", "bright", "windy" ]);
+                addOptions("a-building", [ "vibrant", "sunlit" ]);
+                addOptions("an-decos", [ "persistent weeds" ]);
+            } else {
+                addOptions("a-street", [ "dark" ]);
+            }
+            // - hazards
+            if (features.hazards.cold > 0) {
+                addOptions("a-street", [ "cold" ]);
+            }
+            if (features.hazards.radiation > 0) {
+                addOptions("a-street", [ "desolate" ]);
+                addOptions("n-building", [ "nuclear power plant", "nuclear waste depot", "nuclear waste processing unit" ]);
+                addOptions("a-building", [ "abadoned" ]);
+                addOptions("na-items", [ "discarded safety equipment" ]);
+            }
+            if (features.hazards.poison > 0) {
+                addOptions("a-street", [ "polluted" ]);
+                addOptions("n-building", [ "chemical plant", "refinery", "garbage processing plant" ]);
+                addOptions("a-building", [ "polluted" ]);
+                addOptions("na-items", [ "used medical masks" ]);
+            }
+            // - level population
+            if (features.populationFactor == 0) {
+                addOptions("a-building", [ "long abandoned", "empty" ]);
+                addOptions("a-building", [ "polluted" ]);
+            } else if (features.populationFactor < 1) {
+                addOptions("a-street", [ "calm" ]);
+                addOptions("a-building", [ "empty" ]);
+            } else {
+                addOptions("a-building", [ "recently looted" ]);
+                addOptions("na-items", [ "signs of recent scavengers" ]);
+            }
+            // - level: architectural style / age
+            if (features.level < 6) {
+                addOptions("a-street", [ "ancient", "quaint" ]);
+                addOptions("a-building", [ "ancient", "obsolete", "quaint", "historical" ]);
+            } else if (features.level < 14) {
+                addOptions("a-street", [ "dated" ]);
+                addOptions("a-building", [ "dated" ]);
+            } else if (features.level < 18) {
+                addOptions("a-street", [ "modern" ]);
+                addOptions("a-building", [ "modern", "stylish", "functional" ]);
+            }
+            
+            // 2) Build final result by selecting from options
+            var result = {};
+            var rand = (features.buildingDensity + features.wear + features.damage) / 30;
+            var pickRandom = function (options, excluded) {
+                if (!options || options.length <= 0) return "";
+                var validOptions = options.filter(option => !excluded.includes(option));
+                var i = Math.floor(rand * validOptions.length);
+                return validOptions[i];
+            };
+            var selectFromOptions = function (key, num) {
+                var selection = [];
+                for (var i = 0; i < num; i++) {
+                    var sel = pickRandom(options[key], selection);
+                    if (sel) {
+                        selection.push(sel);
+                    } else {
+                        log.w("could not select valid [" + key + "] " + (i+1) + "/" + num)
+                        log.w(options);
+                    }
+                }
+                return selection;
+            };
+            result["a-sectortype"] = features.sectorType;
+            result["n-sector"] = selectFromOptions("n-sector", 1);
+            result["n-street"] = selectFromOptions("n-street", 1);
+            result["a-street"] = selectFromOptions("a-street", 2);
+            result["a-street-past"] = selectFromOptions("a-street-past", 1);
+            result["n-building"] = selectFromOptions("n-building", 2);
+            result["n-buildings"] = selectFromOptions("n-buildings", 2);
+            result["a-building"] = selectFromOptions("a-building", 2);
+            result["an-decos"] = selectFromOptions("an-decos", 2);
+            result["an-items"] = selectFromOptions("an-items", 2);
+            
+            return result;
+        },
 		
         getPassageFoundMessage: function (passageVO, direction, sunlit) {
             switch (passageVO.type) {
@@ -54,14 +274,14 @@ function (Ash, GameConstants, WorldCreatorConstants, PositionConstants, Movement
                             return "Far above in the ceiling there is a hole, a mouth leading into blackness.";
                     } else {
                         if (sunlit)
-                            return "There is a massive sinkhole here. A street is visible below, dizzyingly far away.";
+                            return "There is a massive sinkhole here. A street is visible far, far below.";
                         else
                             return "There is a massive sinkhole here. Only vast emptiness is visible below.";
                     }
                 case MovementConstants.PASSAGE_TYPE_BLOCKED:
                     return "There seems to have been a staircase here once but it has been destroyed beyond repair.";
                 default:
-                    return "There used to be " + TextConstants.addArticle(passageVO.name.toLowerCase()) + " here.";
+                    return "There used to be " + Text.addArticle(passageVO.name.toLowerCase()) + " here.";
             }
         },
         
@@ -79,11 +299,7 @@ function (Ash, GameConstants, WorldCreatorConstants, PositionConstants, Movement
                     return "Passage " + directionName + " ready at " + sectorPosVO.getInGameFormat(true);
             }
         },
-        
-        /*
-        There is a hole in the level ceiling here. An elevator has been built,
-        /**/
-        
+                
         getPassageDescription: function (passageVO, direction, isBuilt, isShort) {
             var makeHighlight = function (content) { return "<span class='hl-functionality'>" + content + "</span>"; };
             var directionName = (direction === PositionConstants.DIRECTION_UP ? " up" : " down");
@@ -106,13 +322,13 @@ function (Ash, GameConstants, WorldCreatorConstants, PositionConstants, Movement
                 switch (passageVO.type) {
                     case MovementConstants.PASSAGE_TYPE_HOLE:
                         if (isBuilt) {
-                            return "A brand new " + makeHighlight("elevator " + directionName) + " has been built here.";
+                            return "A brand new " + makeHighlight("elevator " + directionName) + " has been built here. ";
                         } else {
-                            return "There is a " + makeHighlight("hole") + " in the level " + (direction === PositionConstants.DIRECTION_UP ? "ceiling" : "floor") + " here.";
+                            return "There is a " + makeHighlight("hole") + " in the level " + (direction === PositionConstants.DIRECTION_UP ? "ceiling" : "floor") + " here. ";
                         }
                     default:
                         var name = passageVO.name.toLowerCase() + " " + directionName;
-                        var article = TextConstants.getArticle(name);
+                        var article = Text.getArticle(name);
                         var span = article + " " + makeHighlight(name);
                         var state;
                         if (isBuilt) {
@@ -124,8 +340,20 @@ function (Ash, GameConstants, WorldCreatorConstants, PositionConstants, Movement
                         } else {
                             state = "but it needs to be repaired";
                         }
-                        return "There is " + span + " here, " + state + ".";
+                        return "There is " + span + " here, " + state + ". ";
                 }
+            }
+        },
+        
+        getFoundStashMessage: function (stashVO) {
+            switch (stashVO.stashType) {
+                case ItemConstants.STASH_TYPE_ITEM:
+                    return "Found an item stash.";
+                case ItemConstants.STASH_TYPE_SILVER:
+                    return "Found some coins.";
+                default:
+                    log.w("Unknown stash type: " + stashVO.stashType);
+                    return "Found a stash.";
             }
         },
         
@@ -198,81 +426,137 @@ function (Ash, GameConstants, WorldCreatorConstants, PositionConstants, Movement
             return text;
         },
 		
-		getLocaleName: function (locale, sectorRepair, isShort) {
-			var repairBracket = this.getRepairBracket(sectorRepair);
+		getLocaleName: function (locale, sectorFeatures, isShort) {
+            var condition = sectorFeatures.getCondition();
+            var modifier = "";
+            var noun = "";
+            // default modifiers
+            switch (condition) {
+                case SectorConstants.SECTOR_CONDITION_RUINED:
+                    modifier = "ruined";
+                    break;
+                case SectorConstants.SECTOR_CONDITION_DAMAGED:
+                    modifier = "damaged";
+                    break;
+                case SectorConstants.SECTOR_CONDITION_ABANDONED:
+                    modifier = "abandoned";
+                    break;
+                case SectorConstants.SECTOR_CONDITION_WORN:
+                    modifier = "neglected";
+                    break;
+                case SectorConstants.SECTOR_CONDITION_RECENT:
+                    modifier = "empty";
+                    break;
+                case SectorConstants.SECTOR_CONDITION_MAINTAINED:
+                    modifier = "pristine";
+                    break;
+            }
+            // nouns and special modifiers
 			switch (locale.type) {
-			case localeTypes.factory:
-                if (isShort) return "Factory";
-				if (repairBracket === this.repairBrackets[0][0]) return "Ruined factory" ;
-				if (repairBracket === this.repairBrackets[1][0]) return "Abandoned factory";
-				if (repairBracket === this.repairBrackets[2][0]) return "Abandoned factory";
-				return "Empty factory";
-			case localeTypes.house:
-                if (isShort) return "House";
-				if (repairBracket === this.repairBrackets[0][0]) return "Ruined house";
-				if (repairBracket === this.repairBrackets[1][0]) return "Decaying house";
-				if (repairBracket === this.repairBrackets[2][0]) return "Neglected house";
-				return "Empty house";
-			case localeTypes.lab:
-                if (isShort) return "Facility";
-				if (repairBracket < this.repairBrackets[0][2]) return "Ruined Laborathory";
-				return "Abandoned lab";
-			case localeTypes.grove:
-                if (isShort) return "Grove";
-				return "Flourishing grove";
-			case localeTypes.market:
-                if (isShort) return "Building";
-				if (repairBracket === this.repairBrackets[0][0]) return "Ruined market";
-				if (repairBracket === this.repairBrackets[1][0]) return "Abandoned shop";
-				if (repairBracket === this.repairBrackets[2][0]) return "Abandoned mall";
-				return "Silent shopping tower";
-			case localeTypes.maintenance:
-                if (isShort) return "Facility";
-				if (repairBracket === this.repairBrackets[0][0]) return "Old water tower";
-				if (repairBracket === this.repairBrackets[1][0]) return "Defunct control unit";
-				if (repairBracket === this.repairBrackets[2][0]) return "Ancient network switch";
-				return "Electric box";
-			case localeTypes.transport:
-                if (isShort) return "Station";
-				if (repairBracket === this.repairBrackets[0][0]) return "Ruined train depot";
-				if (repairBracket === this.repairBrackets[1][0]) return "Rotting cable car station";
-				if (repairBracket === this.repairBrackets[2][0]) return "Abandoned train station";
-				return "Empty tram depot";
-			case localeTypes.sewer:
-                if (isShort) return "Sewer";
-				if (repairBracket === this.repairBrackets[0][0]) return "Wrecked sewer";
-				return "Quiet sewer";
-			case localeTypes.warehouse:
-                if (isShort) return "Warehouse";
-				if (repairBracket === this.repairBrackets[0][0]) return "Warehouse ruin";
-				if (repairBracket === this.repairBrackets[1][0]) return "Decaying warehouse";
-				if (repairBracket === this.repairBrackets[2][0]) return "Abandoned warehouse";
-				return "Sturdy warehouse";
-			case localeTypes.camp:
-            case localeTypes.tradingpartner:
-                return isShort ? "Camp" : "Foreign camp";
-			case localeTypes.hut:
-			case localeTypes.hermit:
-                return isShort ? "Hut" : "Lone hut";
-			case localeTypes.caravan: return isShort ? "Caravan" : "Trade caravan";
-			default: return "Building";
+    			case localeTypes.factory:
+                    noun = "factory";
+                    break;
+    			case localeTypes.house:
+                    if (condition === SectorConstants.SECTOR_CONDITION_DAMAGED) modifier = "destroyed";
+                    noun = "house";
+                    break;
+    			case localeTypes.lab:
+                    noun = "laboratory";
+                    break;
+    			case localeTypes.grove:
+                    modifier = "flourishing";
+                    noun = "grove";
+                    break;
+    			case localeTypes.market:
+                    noun = "market";
+                    break;
+    			case localeTypes.maintenance:
+                    switch (condition) {
+                        case SectorConstants.SECTOR_CONDITION_RUINED:
+                            noun = "control unit";
+                            break;
+                        case SectorConstants.SECTOR_CONDITION_DAMAGED:
+                            noun = "control unit";
+                            break;
+                        case SectorConstants.SECTOR_CONDITION_ABANDONED:
+                            modifier = "ancient";
+                            noun = "network switch";
+                            break;
+                        case SectorConstants.SECTOR_CONDITION_WORN:
+                            modifier = "old";
+                            noun = "water tower";
+                            break;
+                        case SectorConstants.SECTOR_CONDITION_RECENT:
+                            modifier = "defunct";
+                            noun = "control unit";
+                            break;
+                        case SectorConstants.SECTOR_CONDITION_MAINTAINED:
+                            noun = "firehouse";
+                            break;
+                        default:
+                    }
+                    break;
+    			case localeTypes.transport:
+                    noun = "station";
+                    if (condition === SectorConstants.SECTOR_CONDITION_RUINED) noun = "train depot";
+                    if (condition === SectorConstants.SECTOR_CONDITION_WORN) modifier = "defunct tram";
+                    if (condition === SectorConstants.SECTOR_CONDITION_RECENT) modifier = "cable car";
+                    if (condition === SectorConstants.SECTOR_CONDITION_MAINTAINED) modifier = "train";
+    				break;
+    			case localeTypes.sewer:
+                    noun = "sewer";
+                    break;
+    			case localeTypes.warehouse:
+                    if (condition === SectorConstants.SECTOR_CONDITION_RECENT) modifier = "sturdy";
+                    if (condition === SectorConstants.SECTOR_CONDITION_MAINTAINED) modifier = "sturdy";
+                    noun = "warehouse";
+                    break;
+    			case localeTypes.camp:
+                case localeTypes.tradingpartner:
+                    modifier = "foreign";
+                    noun = "camp";
+                    break;
+    			case localeTypes.hut:
+    			case localeTypes.hermit:
+                    noun = "hut";
+                    break;
+                case localeTypes.library:
+                    modifier = "abandoned";
+                    if (sectorFeatures.level < 10) modifier = "ancient";
+                    modifier = "library";
+                    break;
+    			default:
+                    log.w("unknown locale type: " + locale.type);
+                    noun = "building";
+                    break;
 			}
+            
+            return isShort ? noun : (modifier + " " + noun).trim();
 		},
 		
 		getWorkshopName: function (resource) {
 			switch (resource) {
-			case resourceNames.fuel: return "refinery";
-			default: return "workshop";
+                    case resourceNames.fuel: return "refinery";
+                    case resourceNames.rubber: return "plantation";
+                    default: return "workshop";
 			}
 		},
 		
 		getSpringName: function (featuresComponent) {
-			if (featuresComponent.stateOfRepair < 4) {
+            let hasHazards = featuresComponent.hazards.hasHazards();
+            let type = featuresComponent.sectorType;
+            if (featuresComponent.ground && featuresComponent.buildingDensity < 6
+                 && !hasHazards && type != SectorConstants.SECTOR_TYPE_INDUSTRIAL) {
+                return "stream";
+            }
+            if (type == SectorConstants.SECTOR_TYPE_SLUM && featuresComponent.damage < 3 && featuresComponent.buildingDensity < 8) {
+                return "old well";
+            }
+            if (type != SectorConstants.SECTOR_TYPE_SLUM && type != SectorConstants.SECTOR_TYPE_MAINTENANCE && featuresComponent.wear < 5 && featuresComponent.damage < 3) {
+                return "drinking fountain";
+            }
+			if (featuresComponent.wear > 6 || featuresComponent.damage > 3) {
 				return "leaking water pipe";
-			}
-			switch (featuresComponent.sectorType) {
-				case WorldCreatorConstants.SECTOR_TYPE_SLUM:
-					return "well";
 			}
 			return "water tower";
 		},
@@ -319,11 +603,12 @@ function (Ash, GameConstants, WorldCreatorConstants, PositionConstants, Movement
 			return this.getCommonText(enemyList, "defeatedV", "", "defeated", false);
 		},
         
-        getMovementBlockerName: function (blockerVO, enemiesComponent) {
+        getMovementBlockerName: function (blockerVO, enemiesComponent, gangComponent) {
 			switch (blockerVO.type) {
                 case MovementConstants.BLOCKER_TYPE_GANG:
-                    var groupNoun = this.getEnemyGroupNoun(enemiesComponent.possibleEnemies);
-                    var enemyNoun = this.getEnemyNoun(enemiesComponent.possibleEnemies);
+                    let enemies = this.getAllEnemies(enemiesComponent, gangComponent);
+                    var groupNoun = this.getEnemyGroupNoun(enemies);
+                    var enemyNoun = this.getEnemyNoun(enemies);
                     return groupNoun + " of " + enemyNoun;
                 default:
                     return blockerVO.name;
@@ -331,43 +616,37 @@ function (Ash, GameConstants, WorldCreatorConstants, PositionConstants, Movement
             return "";
         },
         
-        getMovementBlockerAction: function (blockerVO, enemiesComponent) {
+        getMovementBlockerAction: function (blockerVO, enemiesComponent, gangComponent) {
 			switch (blockerVO.type) {
 				case MovementConstants.BLOCKER_TYPE_GAP: return "Bridge gap";
-				case MovementConstants.BLOCKER_TYPE_WASTE: return "Clear waste";
-				case MovementConstants.BLOCKER_TYPE_GANG: return "Fight " + this.getEnemyNoun(enemiesComponent.possibleEnemies);
+				case MovementConstants.BLOCKER_TYPE_WASTE_TOXIC: return "Clear waste";
+				case MovementConstants.BLOCKER_TYPE_WASTE_RADIOACTIVE: return "Clear waste";
+				case MovementConstants.BLOCKER_TYPE_GANG:
+                    let enemies = this.getAllEnemies(enemiesComponent, gangComponent);
+                    return "Fight " + this.getEnemyNoun(enemies);
 	 	 	}
+        },
+        
+        getAllEnemies: function (enemiesComponent, gangComponent) {
+            let enemies = [];
+            if (enemiesComponent.possibleEnemies) {
+                enemies = enemiesComponent.possibleEnemies.concat();
+            }
+            if (gangComponent) {
+                var gangEnemy = EnemyConstants.getEnemy(gangComponent.enemyID);
+                enemies.push(gangEnemy);
+            }
+            return enemies;
         },
 		
 		getUnblockedVerb: function (blockerType) {
 			switch (blockerType) {
 				case MovementConstants.BLOCKER_TYPE_GAP: return "bridged";
-				case MovementConstants.BLOCKER_TYPE_WASTE: return "cleared";
+				case MovementConstants.BLOCKER_TYPE_WASTE_TOXIC: return "cleared";
+				case MovementConstants.BLOCKER_TYPE_WASTE_RADIOACTIVE: return "cleared";
 				case MovementConstants.BLOCKER_TYPE_GANG: return "defeated";
 				case MovementConstants.BLOCKER_TYPE_DEBRIS: return "cleared";
 	 	 	}
-		},
-		
-		getDensityBracket: function (density) {
-			for (var d = 0; d < this.densityBrackets.length; d++) {
-				var densityBracket = this.densityBrackets[d];
-				if (density >= densityBracket[0] && density <= densityBracket[1]) {
-					density = densityBracket[0];
-					break;
-				}
-			}
-			return density;
-		},
-		
-		getRepairBracket: function (repair) {
-			for (var r = 0; r < this.repairBrackets.length; r++) {
-				var repairBracket = this.repairBrackets[r];
-				if (repair >= repairBracket[0] && repair <= repairBracket[1]) {
-					repair = repairBracket[0];
-					break;
-				}
-			}
-			return repair;
 		},
 		
 		// get common description word for a list of objects that contain possible words are in arrays named objectAttribute
@@ -418,7 +697,7 @@ function (Ash, GameConstants, WorldCreatorConstants, PositionConstants, Movement
             // log.i(objectList)
             
 			if (validDetail.length > 0) {
-				return this.pluralify(validDetail);
+				return Text.pluralify(validDetail);
 			} else if (validWords.length > 0) {
 				return validWords[0];
 			} else if (allowSeveral && minimumWords.length > 1) {
@@ -428,184 +707,125 @@ function (Ash, GameConstants, WorldCreatorConstants, PositionConstants, Movement
 			}
 		},
 		
-		pluralify: function (s) {
-			if (s.endsWith("roach")) {
-				return s + "es";
-			} else if (s[s.length - 1] !== "s") {
-				return s + "s";
-			} else {
-				return s;
-			}
-		},
-		
-		depluralify: function (s) {
-			return s.substr(0, s.length - 1);
-		},
-		
-		addArticle: function (s) {
-            return this.getArticle(s) + " " + s;
-		},
-        
-        getArticle: function (s) {
-            switch (s.trim().charAt(0).toLowerCase()) {
-                case "a":
-                case "i":
-                case "e":
-                case "o":
-                // u is often ambiguous use "a" until adding a fancier rule
-                    return "an";
-                default:
-                    return "a";
-            }
-        },
-		
-		capitalize: function (string) {
-			return string.charAt(0).toUpperCase() + string.slice(1);
-		}
 	};
 		
 	function initSectorTexts() {
-		var d1 = TextConstants.densityBrackets[0][0];
-		var d2 = TextConstants.densityBrackets[1][0];
-		var d3 = TextConstants.densityBrackets[2][0];
-		var d4 = TextConstants.densityBrackets[3][0];
-		var r1 = TextConstants.repairBrackets[0][0];
-		var r2 = TextConstants.repairBrackets[1][0];
-		var r3 = TextConstants.repairBrackets[2][0];
-		var r4 = TextConstants.repairBrackets[3][0];
-		
-		var sectorDesc = TextConstants.sectorDescriptions;
-		
-		sectorDesc[SECTOR_TYPE_NOLIGHT] = {};
-		sectorDesc[SECTOR_TYPE_NOLIGHT][d1] = {};
-		sectorDesc[SECTOR_TYPE_NOLIGHT][d1][r1] = "A rare empty space inside the City; there is no floor or walls, no buildings, nothing. Only vast empty darkness.";
-		sectorDesc[SECTOR_TYPE_NOLIGHT][d1][r2] = sectorDesc[SECTOR_TYPE_NOLIGHT][d1][r1];
-		sectorDesc[SECTOR_TYPE_NOLIGHT][d1][r3] = sectorDesc[SECTOR_TYPE_NOLIGHT][d1][r1];
-		sectorDesc[SECTOR_TYPE_NOLIGHT][d1][r4] = sectorDesc[SECTOR_TYPE_NOLIGHT][d1][r1];
-		sectorDesc[SECTOR_TYPE_NOLIGHT][d2] = {};
-		sectorDesc[SECTOR_TYPE_NOLIGHT][d2][r1] = "A wide street or corridor that doesn't seem to be in very good repair. It's hard to find anything in the vast darkness.";
-		sectorDesc[SECTOR_TYPE_NOLIGHT][d2][r2] = sectorDesc[SECTOR_TYPE_NOLIGHT][d2][r1];
-		sectorDesc[SECTOR_TYPE_NOLIGHT][d2][r3] = "A wide street or corridor. It's hard to find anything in the vast darkness.";
-		sectorDesc[SECTOR_TYPE_NOLIGHT][d2][r4] = sectorDesc[SECTOR_TYPE_NOLIGHT][d2][r3];
-		sectorDesc[SECTOR_TYPE_NOLIGHT][d3] = {};
-		sectorDesc[SECTOR_TYPE_NOLIGHT][d3][r1] = "A street or corridor with an abandoned air. Details fade in the darkness.";
-		sectorDesc[SECTOR_TYPE_NOLIGHT][d3][r2] = sectorDesc[SECTOR_TYPE_NOLIGHT][d3][r1];
-		sectorDesc[SECTOR_TYPE_NOLIGHT][d3][r3] = "A street or corridor with several buildings. In the darkness it's hard to say what they are.";
-		sectorDesc[SECTOR_TYPE_NOLIGHT][d3][r4] = sectorDesc[SECTOR_TYPE_NOLIGHT][d3][r3];
-		sectorDesc[SECTOR_TYPE_NOLIGHT][d4] = {};
-		sectorDesc[SECTOR_TYPE_NOLIGHT][d4][r1] = "A dense corridor with barely enough space to walk and plenty of sharp edges, uneven paths and crumbled walls. You feel your way in the darkness.";
-		sectorDesc[SECTOR_TYPE_NOLIGHT][d4][r2] = sectorDesc[SECTOR_TYPE_NOLIGHT][d4][r1];
-		sectorDesc[SECTOR_TYPE_NOLIGHT][d4][r3] = "A dense corridor with barely enough space to walk. You feel your way in the darkness.";
-		sectorDesc[SECTOR_TYPE_NOLIGHT][d4][r4] = sectorDesc[SECTOR_TYPE_NOLIGHT][d4][r3];
-		
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_RESIDENTIAL] = {};
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_RESIDENTIAL][d1] = {};
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_RESIDENTIAL][d1][r1] = "A rare empty space inside the City; there is no floor or walls, no buildings, nothing.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_RESIDENTIAL][d1][r2] = sectorDesc[WorldCreatorConstants.SECTOR_TYPE_RESIDENTIAL][d1][r1];
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_RESIDENTIAL][d1][r3] = sectorDesc[WorldCreatorConstants.SECTOR_TYPE_RESIDENTIAL][d1][r1];
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_RESIDENTIAL][d1][r4] = sectorDesc[WorldCreatorConstants.SECTOR_TYPE_RESIDENTIAL][d1][r1];
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_RESIDENTIAL][d2] = {};
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_RESIDENTIAL][d2][r1] = "There used to be homes here, but there isn't much left except for ruins.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_RESIDENTIAL][d2][r2] = "There used to be a few homes here, but they have not been repaired in a long time.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_RESIDENTIAL][d2][r3] = "A quiet square surrounded by abandoned apartments.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_RESIDENTIAL][d2][r4] = "A square surrounded by nice-looking apartments that look almost like someone could still be living there.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_RESIDENTIAL][d3] = {};
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_RESIDENTIAL][d3][r1] = "There used to be homes here, but there isn't much left except for ruins.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_RESIDENTIAL][d3][r2] = "A crumbling street lined with what were once some kind of apartments.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_RESIDENTIAL][d3][r3] = "A quiet residential area lined with slowly decaying apartment towers.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_RESIDENTIAL][d3][r4] = "A quiet street between tall apartment towers, lined with withered-looking trees that until recently thrived in artificial light.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_RESIDENTIAL][d4] = {};
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_RESIDENTIAL][d4][r1] = "A dense corridor lined so closely with crumling apartment towers that there is barely enough space to walk.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_RESIDENTIAL][d4][r2] = "A narrow corridor running between two vast, crumbling residential towers, with barely enough space to walk.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_RESIDENTIAL][d4][r3] = "A narrow, forgotten corridor running between two tall residential towers, with barely enough space to walk.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_RESIDENTIAL][d4][r4] = "A narrow, possibly unintended corridor running between two huge apartment towers, with barely enough space to walk.";
-		
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_INDUSTRIAL] = {};
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_INDUSTRIAL][d1] = {};
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_INDUSTRIAL][d1][r1] = sectorDesc[WorldCreatorConstants.SECTOR_TYPE_RESIDENTIAL][d1][r1];
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_INDUSTRIAL][d1][r2] = sectorDesc[WorldCreatorConstants.SECTOR_TYPE_RESIDENTIAL][d1][r1];
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_INDUSTRIAL][d1][r3] = sectorDesc[WorldCreatorConstants.SECTOR_TYPE_RESIDENTIAL][d1][r1];
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_INDUSTRIAL][d1][r4] = sectorDesc[WorldCreatorConstants.SECTOR_TYPE_RESIDENTIAL][d1][r1];
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_INDUSTRIAL][d2] = {};
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_INDUSTRIAL][d2][r1] = "A few large unidentifiable ruins loom over a gloomy industrial square.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_INDUSTRIAL][d2][r2] = "A wide square with a ruined factory on one side and what looks like the remains of an old storehouse on the other.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_INDUSTRIAL][d2][r3] = "A wide square with a abandoned factory on one side and what looks like an old storehouse on the other.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_INDUSTRIAL][d2][r4] = "A wide, spartan square with a quiet factory on one side and what looks like a storehouse on the other.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_INDUSTRIAL][d3] = {};
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_INDUSTRIAL][d3][r1] = "A former industrial sector where factories or workshops lie in ruins.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_INDUSTRIAL][d3][r2] = "A street lined with ruined factories and rats dashing to avoid light.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_INDUSTRIAL][d3][r3] = "A low street surrounded by old factories and industrial buildings.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_INDUSTRIAL][d3][r4] = "An industrial street surrounded by factories and warehouses.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_INDUSTRIAL][d4] = {};
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_INDUSTRIAL][d4][r1] = "A dense corridor lined so closely with crumling industrial ruins that there is barely enough space to walk.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_INDUSTRIAL][d4][r2] = "A narrow corridor between two vast decaying factories with barely enough space to walk.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_INDUSTRIAL][d4][r3] = "Some sort of a maintenance corridor between two vast factories with barely enough space to walk.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_INDUSTRIAL][d4][r4] = "A narrow industrial street with towering, high-security automated factory units on each side.";
-		
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_MAINTENANCE] = {};
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_MAINTENANCE][d1] = {};
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_MAINTENANCE][d1][r1] = sectorDesc[WorldCreatorConstants.SECTOR_TYPE_RESIDENTIAL][d1][r1];
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_MAINTENANCE][d1][r2] = sectorDesc[WorldCreatorConstants.SECTOR_TYPE_RESIDENTIAL][d1][r1];
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_MAINTENANCE][d1][r3] = sectorDesc[WorldCreatorConstants.SECTOR_TYPE_RESIDENTIAL][d1][r1];
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_MAINTENANCE][d1][r4] = sectorDesc[WorldCreatorConstants.SECTOR_TYPE_RESIDENTIAL][d1][r1];
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_MAINTENANCE][d2] = {};
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_MAINTENANCE][d2][r1] = "A mostly empty and desolate square with the remains of some broken cable systems criss-crossing the low ceiling.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_MAINTENANCE][d2][r2] = "A mostly empty square with of the remains of old cable systems criss-crossing the low ceiling.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_MAINTENANCE][d2][r3] = "A mostly empty square with a control room in the middle and old cable systems criss-crossing the low ceiling.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_MAINTENANCE][d2][r4] = "A transport hall dominated by well-maintained cable car lines and empty taxi lanes criss-crossing just above your head.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_MAINTENANCE][d3] = {};
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_MAINTENANCE][d3][r1] = "A desolate corridor criss-crossed with the remains of broken cable systems and maintenance ducts.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_MAINTENANCE][d3][r2] = "A crumbling street behind a maintenance center, the low ceiling criss-crossed by old wires and ducts.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_MAINTENANCE][d3][r3] = "A narrow street lined by decommissioned control units for City services like water, electricity, air filtering and robotics.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_MAINTENANCE][d3][r4] = "A well-maintained transport hall with a few elevators and an empty cable car station.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_MAINTENANCE][d4] = {};
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_MAINTENANCE][d4][r1] = "A dense corridor so full of broken maintenance ducts and cables that there is barely enough space to walk.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_MAINTENANCE][d4][r2] = "A dense corridor so full of maintenance ducts and broken cables that there is barely enough space to pass through.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_MAINTENANCE][d4][r3] = "A dense corridor so full of maintenance ducts and cables that there is barely enough space to pass through.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_MAINTENANCE][d4][r4] = "A narrow corridor connecting several maintenance units and control rooms so full of cables and wires that you can barely pass through.";
-		
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_COMMERCIAL] = {};
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_COMMERCIAL][d1] = {};
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_COMMERCIAL][d1][r1] = sectorDesc[WorldCreatorConstants.SECTOR_TYPE_RESIDENTIAL][d1][r1];
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_COMMERCIAL][d1][r2] = sectorDesc[WorldCreatorConstants.SECTOR_TYPE_RESIDENTIAL][d1][r1];
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_COMMERCIAL][d1][r3] = sectorDesc[WorldCreatorConstants.SECTOR_TYPE_RESIDENTIAL][d1][r1];
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_COMMERCIAL][d1][r4] = sectorDesc[WorldCreatorConstants.SECTOR_TYPE_RESIDENTIAL][d1][r1];
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_COMMERCIAL][d2] = {};
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_COMMERCIAL][d2][r1] = "It seems this used to be a market square of some sort, but there isn't much left except for ruins.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_COMMERCIAL][d2][r2] = "An abandoned market square lined with the remains of shops and empty, silent billboards.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_COMMERCIAL][d2][r3] = "An quiet market square lined with the deserted shops and empty, silent billboards.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_COMMERCIAL][d2][r4] = "A wide market square lined with commercial towers whose walls are covered in dead black screens.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_COMMERCIAL][d3] = {};
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_COMMERCIAL][d3][r1] = "It seems there used to be shops and markets here, but there isn't much left except for ruins.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_COMMERCIAL][d3][r2] = "An deserted corridor lined with the remains of shops and artisan's workshops.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_COMMERCIAL][d3][r3] = "A former shopping street lined with deserted shops and artisan's workshops.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_COMMERCIAL][d3][r4] = "A former shopping street lined with quiet shops and artisan's workshops.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_COMMERCIAL][d4] = {};
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_COMMERCIAL][d4][r1] = "A dense corridor lined so closely with crumling ruins that there is barely enough space to walk.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_COMMERCIAL][d4][r2] = "A narrow corridor between two vast and decaying shopping towers with barely enough space to walk.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_COMMERCIAL][d4][r3] = "A narrow corridor between two massive shopping towers with barely enough space to walk.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_COMMERCIAL][d4][r4] = "A narrow but well-maintained corridor between two massive shopping towers with barely enough space to walk.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_SLUM] = {};
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_SLUM][d1] = {};
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_SLUM][d1][r1] = sectorDesc[WorldCreatorConstants.SECTOR_TYPE_RESIDENTIAL][d1][r1];
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_SLUM][d1][r2] = sectorDesc[WorldCreatorConstants.SECTOR_TYPE_RESIDENTIAL][d1][r1];
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_SLUM][d1][r3] = sectorDesc[WorldCreatorConstants.SECTOR_TYPE_RESIDENTIAL][d1][r1];
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_SLUM][d1][r4] = sectorDesc[WorldCreatorConstants.SECTOR_TYPE_RESIDENTIAL][d1][r1];
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_SLUM][d2] = {};
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_SLUM][d2][r1] = "It seems like once people lived here, but there is nothing left but ruins.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_SLUM][d2][r2] = "There are some make-shift shacks against the walls here, but they have not been repaired in a long time.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_SLUM][d2][r3] = "A wide square surrounded by crumbling make-shift residential towers that don't seem to have ever been connected to the grid.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_SLUM][d2][r4] = "A wide square whose walls support a few make-shift shacks.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_SLUM][d3] = {};
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_SLUM][d3][r1] = "It seems like this place was last used as a make-shift residential area, but there is nothing left but ruins.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_SLUM][d3][r2] = "A narrow slum street surrounded (and in some parts, covered) by make-shift dwellings that have been adandoned for some time.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_SLUM][d3][r3] = "A narrow slum street surrounded (and in some parts, covered) by make-shift dwellings.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_SLUM][d3][r4] = "A narrow street that surrounded (and in some parts, covered) by recent slum-dwellings.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_SLUM][d4] = {};
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_SLUM][d4][r1] = "A corridor lined so closely with crumling, long abandoned shacks that there is barely enough space to walk.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_SLUM][d4][r2] = "A filthy corridor packed so full of long-abandoned dark-dweller shacks that there is barely enough space to pass through.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_SLUM][d4][r3] = "A filthy corridor packed so full of abandoned dark-dweller shacks that there is barely enough space to pass through.";
-		sectorDesc[WorldCreatorConstants.SECTOR_TYPE_SLUM][d4][r4] = "A recently inhabited slum so packed with shacks that there is barely enough space to pass through.";
+        var wildcard = DescriptionMapper.WILDCARD;
+        
+        var t_R = SectorConstants.SECTOR_TYPE_RESIDENTIAL;
+        var t_I = SectorConstants.SECTOR_TYPE_INDUSTRIAL;
+        var t_M = SectorConstants.SECTOR_TYPE_MAINTENANCE;
+        var t_C = SectorConstants.SECTOR_TYPE_COMMERCIAL;
+        var t_P = SectorConstants.SECTOR_TYPE_PUBLIC;
+        var t_S = SectorConstants.SECTOR_TYPE_SLUM;
+        
+        // brackets for values like building density, wear, damage
+        var b0 = [0, 0];
+        var bfull = [10, 10];
+        var b12 = [0, 5];
+        var b22 = [5, 10];
+        var b13 = [0, 3];
+        var b23 = [4, 6];
+        var b33 = [7, 10];
+        
+        var lmodern = [15, 100];
+        var lold = [10, 18];
+        
+        // default descriptions (player has vision)
+        DescriptionMapper.add("sector-vision", { sectorType: wildcard }, "[A] [n-street] in front of what looks like [A] [a-building] [n-building]");
+        DescriptionMapper.add("sector-vision", { sectorType: wildcard }, "[A] [a-street] [n-street] between two [a-building] [n-buildings]");
+        DescriptionMapper.add("sector-vision", { sectorType: wildcard }, "[A] [a-street] [n-street] between two [n-buildings] with some [a-building] [n-buildings] on either side");
+        DescriptionMapper.add("sector-vision", { sectorType: wildcard }, "[A] [a-sectortype] [n-street] with a few [a-building] [n-buildings]");
+        DescriptionMapper.add("sector-vision", { sectorType: wildcard }, "[A] [a-street] [n-sector] littered with [an-items] and [an-items]");
+        DescriptionMapper.add("sector-vision", { sectorType: wildcard }, "[A] [a-street] [n-street] lined with [a-building] [n-buildings]");
+        DescriptionMapper.add("sector-vision", { sectorType: wildcard }, "[A] [a-street] [n-street] surrounded by [n-buildings]");
+        DescriptionMapper.add("sector-vision", { sectorType: wildcard }, "[A] [a-street] [n-street] surrounded by [a-buildings] [n-buildings]");
+        DescriptionMapper.add("sector-vision", { sectorType: wildcard }, "[A] [n-street] with some [an-decos] and [a-building] [n-buildings]");
+        DescriptionMapper.add("sector-vision", { sectorType: wildcard }, "[A] [a-street] [n-street] between some [n-buildings]");
+        DescriptionMapper.add("sector-vision", { isSurfaceLevel: false }, "[A] [n-street] at the base of an enormous pillar supporting the level above");
+        DescriptionMapper.add("sector-vision", { isSurfaceLevel: false, wear: b12 }, "[A] [a-street] [n-street] with long-abandoned buildings covered in strange moss.");
+        DescriptionMapper.add("sector-vision", { buildingDensity: b0, isGroundLevel: false }, "A system of bridges and passages connecting several buildings around a dizzying opening to the level below");
+        DescriptionMapper.add("sector-vision", { buildingDensity: b12, isGroundLevel: false, campable: false }, "[A] [a-street] bridge over the level below with separate levels for tram tracks, utilities and pedestrians");
+        DescriptionMapper.add("sector-vision", { buildingDensity: b22 }, "Some kind of [A] [a-sectortype] complex with several narrow passages this way and that");
+        DescriptionMapper.add("sector-vision", { buildingDensity: b13 }, "A wide square with [A] [a-building] [n-building] on one side and what looks like the remains of [A] [a-building] [n-building] on the other");
+        DescriptionMapper.add("sector-vision", { buildingDensity: b23, isSurfaceLevel: false }, "[A] [a-street] [n-street] beneath a vast [n-building]");
+        DescriptionMapper.add("sector-vision", { buildingDensity: b23 }, "A street with multiple levels of passages crawling along the walls of the surrounding [a-sectortype] buildings");
+        DescriptionMapper.add("sector-vision", { buildingDensity: b33 }, "Some sort of [A] [a-sectortype] corridor between two vast [n-buildings] with barely enough space to walk");
+        DescriptionMapper.add("sector-vision", { buildingDensity: b33 }, "[A] [a-street] [n-street] between two vast [n-buildings] with barely enough space fit through");
+        DescriptionMapper.add("sector-vision", { buildingDensity: b33 }, "[A] [a-street] [n-street] packed so full with [a-building] [n-buildings] and [an-decos] that there is barely enough space to pass through");
+        DescriptionMapper.add("sector-vision", { buildingDensity: b33 }, "A narrow, [a-street] alley between two [a-building] [n-buildings]");
+        DescriptionMapper.add("sector-vision", { wear: b13, sunlit: false, level: lmodern }, "[A] [a-street] [n-street] between tall [n-buildings], lined with withered trees that until recently must have thrived in artificial light");
+        DescriptionMapper.add("sector-vision", { wear: b13, level: lmodern, isSurfaceLevel: false }, "A [n-street] between some skeleton buildings that seem to have been abandoned while they were still under construction");
+        DescriptionMapper.add("sector-vision", { wear: b23, damage: b0 }, "A former [n-sector] with [A] [a-street-past] atmosphere lingering from its past");
+        DescriptionMapper.add("sector-vision", { wear: b23, damage: b0 }, "Once [a-street-past] [n-sector] with a few [an-decos] and [A] [a-building] [n-building]");
+        DescriptionMapper.add("sector-vision", { wear: b33 }, "[A] [a-building] building whose original purpose is hard to determine, stripped down to bare concrete");
+        DescriptionMapper.add("sector-vision", { buildingDensity: b22, wear: b33 }, "[A] [a-street] corridor with remains of [an-items] from long-gone inhabitants");
+        DescriptionMapper.add("sector-vision", { wear: b33 }, "[A] [a-street] [a-sectortype] [n-street] with a few large unidentifiable ruins looming over it");
+        DescriptionMapper.add("sector-vision", { wear: b33 }, "A completely ruined [a-sectortype] [n-street]");
+        DescriptionMapper.add("sector-vision", { wear: b33 }, "A rubble-covered [n-street] surrounded by the crumbling remains of [a-sectortype] buildings");
+        DescriptionMapper.add("sector-vision", { damage: b22 }, "A former [a-sectortype] sector where [n-buildings] and [n-buildings] lie in ruins");
+        DescriptionMapper.add("sector-vision", { damage: b33 }, "A completely destroyed [a-sectortype] [n-street]");
+        DescriptionMapper.add("sector-vision", { sectorType: t_R }, "A small [n-street] between some [a-building] apartment towers");
+        DescriptionMapper.add("sector-vision", { sectorType: t_R, buildingDensity: b23, isSurfaceLevel: false }, "A [a-street] [n-street] along an enormous wall stretching to the level ceiling above, dotted with [a-building] apartments");
+        DescriptionMapper.add("sector-vision", { sectorType: t_R, buildingDensity: b12, level: [6, 100] }, "A [n-street] flanked by several identical narrow residential towers");
+        DescriptionMapper.add("sector-vision", { sectorType: t_R, buildingDensity: b23 }, "A [n-street] outside a [a-building] residental building with a dizzying geometrical pattern of balconies");
+        DescriptionMapper.add("sector-vision", { sectorType: t_R, level: lmodern }, "A square surrounded by what looks like rather comfortable apartment towers");
+        DescriptionMapper.add("sector-vision", { sectorType: t_I }, "A street outside a huge [a-building] industrial complex");
+        DescriptionMapper.add("sector-vision", { sectorType: t_I, buildingDensity: b13 }, "An empty square with some damaged containers and huge rusting mechanical arms");
+        DescriptionMapper.add("sector-vision", { sectorType: t_I, buildingDensity: b23 }, "[A] [n-street] between two blocks of what looks like [a-building] control rooms and offices");
+        DescriptionMapper.add("sector-vision", { sectorType: t_M }, "[A] [a-street] [n-street] behind [A] [n-building], the low ceiling criss-crossed by old wires and ducts");
+        DescriptionMapper.add("sector-vision", { sectorType: t_M }, "A desolate [n-street] criss-crossed with the remains of broken cable systems and maintenance ducts");
+        DescriptionMapper.add("sector-vision", { sectorType: t_M }, "A flooded passage underneath a massive bridge with [a-building] buildings looming in the distance");
+        DescriptionMapper.add("sector-vision", { sectorType: t_M }, "A forgotten space among machine-run City facilities, smooth surfaces broken only by ducts and pipes");
+        DescriptionMapper.add("sector-vision", { sectorType: t_M, level: lold, buildingDensity: b13 }, "A spacious square with a control room in the middle and old cable system lines disappearing in every direction");
+        DescriptionMapper.add("sector-vision", { sectorType: t_C }, "[A] [a-street] shopping street with the remains of various shops and cafés");
+        DescriptionMapper.add("sector-vision", { sectorType: t_C }, "A [n-street] between some commercial buildings, their [a-building] walls covered in a patchwork of dead screens");
+        DescriptionMapper.add("sector-vision", { sectorType: t_C, wear: b12 }, "A [n-street] [n-street] crowded with small shops, billboards and kiosks on multiple levels");
+        DescriptionMapper.add("sector-vision", { sectorType: t_C, buildingDensity: b12, isSurfaceLevel: false }, "A [n-street] where buildings are attached to the ceiling of the level like colossal stalactites");
+        DescriptionMapper.add("sector-vision", { sectorType: t_C, buildingDensity: b13 }, "A plaza under an elevated building with what must have once been a waterfall in the middle");
+        DescriptionMapper.add("sector-vision", { sectorType: t_C, buildingDensity: b13 }, "[A] wide fenced terrace attached to a massive tower overlooking the [a-street] streets below");
+        DescriptionMapper.add("sector-vision", { sectorType: t_C, buildingDensity: b13 }, "A round courtyard enclosed by a [a-building] office building");
+        DescriptionMapper.add("sector-vision", { sectorType: t_C, buildingDensity: b22, wear: b33 }, "[A] [a-building] building whose original purpose is hard to determine, stripped down to concrete, with an impressive spiral staircase in the middle");
+        DescriptionMapper.add("sector-vision", { sectorType: t_P }, "[A] [n-street] dominated by huge building that looks like it was once a public facility of some kind");
+        DescriptionMapper.add("sector-vision", { sectorType: t_P }, "A stretch of abandoned highway with some smaller buildings on the side" );
+        DescriptionMapper.add("sector-vision", { sectorType: t_P, buildingDensity: b12 }, "[A] [a-street] [n-street] dominated a row of solemn statues" );
+        DescriptionMapper.add("sector-vision", { sectorType: t_P, buildingDensity: b12, wear: b22 }, "An ornamental hall which seems to have once been a big station, with a domed roof, massive chandelier and small booths on the sides" );
+        DescriptionMapper.add("sector-vision", { sectorType: t_P, buildingDensity: b13 }, "An open space that looks like it might have once been dedicated to a sport of some kind");
+        DescriptionMapper.add("sector-vision", { sectorType: t_S, buildingDensity: b33, wear: b22 }, "[A] [a-street] [n-street] surrounded (and in parts, covered) by [a-building] dwellings that have been abandoned for some time");
+        DescriptionMapper.add("sector-vision", { sectorType: t_S, buildingDensity: b13 }, "A wide square whose walls support a few make-shift shacks");
+        DescriptionMapper.add("sector-vision", { level: 14, buildingDensity: b13 }, "A huge hall that looks like it was used as some kind of a storage area, with automated hands rusting in the ceiling");
+        DescriptionMapper.add("sector-vision", { level: 14, buildingDensity: b23 }, "[A] [a-street] passage between two defunct, walled-off nuclear reactors");
+        DescriptionMapper.add("sector-vision", { level: 14, buildingDensity: b23 }, "[A] [a-street] [n-street] outside a huge industrial processing complex, all entrances tightly shut");
+        DescriptionMapper.add("sector-vision", { level: 14, buildingDensity: b33 }, "[A] [a-street] passage that seems to have been used to transport goods between the various facilities on this level");
+        DescriptionMapper.add("sector-vision", { level: 14, buildingDensity: b33 }, "[A] [a-sectortype] corridor that must have once looked sterile, but is now littered with debris");
+        DescriptionMapper.add("sector-vision", { level: 14, buildingDensity: b33 }, "A windowed hallway above the ruined remains of a nuclear facility");
+        DescriptionMapper.add("sector-vision", { isGroundLevel: true, buildingDensity: b13 }, "A wide open space beneath the City with mud, grass and other plants pushing their way through cracks in the concrete floor");
+        DescriptionMapper.add("sector-vision", { isGroundLevel: true, buildingDensity: b13 }, "An ancient square, long since forgotten, with huge pillars supporting the City above on either side");
+        DescriptionMapper.add("sector-vision", { isGroundLevel: true, buildingDensity: b13 }, "An open space, perhaps once a park, now overrun strange plants and mushrooms");
+        DescriptionMapper.add("sector-vision", { isGroundLevel: true, buildingDensity: b23 }, "[A] [a-street] street between crumbling ancient [a-sectortype] buildings");
+        DescriptionMapper.add("sector-vision", { isGroundLevel: true, buildingDensity: b23 }, "An open street with no ceiling, the next floor of the City hovering high above and ruins on either side");
+        DescriptionMapper.add("sector-vision", { isGroundLevel: true, buildingDensity: b33 }, "A passage through an ancient building");
+        DescriptionMapper.add("sector-vision", { isGroundLevel: true, buildingDensity: b33 }, "A narrow street with cracked pavement");
+        DescriptionMapper.add("sector-vision", { isSurfaceLevel: true, buildingDensity: b13 }, "A once [a-street-past] square surrounded by glass-domed passages and small shopfronts");
+        DescriptionMapper.add("sector-vision", { isSurfaceLevel: true, buildingDensity: b13 }, "A big square dominated by an ornate public building in the middle");
+        DescriptionMapper.add("sector-vision", { isSurfaceLevel: true, buildingDensity: b23 }, "A [a-street] street dotted by billboards and dead screens and surrounded by tall buildings");
+        DescriptionMapper.add("sector-vision", { isSurfaceLevel: true, buildingDensity: b23 }, "A multi-layered street with space below for trams and below for pedestrians and small shops");
+        DescriptionMapper.add("sector-vision", { isSurfaceLevel: true, buildingDensity: b33 }, "[A] [a-street] [n-street] between tall, ornate [n-buildings]");
+        DescriptionMapper.add("sector-vision", { isSurfaceLevel: true, buildingDensity: b33 }, "[A] [a-street] passage between what used to be two shopping centers");
+
+        // descriptions when player has no vision (lamp/sunglasses)
+        DescriptionMapper.add("sector-novision", { sunlit: false, buildingDensity: b0 }, "A rare empty space inside the City; there is no floor or walls, no buildings, nothing. Only vast empty darkness");
+        DescriptionMapper.add("sector-novision", { sunlit: false, buildingDensity: b13 }, "A wide street or corridor. It's hard to find anything in the vast darkness");
+        DescriptionMapper.add("sector-novision", { sunlit: false, buildingDensity: b23, wear: b22 }, "A street or corridor with an abandoned air. Details fade in the darkness");
+        DescriptionMapper.add("sector-novision", { sunlit: false, buildingDensity: b23, wear: b12 }, "A quiet street or corridor. Details fade in the darkness");
+        DescriptionMapper.add("sector-novision", { sunlit: false, buildingDensity: b33 }, "A dense passage with barely enough space to walk. You feel your way in the darkness");
+        DescriptionMapper.add("sector-novision", { sunlit: false }, "A space inside the city, hidden in the darkness");
+        DescriptionMapper.add("sector-novision", { sunlit: true, buildingDensity: b0 }, "A rare empty space inside the City; there is no floor or walls, no buildings, nothing. Only vast emptiness");
+        DescriptionMapper.add("sector-novision", { sunlit: true, buildingDensity: b13 }, "A wide street or corridor. It's hard to find anything in the blinding sunlight");
+        DescriptionMapper.add("sector-novision", { sunlit: true, buildingDensity: b23, wear: b22 }, "A street or corridor with an abandoned air. Details fade in the blinding light");
+        DescriptionMapper.add("sector-novision", { sunlit: true, buildingDensity: b23, wear: b12 }, "A quiet street or corridor. Details fade in the sunlight");
+        DescriptionMapper.add("sector-novision", { sunlit: true, buildingDensity: b33 }, "A dense passage with barely enough space to walk. You feel your way in the blinding light");
+        DescriptionMapper.add("sector-novision", { sunlit: true }, "A space inside the city, indistinct in the blinding light");
     }
     
     initSectorTexts();

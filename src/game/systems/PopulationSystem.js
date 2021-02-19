@@ -80,12 +80,12 @@ define([
         
         getPopulationChangePerSec: function (node) {
 			var camp = node.camp;
-			var reputation = node.reputation.value;
-            var levelVO = GameGlobals.levelHelper.getLevelEntityForSector(node.entity).get(LevelComponent).levelVO;
+			var reputation = node.reputation.value || 0;
+            var levelComponent = GameGlobals.levelHelper.getLevelEntityForSector(node.entity).get(LevelComponent);
             var reqRepCurPop = CampConstants.getRequiredReputation(Math.floor(camp.population));
             var reqRepNextPop = CampConstants.getRequiredReputation(Math.floor(camp.population) + 1);
             
-            var changePerSec;
+            var changePerSec = 0;
             if (reputation >= reqRepCurPop && reputation < reqRepNextPop) {
                 changePerSec = 0;
             } else if (reputation >= reqRepNextPop) {
@@ -97,7 +97,7 @@ define([
             }
 
             if (changePerSec > 0) {
-                changePerSec *= levelVO.populationGrowthFactor;
+                changePerSec *= levelComponent.populationFactor;
             }
 
 			var improvements = node.entity.get(SectorImprovementsComponent);
@@ -127,9 +127,9 @@ define([
             var foodProduction = GameGlobals.campHelper.getFoodProductionPerSecond(1, improvements);
             var waterConsumption = GameGlobals.campHelper.getWaterConsumptionPerSecond(node.camp.population);
             var waterProduction = GameGlobals.campHelper.getWaterProductionPerSecond(1, improvements);
-            reservedWorkers[CampConstants.WORKER_TYPES.scavenger] = 1;
-            reservedWorkers[CampConstants.WORKER_TYPES.trapper] = Math.ceil(foodConsumption / foodProduction);
-            reservedWorkers[CampConstants.WORKER_TYPES.water] = Math.ceil(waterConsumption / waterProduction);
+            reservedWorkers[CampConstants.workerTypes.scavenger.id] = 1;
+            reservedWorkers[CampConstants.workerTypes.trapper.id] = Math.ceil(foodConsumption / foodProduction);
+            reservedWorkers[CampConstants.workerTypes.water.id] = Math.ceil(waterConsumption / waterProduction);
             var prioritizedWorkers = [];
             for (var key in node.camp.assignedWorkers) {
                 prioritizedWorkers.push({ name: key, min: reservedWorkers[key] || 0});

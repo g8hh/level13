@@ -1,4 +1,4 @@
-define(['ash', 'game/constants/TextConstants', 'game/constants/ItemConstants'], function (Ash, TextConstants, ItemConstants) {
+define(['ash', 'text/Text', 'game/constants/TextConstants', 'game/constants/ItemConstants'], function (Ash, Text, TextConstants, ItemConstants) {
 
     var LogConstants = {
 
@@ -27,6 +27,8 @@ define(['ash', 'game/constants/TextConstants', 'game/constants/ItemConstants'], 
         MSG_ID_USE_MARKET: "USE_MARKET",
         MSG_ID_USE_HOSPITAL: "USE_HOSPITAL",
         MSG_ID_USE_HOSPITAL2: "USE_HOSPITAL2",
+        MSG_ID_USE_TEMPLE: "USE_TEMPLE",
+        MSG_ID_USE_SHRINE: "USE_SHRINE",
         MSG_ID_BOUGHT_UPGRADE: "MSG_ID_BOUGHT_UPGRADE",
         MSG_ID_START_SEND_CAMP: "MSG_ID_START_SEND_CAMP",
         MSG_ID_FINISH_SEND_CAMP: "MSG_ID_FINISH_SEND_CAMP",
@@ -36,6 +38,7 @@ define(['ash', 'game/constants/TextConstants', 'game/constants/ItemConstants'], 
         MSG_ID_ADD_HAZARD_PERK: "MSG_ID_ADD_HAZARD_PERK",
         MSG_ID_TIME_HAZARD_PERK: "MSG_ID_TIME_HAZARD_PERK",
         MSG_ID_REMOVE_HAZARD_PERK: "MSG_ID_REMOVE_HAZARD_PERK",
+        MSG_ID_REMOVE_STAMINA_PERK: "MSG_ID_REMOVE_STAMINA_PERK",
         MSG_ID_FOUND_BLUEPRINT_FIRST: "MSG_ID_FOUND_BLUEPRINT_FIRST",
         MSG_ID_FOUND_ITEM_FIRST: "MSG_ID_FOUND_ITEM_FIRST",
         MSG_ID_LOST_ITEM: "MSG_ID_LOST_ITEM",
@@ -81,6 +84,8 @@ define(['ash', 'game/constants/TextConstants', 'game/constants/ItemConstants'], 
         MSG_ID_BUILT_INN: "BUILT_INN",
         MSG_ID_BUILT_SQUARE: "MSG_ID_BUILT_SQUARE",
         MSG_ID_BUILT_GARDEN: "MSG_ID_BUILT_GARDEN",
+        MSG_ID_BUILT_TEMPLE: "MSG_ID_BUILT_TEMPLE",
+        MSG_ID_BUILT_SHRINE: "MSG_ID_BUILT_SHRINE",
         
         MSG_ID_IMPROVED_CAMPFIRE: "MSG_ID_IMPROVED_CAMPFIRE",
         MSG_ID_IMPROVED_LIBRARY: "MSG_ID_IMPROVED_LIBRARY",
@@ -89,16 +94,22 @@ define(['ash', 'game/constants/TextConstants', 'game/constants/ItemConstants'], 
         MSG_ID_IMPROVED_APOTHECARY: "MSG_ID_IMPROVED_APOTHECARY",
         MSG_ID_IMPROVED_SMITHY: "MSG_ID_IMPROVED_SMITHY",
         MSG_ID_IMPROVED_CEMENTMILL: "MSG_ID_IMPROVED_CEMENTMILL",
+        MSG_ID_IMPROVED_MARKET: "MSG_ID_IMPROVED_MARKET",
+        MSG_ID_IMPROVED_TEMPLE: "MSG_ID_IMPROVED_TEMPLE",
 
         // out buildings
         MSG_ID_BUILT_PASSAGE: "BUILT_PASSAGE",
         MSG_ID_BUILT_TRAP: "BUILT_TRAP",
         MSG_ID_BUILT_BUCKET: "BUILT_BUCKET",
+        MSG_ID_BUILT_BEACON: "MSG_ID_BUILT_BEACON",
         MSG_ID_BUILT_SPACESHIP: "BUILT_SPACESHIP",
 
         // items
         MSG_ID_ADD_FOLLOWER: "ADD_FOLLOWER",
         MSG_ID_CRAFT_ITEM: "CRAFT_ITEM",
+        MSG_ID_USE_FIRST_AID_KIT: "MSG_ID_USE_FIRST_AID_KIT",
+        MSG_ID_USE_STAMINA_POTION: "MSG_ID_USE_STAMINA",
+        MSG_ID_USE_METAL_CACHE: "MSG_ID_USE_METAL_CACHE",
 
 		mergedMessages: [
             ["SCAVENGE", "SCOUT", "SCOUT"],
@@ -184,7 +195,7 @@ define(['ash', 'game/constants/TextConstants', 'game/constants/ItemConstants'], 
                     itemDetails = " Light will make scavenging safer.";
                     break;
             }
-            return "Made " + TextConstants.addArticle(itemVO.name) + "." + itemDetails;
+            return "Made " + Text.addArticle(itemVO.name) + "." + itemDetails;
         },
 
     }

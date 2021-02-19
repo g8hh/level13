@@ -1,5 +1,6 @@
 define([
     'ash',
+    'text/Text',
     'utils/UIState',
     'game/GameGlobals',
     'game/GlobalSignals',
@@ -11,10 +12,9 @@ define([
     'game/nodes/player/PlayerStatsNode',
     'game/nodes/FightNode',
     'game/components/player/ItemsComponent',
-    'game/components/sector/FightComponent',
     'game/components/sector/FightEncounterComponent',
     'game/components/sector/EnemiesComponent'
-], function (Ash, UIState, GameGlobals, GlobalSignals, FightConstants, ItemConstants, TextConstants, UIConstants, PlayerLocationNode, PlayerStatsNode, FightNode, ItemsComponent, FightComponent, FightEncounterComponent, EnemiesComponent) {
+], function (Ash, Text, UIState, GameGlobals, GlobalSignals, FightConstants, ItemConstants, TextConstants, UIConstants, PlayerLocationNode, PlayerStatsNode, FightNode, ItemsComponent, FightEncounterComponent, EnemiesComponent) {
     
     var FightPopupStateEnum = {
         CLOSED: 0,
@@ -291,6 +291,7 @@ define([
 				var playerStamina = this.playerStatsNodes.head.stamina;
                 var itemsComponent = this.playerStatsNodes.head.entity.get(ItemsComponent);
                 var chances = FightConstants.getFightWinProbability(currentEnemy, playerStamina, itemsComponent);
+                log.i("getFightWinProbability:" + chances);
                 var chancesText = this.getFightChancesText(chances);
                 var spanClass = chances < 0.4 ? "warning": "";
                 statsText += "<br/>";
@@ -349,21 +350,22 @@ define([
 		
 		getDescriptionByContext: function (context, enemy) {
             var enemiesNoun = TextConstants.getEnemyNoun([enemy]);
-			var enemyNoun = TextConstants.depluralify(enemiesNoun);
+			var enemyNoun = Text.depluralify(enemiesNoun);
 			var baseActionID = GameGlobals.playerActionsHelper.getBaseActionID(context);
 			switch (baseActionID) {
 				case "scavenge":
-					return "surprised by " + TextConstants.addArticle(enemyNoun) + " while scavenging";
+					return "surprised by " + Text.addArticle(enemyNoun) + " while scavenging";
 				case "scout_locale_u":
-					return "surprised by " + TextConstants.addArticle(enemyNoun) + " while scouting";
+					return "surprised by " + Text.addArticle(enemyNoun) + " while scouting";
 				case "scout_locale_i":
 					return "attacked while scouting";
 				case "clear_workshop":
-					return "workshop " + enemy.activeV + " " + enemiesNoun;
+			         var enemyActiveV = TextConstants.getEnemyActiveVerb([ enemy ]);
+					return "workshop " + enemyActiveV + " " + enemiesNoun;
 				case "fight_gang":
-					return TextConstants.addArticle(enemyNoun) + " is blocking passage";
+					return Text.addArticle(enemyNoun) + " is blocking passage";
 				default:
-					return TextConstants.addArticle(enemyNoun) + " approaches";
+					return Text.addArticle(enemyNoun) + " approaches";
 			}
         },
 		

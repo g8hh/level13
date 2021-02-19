@@ -15,11 +15,11 @@ define(['ash',
 	'game/components/sector/SectorLocalesComponent',
 	'game/components/sector/PassagesComponent',
 	'game/components/common/VisitedComponent',
-	'game/components/sector/improvements/WorkshopComponent',
+    'utils/UIAnimations'
 ], function (Ash, GameGlobals,
 	StoryConstants, PositionConstants, SectorConstants, ItemConstants, BagConstants, PerkConstants, UpgradeConstants, PlayerActionConstants,
 	PositionComponent, CampComponent, SectorStatusComponent, SectorLocalesComponent,
-	PassagesComponent, VisitedComponent, WorkshopComponent) {
+	PassagesComponent, VisitedComponent, UIAnimations) {
 
 	var UIConstants = {
 
@@ -73,8 +73,9 @@ define(['ash',
 			return div;
 		},
 
-		getItemSlot: function (itemsComponent, item, count, isLost, simple, showBagOptions, bagOptions) {
-			var imageDiv = "<div class='item-slot-image'>" + this.getItemDiv(itemsComponent, item, count, this.getItemCallout(item, false, showBagOptions, bagOptions)) + "</div>";
+		getItemSlot: function (itemsComponent, item, count, isLost, simple, showBagOptions, bagOptions, tab) {
+            let itemDev = this.getItemDiv(itemsComponent, item, count, this.getItemCallout(item, false, showBagOptions, bagOptions, tab));
+			var imageDiv = "<div class='item-slot-image'>"+ itemDev + "</div>";
 			var liclasses = "item-slot item-slot-small lvl13-box-1 ";
 			if (simple) liclasses += "item-slot-simple";
 			if (isLost) liclasses += "item-slot-lost";
@@ -88,7 +89,7 @@ define(['ash',
 			GameGlobals.uiFunctions.toggle($slot, count > 0);
 		},
 
-		getItemCallout: function (item, smallCallout, showBagOptions, bagOptions) {
+		getItemCallout: function (item, smallCallout, showBagOptions, bagOptions, tab) {
 			var detail = " (" + this.getItemBonusDescription(item, true, false) + ")";
 			if (detail.length < 5) detail = "";
 			var weight = BagConstants.getItemCapacity(item);
@@ -97,19 +98,27 @@ define(['ash',
 				itemCalloutContent += "</br>Weight: " + weight;
 			itemCalloutContent += "</br>" + item.description;
 			if (smallCallout) itemCalloutContent = item.name + (detail.length > 0 ? " " + detail : "");
+            
+            var makeButton = function (action, name) {
+                if (!tab) {
+                     return "<button class='action btn-narrow' action='" + action + "'>" + name + "</button>";
+                } else {
+                     return "<button class='action tabbutton btn-narrow' data-tab='" + tab + "' action='" + action + "'>" + name + "</button>";
+                }
+            };
 
 			if (showBagOptions) {
 				var options = "<div class='item-bag-options'>";
 				if (bagOptions.canEquip) {
 					var action = "equip_" + item.id;
-					options += "<button class='action btn-narrow' action='" + action + "'>Equip</button>";
+					options += makeButton(action, "Equip");
 				} else if (bagOptions.canUnequip) {
 					var action = "unequip_" + item.id;
-					options += "<button class='action btn-narrow' action='" + action + "'>Unequip</button>";
+					options += makeButton(action, "Unequip");
 				}
 				if (bagOptions.canDiscard) {
 					var action = "discard_" + item.id;
-					options += "<button class='action btn-narrow' action='" + action + "'>Discard</button>";
+					options += makeButton(action, "Discard");
 				}
 				options += "</div>";
 				itemCalloutContent += options;
@@ -216,7 +225,7 @@ define(['ash',
 						continue;
 					}
 					if (value <= 0 && !showAllBonuses) {}
-					result += this.getItemBonusName(bonusType);
+					result += this.getItemBonusName(bonusType, true);
 					result += useLineBreaks && !showAllBonuses ? "<br/>" : " ";
 					result += this.getItemBonusText(item, bonusType);
 				}
@@ -232,19 +241,19 @@ define(['ash',
 			return result;
 		},
 
-		getItemBonusName: function (bonusType) {
+		getItemBonusName: function (bonusType, short) {
 			switch (bonusType) {
 				case ItemConstants.itemBonusTypes.light: return "max vision";
 				case ItemConstants.itemBonusTypes.fight_att: return "attack";
 				case ItemConstants.itemBonusTypes.fight_def: return "defence";
-				case ItemConstants.itemBonusTypes.fight_speed: return "speed";
+				case ItemConstants.itemBonusTypes.fight_speed: return "attack speed";
 				case ItemConstants.itemBonusTypes.movement: return "movement cost";
 				case ItemConstants.itemBonusTypes.bag: return "bag size";
                 case ItemConstants.itemBonusTypes.fight_def: return "defence";
                 case ItemConstants.itemBonusTypes.res_cold: return "warmth";
-                case ItemConstants.itemBonusTypes.res_radiation: return "radiation protection";
-                case ItemConstants.itemBonusTypes.res_poison: return "poison protection";
-                case ItemConstants.itemBonusTypes.res_sunlight: return "sunblindness protection";
+                case ItemConstants.itemBonusTypes.res_radiation: return short ? "radiation prot" : "radiation protection";
+                case ItemConstants.itemBonusTypes.res_poison: return short ? "poison prot" : "poison protection";
+                case ItemConstants.itemBonusTypes.shade: return short ? "sun prot" : "sunblindness protection";
 				default:
 					return null;
 			}
@@ -256,9 +265,10 @@ define(['ash',
 				return "+0";
             } else if (item.type == ItemConstants.itemTypes.bag) {
                 return " " + bonusValue;
-            } else if (bonusType == ItemConstants.itemBonusTypes.fight_speed) {
+            } else if (ItemConstants.isMultiplier(bonusType) && ItemConstants.isIncreasing(bonusType)) {
+                // increasing multiplier: fight speed
                 var val = Math.abs(Math.round((1 - bonusValue) * 100));
-				return bonusValue == 1 ? "+0%" : (bonusValue < 1 ? "+" + val + "%" : "-" + val + "%");
+				return bonusValue == 1 ? "+0%" : (bonusValue < 1 ? "-" + val + "%" : "+" + val + "%");
 			} else if (bonusValue >= 1) {
 				return " +" + bonusValue;
 			} else if (bonusValue > 0) {
@@ -282,11 +292,15 @@ define(['ash',
 
 		getPerkBonusText: function (perk) {
 			var value = 0;
-			if (perk.effect < 1) {
-				value = "-" + Math.round(100 - perk.effect * 100) + "%";
-			} else {
-				value = "+" + Math.round((perk.effect - 1) * 100) + "%";
-			}
+            if (PerkConstants.isPercentageEffect(perk.type)) {
+    			if (perk.effect < 1) {
+    				value = "-" + Math.round(100 - perk.effect * 100) + "%";
+    			} else {
+    				value = "+" + Math.round((perk.effect - 1) * 100) + "%";
+    			}
+            } else {
+                value = "+" + perk.effect;
+            }
 
 			var effect = perk.type;
 			switch (perk.type) {
@@ -306,20 +320,20 @@ define(['ash',
 			var getItemSortVal = function (itemVO) {
 				var typeVal = 0;
 				switch (itemVO.type) {
-					case ItemConstants.itemTypes.bag: typeVal = 1; break;
-					case ItemConstants.itemTypes.light: typeVal = 2; break;
-					case ItemConstants.itemTypes.weapon: typeVal = 4; break;
-					case ItemConstants.itemTypes.clothing_over: typeVal = 5; break;
-					case ItemConstants.itemTypes.clothing_upper: typeVal = 6; break;
-					case ItemConstants.itemTypes.clothing_lower: typeVal = 7; break;
-					case ItemConstants.itemTypes.clothing_hands: typeVal = 8; break;
-					case ItemConstants.itemTypes.clothing_head: typeVal = 9; break;
-					case ItemConstants.itemTypes.shoes: typeVal = 10; break;
-					case ItemConstants.itemTypes.exploration: typeVal = 11; break;
-					case ItemConstants.itemTypes.ingredient: typeVal = 12; break;
+                    case ItemConstants.itemTypes.exploration: typeVal = 1; break;
+					case ItemConstants.itemTypes.bag: typeVal = 11; break;
+					case ItemConstants.itemTypes.light: typeVal = 12; break;
+					case ItemConstants.itemTypes.weapon: typeVal = 13; break;
+					case ItemConstants.itemTypes.clothing_over: typeVal = 14; break;
+					case ItemConstants.itemTypes.clothing_upper: typeVal = 15; break;
+					case ItemConstants.itemTypes.clothing_lower: typeVal = 16; break;
+					case ItemConstants.itemTypes.clothing_hands: typeVal = 17; break;
+					case ItemConstants.itemTypes.clothing_head: typeVal = 18; break;
+					case ItemConstants.itemTypes.shoes: typeVal = 19; break;
+					case ItemConstants.itemTypes.ingredient: typeVal = 21; break;
 					case ItemConstants.itemTypes.uniqueEquipment: typeVal = 0; break;
-					case ItemConstants.itemTypes.artefact: typeVal = 13; break;
-					case ItemConstants.itemTypes.note: typeVal = 14; break;
+					case ItemConstants.itemTypes.artefact: typeVal = 31; break;
+					case ItemConstants.itemTypes.note: typeVal = 32; break;
 					case ItemConstants.itemTypes.follower: typeVal = 0; break;
 				}
 				return typeVal * 1000 - itemVO.getTotalBonus();
@@ -352,14 +366,20 @@ define(['ash',
 
 			return div;
 		},
+        
+        completeResourceIndicatorAnimations: function (id) {
+            let $valueElement = $(id).children(".value");
+            UIAnimations.animateNumberEnd($valueElement);
+        },
 
-		updateResourceIndicator: function (id, value, change, storage, showStorage, showChangeIcon, showChange, showDetails, showWarning, visible) {
+		updateResourceIndicator: function (id, value, change, storage, showChangeIcon, showChange, showDetails, showWarning, visible, animate) {
 			GameGlobals.uiFunctions.toggle(id, visible);
 			GameGlobals.uiFunctions.toggle($(id).parent(), visible);
-			var roundedValue = this.roundValue(value, true, false);
 			if (visible) {
-				$(id).children(".value").text(showStorage ? roundedValue + " / " + storage : roundedValue);
-				$(id).children(".value").toggleClass("warning", showWarning && roundedValue < 5);
+                let $valueElement = $(id).children(".value");
+                animate = animate || UIAnimations.isAnimating($valueElement);
+                UIAnimations.animateOrSetNumber($valueElement, animate, value, "", false, (v) => { return UIConstants.roundValue(v, true, false); });
+				$(id).children(".value").toggleClass("warning", showWarning && value < 5);
 				$(id).children(".change").toggleClass("warning", change < 0);
 				GameGlobals.uiFunctions.toggle($(id).children(".change"), showChange);
 				GameGlobals.uiFunctions.toggle($(id).children(".forecast"), showDetails);
@@ -415,10 +435,7 @@ define(['ash',
 		},
 
 		getBlueprintPieceIcon: function (upgradeId) {
-			var costs = PlayerActionConstants.costs[upgradeId];
-			var type = "rumours";
-			if (costs.favour > 0) type = "favour";
-			else if (costs.evidence > 0) type = "evidence";
+            let type = UpgradeConstants.getUpgradeType(upgradeId);
 			return "<img src='img/items/blueprints/blueprint-" + type + ".png' />";
 		},
 
@@ -473,8 +490,8 @@ define(['ash',
 			return "less than a minute";
 		},
 
-		getInGameDate: function (gamePlayedSeconds) {
-			var secondSinceGameStart = gamePlayedSeconds;
+		getInGameDate: function (gameTime) {
+			var secondSinceGameStart = gameTime;
 			var inGameDaysSinceGameStart = Math.floor(secondSinceGameStart / 86400 * 365);
 			var inGameWeeksSinceGameStart = inGameDaysSinceGameStart / 40;
 
@@ -496,13 +513,19 @@ define(['ash',
 
 		roundValue: function (value, showDecimalsWhenSmall, showDecimalsAlways, decimalDivisor) {
             decimalDivisor = decimalDivisor || 100;
-			var divisor = 0;
+			let divisor = 0;
 			if (showDecimalsWhenSmall && value <= 10) divisor = decimalDivisor;
 			if (showDecimalsAlways) divisor = decimalDivisor;
 
 			if (value % 1 === 0 || divisor <= 0) return Math.round(value);
             
-			return Math.round(value * divisor) / divisor;
+			let result = Math.round(value * divisor) / divisor;
+            
+            if (result == 0) {
+                return "< " + (0.5 / divisor);
+            }
+            
+            return result;
 		},
 
 		getDisplayValue: function (value) {
@@ -512,6 +535,37 @@ define(['ash',
 		getResourceImg: function (name) {
 			return "<img src='img/res-" + name + ".png' alt='" + name + "'/>"
 		},
+        
+        getRangeText: function (range, count) {
+            var min = range[0];
+            var max = range[1];
+            
+            if (!count && count !== 0) {
+                // text without current count
+                if (min >= 0 && max >= 0) {
+                    return min + "-" + max;
+                }
+                if (min >= 0) {
+                    return "min " + min;
+                }
+                if (max >= 0) {
+                    return "max " + max;
+                }
+            } else {
+                // text with current count
+                if (min >= 0 && max >= 0) {
+                    return count + "/" + min + "-" + max;
+                }
+                if (min >= 0) {
+                    return count + "/" + min;
+                }
+                if (max >= 0) {
+                    return count + "/" + max;
+                }
+            }
+            
+            return "";
+        },
 
 		cleanupText: function (text) {
 			return text.replace(/'/g, "&#39;")

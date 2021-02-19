@@ -12,8 +12,9 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 		gainedFollowers: [],
 		gainedBlueprintPiece: null,
 		gainedEvidence: 0,
-		gainedReputation: 0,
 		gainedRumours: 0,
+		gainedFavour: 0,
+		gainedReputation: 0,
 		gainedPopulation: 0,
 		
 		// penalties
@@ -22,6 +23,9 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 		lostItems: [],
         lostFollowers: [],
 		gainedInjuries: [],
+        
+        // additional info for UI
+        foundStashVO: null,
         
         // inventory management selection
         // gained resources and items must be manually picked up; status saved here; this is the final change to the player bag
@@ -39,8 +43,9 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
             this.gainedFollowers = [];
             this.gainedBlueprintPiece = null;
             this.gainedEvidence = 0;
-            this.gainedReputation = 0;
             this.gainedRumours = 0;
+            this.gainedFavour = 0;
+            this.gainedReputation = 0;
             this.gainedPopulation = 0;
             
 			this.lostResources = new ResourcesVO();
@@ -73,8 +78,9 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
             result.gainedBlueprintPiece = this.gainedBlueprintPiece;
             result.gainedPopulation = this.gainedPopulation;
             result.gainedEvidence = this.gainedEvidence;
-            result.gainedReputation = this.gainedReputation;
             result.gainedRumours = this.gainedRumours;
+            result.gainedFavour = this.gainedFavour;
+            result.gainedReputation = this.gainedReputation;
             return result;
         },
         

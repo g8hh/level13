@@ -45,7 +45,6 @@ define([
         initElements: function () {
             var sys = this;
             $("#incoming-caravan-popup-reset").click(function (e) {
-                log.i("reset");
                 sys.clearSelection();
                 sys.updateLists();
             });
@@ -108,7 +107,7 @@ define([
 			for (var j in caravan.buyItemTypes) {
 				var category = caravan.buyItemTypes[j];
 				if (category == "uniqueEquipment" || category == "follower") continue;
-				var itemList = itemsComponent.getAllByType(ItemConstants.itemTypes[category]);
+				var itemList = itemsComponent.getAllByType(ItemConstants.itemTypes[category], true);
 				for (var k in itemList) {
 					if (itemList[k].equipped) continue;
 					if (!this.campTotalItems[itemList[k].id])
@@ -176,7 +175,6 @@ define([
 				var isCampOffer = $li.parents("#inventorylist-incoming-caravan-camp-offer").length > 0;
                 
                 var amount = Math.max(1, HorizontalSelect.getSelection(sys.multiplierSelect).value);
-                log.i("moveItem " + amount);
 
 				if (isCurrency) {
 					if (isTraderInventory) {
@@ -279,7 +277,7 @@ define([
 				var inventoryAmount = this.traderTotalItems[itemID] - selectedAmount;
 				UIConstants.updateItemSlot(this.traderInventoryLis[itemID], inventoryAmount);
 				UIConstants.updateItemSlot(this.traderOfferLis[itemID], selectedAmount);
-				traderOfferValue += selectedAmount * TradeConstants.getItemValue(item, true);
+				traderOfferValue += selectedAmount * TradeConstants.getItemValue(item, true, false);
 				visibleLisTraderInventory += inventoryAmount > 0 ? 1 : 0;
 				visibleLisTraderOffer += selectedAmount > 0 ? 1 : 0;
 			}
@@ -291,7 +289,7 @@ define([
 				var inventoryAmount = this.campTotalItems[itemID] - selectedAmount;
 				UIConstants.updateItemSlot(this.campInventoryLis[itemID], inventoryAmount);
 				UIConstants.updateItemSlot(this.campOfferLis[itemID], selectedAmount);
-				campOfferValue += selectedAmount * TradeConstants.getItemValue(item);
+				campOfferValue += selectedAmount * TradeConstants.getItemValue(item, false, true);
 				visibleLisCampInventory += inventoryAmount > 0 ? 1 : 0;
 				visibleLisCampOffer += selectedAmount > 0 ? 1 : 0;
 			}

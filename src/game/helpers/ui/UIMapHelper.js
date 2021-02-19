@@ -5,10 +5,10 @@ define(['ash',
     'game/constants/ColorConstants',
     'game/constants/UIConstants',
     'game/constants/CanvasConstants',
+    'game/constants/ExplorationConstants',
     'game/constants/MovementConstants',
     'game/constants/PositionConstants',
     'game/constants/SectorConstants',
-    'game/constants/WorldCreatorConstants',
     'game/nodes/PlayerPositionNode',
     'game/components/type/LevelComponent',
     'game/components/common/CampComponent',
@@ -22,7 +22,7 @@ define(['ash',
     'game/components/type/SectorComponent',
     'game/vos/PositionVO'],
 function (Ash, CanvasUtils,
-    GameGlobals, ColorConstants, UIConstants, CanvasConstants, MovementConstants, PositionConstants, SectorConstants, WorldCreatorConstants,
+    GameGlobals, ColorConstants, UIConstants, CanvasConstants, ExplorationConstants, MovementConstants, PositionConstants, SectorConstants,
     PlayerPositionNode,
     LevelComponent, CampComponent, PositionComponent, SectorStatusComponent, SectorLocalesComponent, SectorFeaturesComponent, PassagesComponent, SectorImprovementsComponent, WorkshopComponent, SectorComponent,
     PositionVO) {
@@ -47,6 +47,7 @@ function (Ash, CanvasUtils,
             this.initIcon("unknown", "map-unvisited");
             this.initIcon("workshop", "map-workshop");
             this.initIcon("water", "map-water");
+            this.initIcon("beacon", "map-beacon");
         },
 
         initIcon: function(key, name) {
@@ -124,7 +125,6 @@ function (Ash, CanvasUtils,
             var sectorSize = this.getSectorSize(centered);
             var sunlit = $("body").hasClass("sunlit");
             var levelEntity = GameGlobals.levelHelper.getLevelEntityForPosition(mapPosition.level);
-            var levelVO = levelEntity.get(LevelComponent).levelVO;
 
             ctx.canvas.width = dimensions.canvasWidth;
             ctx.canvas.height = dimensions.canvasHeight;
@@ -160,6 +160,23 @@ function (Ash, CanvasUtils,
             }
             
             this.drawGridOnCanvas(ctx, sectorSize, dimensions, centered);
+            
+            // borders on beacons
+            ctx.strokeStyle = ColorConstants.getColor(sunlit, "map_stroke_sector_lit");
+            ctx.lineWidth = centered ? 4 : 2;
+            let beaconSectors = GameGlobals.levelHelper.getAllSectorsWithImprovement(mapPosition.level, improvementNames.beacon);
+            for (var i = 0; i < beaconSectors.length; i++) {
+                sector = beaconSectors[i];
+                sectorStatus = SectorConstants.getSectorStatus(sector);
+                sectorPos = sector.get(PositionComponent);
+                if (this.showSectorOnMap(centered, sector, sectorStatus)) {
+                    sectorXpx = this.getSectorPixelPos(dimensions, centered, sectorSize, sectorPos.sectorX,  sectorPos.sectorY).x;
+                    sectorYpx = this.getSectorPixelPos(dimensions, centered, sectorSize, sectorPos.sectorX,  sectorPos.sectorY).y;
+                    ctx.beginPath();
+                    ctx.arc(sectorXpx + sectorSize * 0.5, sectorYpx + 0.5 * sectorSize, sectorSize * (ExplorationConstants.BEACON_RADIUS - 1) * 2, 0, 2 * Math.PI);
+                    ctx.stroke();
+                }
+            }
 
             // sectors and paths
             for (var y = dimensions.minVisibleY; y <= dimensions.maxVisibleY; y++) {
@@ -180,7 +197,7 @@ function (Ash, CanvasUtils,
 
             // border on current
             var playerPosVO = this.playerPosNodes.head.position.getPosition();
-            if (playerPosVO.level == levelVO.level) {
+            if (playerPosVO.level == mapPosition.level) {
                 sectorXpx = this.getSectorPixelPos(dimensions, centered, sectorSize, playerPosVO.sectorX, playerPosVO.sectorY).x;
                 sectorYpx = this.getSectorPixelPos(dimensions, centered, sectorSize, playerPosVO.sectorX, playerPosVO.sectorY).y;
                 ctx.strokeStyle = ColorConstants.getColor(sunlit, "border_highlight");
@@ -283,9 +300,9 @@ function (Ash, CanvasUtils,
             var isVisited = sectorStatus !== SectorConstants.MAP_SECTOR_STATUS_UNVISITED_INVISIBLE && sectorStatus !== SectorConstants.MAP_SECTOR_STATUS_UNVISITED_VISIBLE;
             if (isVisited || this.isMapRevealed) {
                 var isSectorSunlit = sectorFeatures.sunlit;
-                var hasSectorHazard = sectorFeatures.hazards.hasHazards();
+                var hasSectorHazard = GameGlobals.sectorHelper.hasHazards(sectorFeatures, statusComponent);
                 if (isSectorSunlit || hasSectorHazard) {
-                    ctx.strokeStyle = this.getSectorStroke(sectorFeatures);
+                    ctx.strokeStyle = this.getSectorStroke(sectorFeatures, statusComponent);
                     ctx.lineWidth = Math.max(1, Math.round(sectorSize / 8));
                     ctx.beginPath();
                     ctx.moveTo(sectorXpx - 1, sectorYpx - 1);
@@ -319,7 +336,10 @@ function (Ash, CanvasUtils,
             if (!isRevealed && !this.isMapRevealed) {
                 hasIcon = true;
                 ctx.drawImage(this.icons["unknown" + (useSunlitImage ? "-sunlit" : "")], iconPosX, iconPosYCentered);
-            } else if (sector.has(WorkshopComponent)) {
+            } else if (sector.has(WorkshopComponent) && sector.get(WorkshopComponent).isClearable) {
+                hasIcon = true;
+                ctx.drawImage(this.icons["workshop" + (useSunlitImage ? "-sunlit" : "")], iconPosX, iconPosY);
+            } else if (sectorImprovements.getCount(improvementNames.greenhouse) > 0) {
                 hasIcon = true;
                 ctx.drawImage(this.icons["workshop" + (useSunlitImage ? "-sunlit" : "")], iconPosX, iconPosY);
             } else if (sector.has(CampComponent)) {
@@ -337,6 +357,9 @@ function (Ash, CanvasUtils,
             } else if (unScoutedLocales > 0) {
                 hasIcon = true;
                 ctx.drawImage(this.icons["interest" + (useSunlitImage ? "-sunlit" : "")], iconPosX, iconPosY);
+            } else if (sectorImprovements.getCount(improvementNames.beacon) > 0) {
+                hasIcon = true;
+                ctx.drawImage(this.icons["beacon" + (useSunlitImage ? "-sunlit" : "")], iconPosX, iconPosY);
             }
     
             // sector contents: resources
@@ -464,22 +487,22 @@ function (Ash, CanvasUtils,
 
         getMapSectorDimensions: function (canvasId, mapSize, centered, mapPosition, visibleSectors, allSectors) {
             var level = mapPosition.level;
-            var levelVO = GameGlobals.levelHelper.getLevelEntityForPosition(level).get(LevelComponent).levelVO;
+            var levelComponent = GameGlobals.levelHelper.getLevelEntityForPosition(level).get(LevelComponent);
             var sectorSize = this.getSectorSize(centered);
 
             var dimensions = {};
-            dimensions.mapMinX = levelVO.minX;
-            dimensions.mapMaxX = levelVO.maxX;
-            dimensions.mapMinY = levelVO.minY;
-            dimensions.mapMaxY = levelVO.maxY;
+            dimensions.mapMinX = levelComponent.minX;
+            dimensions.mapMaxX = levelComponent.maxX;
+            dimensions.mapMinY = levelComponent.minY;
+            dimensions.mapMaxY = levelComponent.maxY;
 
-            dimensions.canvasMinX = levelVO.minX;
-            dimensions.canvasMaxX = levelVO.maxX;
-            dimensions.canvasMinY = levelVO.minY;
-            dimensions.canvasMaxY = levelVO.maxY;
+            dimensions.canvasMinX = levelComponent.minX;
+            dimensions.canvasMaxX = levelComponent.maxX;
+            dimensions.canvasMinY = levelComponent.minY;
+            dimensions.canvasMaxY = levelComponent.maxY;
 
             if (centered) {
-                var levelSize = Math.max(Math.abs(levelVO.minX - levelVO.maxX), Math.abs(levelVO.minY - levelVO.maxY));
+                var levelSize = Math.max(Math.abs(levelComponent.minX - levelComponent.maxX), Math.abs(levelComponent.minY - levelComponent.maxY));
                 mapSize = mapSize && mapSize > 0 ? mapSize : levelSize;
                 if (mapSize % 2 === 0) mapSize = mapSize + 1;
                 var mapDiameter = (mapSize - 1) / 2;
@@ -568,10 +591,11 @@ function (Ash, CanvasUtils,
             }
         },
         
-        getSectorStroke: function (sectorFeatures) {
+        getSectorStroke: function (sectorFeatures, sectorStatus) {
             var isSectorSunlit = sectorFeatures.sunlit;
-            var hasSectorHazard = sectorFeatures.hazards.hasHazards();
-            var mainHazard = sectorFeatures.hazards.getMainHazard();
+            var hasSectorHazard = GameGlobals.sectorHelper.hasHazards(sectorFeatures, sectorStatus);
+            var hazards = GameGlobals.sectorHelper.getEffectiveHazards(sectorFeatures, sectorStatus);
+            var mainHazard = hazards.getMainHazard();
             
             if (hasSectorHazard) {
                 if (mainHazard == "cold")
@@ -591,6 +615,7 @@ function (Ash, CanvasUtils,
                 case resourceNames.water: return ColorConstants.getGlobalColor("res_water");
                 case resourceNames.food: return ColorConstants.getGlobalColor("res_food");
                 case resourceNames.fuel: return ColorConstants.getGlobalColor("res_fuel");
+                case resourceNames.rubber: return ColorConstants.getGlobalColor("res_rubber");
             }
         },
         

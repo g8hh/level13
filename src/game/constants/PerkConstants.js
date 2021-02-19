@@ -6,6 +6,8 @@ define(['ash', 'game/vos/PerkVO'], function (Ash, PerkVO) {
 			injury: "Injury",
 			movement: "Movement",
 			health: "Health",
+			stamina: "Stamina",
+            light: "Light",
 		},
 		
 		perkIds: {
@@ -17,20 +19,29 @@ define(['ash', 'game/vos/PerkVO'], function (Ash, PerkVO) {
 			hazardPoison: "hazard-poison",
 			hazardCold: "hazard-cold",
             encumbered: "encumbered",
+            staminaBonus: "energized",
+            staminaBonusPenalty: "headache",
+            lightBeacon: "beacon",
 		},
 		
 		perkDefinitions: {
 			injury: [],
 			health: [],
+			stamina: [],
 			movement: [],
 		},
         
         PERK_RECOVERY_FACTOR_REST: 3,
+        TIMER_DISABLED: -1,
 	
-		getPerk: function (perkId) {
+		getPerk: function (perkId, effectTimer) {
 			for (var key in this.perkDefinitions) {
 				for (var i = 0; i < this.perkDefinitions[key].length; i++) {
-					if (this.perkDefinitions[key][i].id === perkId) return this.perkDefinitions[key][i];
+					if (this.perkDefinitions[key][i].id === perkId) {
+                        var result = this.perkDefinitions[key][i].clone();
+                        result.effectTimer = effectTimer || PerkConstants.TIMER_DISABLED;
+                        return result;
+                    };
 				}
 			}
 			return null;
@@ -40,6 +51,8 @@ define(['ash', 'game/vos/PerkVO'], function (Ash, PerkVO) {
 			switch (perkType) {
 				case this.perkTypes.health: return true;
 				case this.perkTypes.injury: return true;
+				case this.perkTypes.stamina: return true;
+				case this.perkTypes.movement: return true;
 				default: return false;
 			}
 		},
@@ -53,6 +66,11 @@ define(['ash', 'game/vos/PerkVO'], function (Ash, PerkVO) {
 	PerkConstants.perkDefinitions.health.push(new PerkVO(PerkConstants.perkIds.hazardPoison, "Poisoned", "Health", 0.5, "img/items/health-negative.png"));
 	PerkConstants.perkDefinitions.health.push(new PerkVO(PerkConstants.perkIds.hazardCold, "Cold", "Health", 0.75, "img/items/health-negative.png"));
     PerkConstants.perkDefinitions.health.push(new PerkVO(PerkConstants.perkIds.encumbered, "Encumbered", "Movement", 1.5, "img/items/weight.png"));
+    
+    PerkConstants.perkDefinitions.stamina.push(new PerkVO(PerkConstants.perkIds.staminaBonus, "Energized", "Stamina", 1.5, "img/items/health-positive.png"));
+    PerkConstants.perkDefinitions.stamina.push(new PerkVO(PerkConstants.perkIds.staminaBonusPenalty, "Headache", "Stamina", 0.9, "img/items/health-negative.png"));
+    
+    PerkConstants.perkDefinitions.stamina.push(new PerkVO(PerkConstants.perkIds.lightBeacon, "Beacon", "Light", 20, "img/items/perk-light-beacon.png"));
     
     var lightInjuryEffect = 0.9;
     var medInjuryEffect = 0.7;

@@ -57,7 +57,7 @@ define([
 		updateItems: function () {
             if (GameGlobals.gameState.uiStatus.isHidden) return;
 			var itemsComponent = this.itemNodes.head.items;
-			var items = itemsComponent.getAllByType(ItemConstants.itemTypes.follower);
+			var items = itemsComponent.getAllByType(ItemConstants.itemTypes.follower, true);
 			$("#list-followers").empty();
 			for (var i = 0; i < items.length; i++) {
 				var item = items[i];
@@ -65,7 +65,7 @@ define([
 				$("#list-followers").append(li);
 			}
 
-			var hasFollowers = $("#list-followers li").length > 0;
+			var hasFollowers = items.length > 0;
 			var showFollowers = hasFollowers || GameGlobals.gameState.unlockedFeatures.followers;
 			GameGlobals.uiFunctions.toggle("#list-followers", hasFollowers);
 			GameGlobals.uiFunctions.toggle("#header-followers", showFollowers);

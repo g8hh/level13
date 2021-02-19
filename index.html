@@ -35,9 +35,6 @@
 			<div class="unit three-quarters" id="unit-main" style="display: none">
 
                 <div id="header-self-bar" class="lvl13-box-2">
-                    <div id="header-self-inout"><img src="img/ui-camp-dark.png" alt="camp" title="camp" width="30" height="30" class="rotate-on-hover" /></div>
-                    <span id="out-position-indicator-header" class="vision-text">location</span>
-                    <span id="out-position-indicator" class="vision-text"></span>
                     <div id="notification-player" class="unit whole notification">
                         <div id="notification-player-bar" class="progress-wrap progress">
                             <div class="progress-bar progress"></div>
@@ -59,21 +56,20 @@
                             <div id="stats-evidence" class="stats-indicator">
                                 <span class="label">Evidence</span>
                                 <span class="value">0</span>
-                            <span id="evidence-change-indicator" class="change-indicator"></span>
+                                <span id="evidence-change-indicator" class="change-indicator"></span>
                             </div>
                             <div id="stats-rumours" class="stats-indicator">
                                 <span class="label">Rumours</span>
                                 <span class="value">0</span>
-                            <span id="rumours-change-indicator" class="change-indicator"></span>
+                                <span id="rumours-change-indicator" class="change-indicator"></span>
                             </div>
-                        </div>
-                        <div id="statsbar-deity" class="statsbar">
-                            <button id="btn-deity-rename" class="context btn-meta">Rename</button>
-                            Deity:
-                            <span id="deity-name">Name</span>
-                            <span id="deity-favour" class="stats-indicator">
-                                <span class="label">Favour</span><span class="value">0</span>
-                            <span id="favour-change-indicator" class="change-indicator"></span>
+                            <span id="stats-favour" class="stats-indicator">
+                                <span class="label">Favour</span>
+                                <span class="value">0</span>
+                                <span id="favour-change-indicator" class="change-indicator"></span>
+                            </span>
+                            <span id="statsbar-deity" class="statsbar">
+                                Deity: <span id="deity-name">Name</span>
                             </span>
                         </div>
                     </div>
@@ -135,6 +131,7 @@
                 
                 <div class="grid">
                     <div id="grid-location-header" class="unit whole">
+                        <img id="level-icon" />
                         <h3 id="in-game-date">Y783</h3>
                         <h1>Camp</h1>
                     </div>
@@ -151,7 +148,6 @@
 							<li id="switch-map"><span class="name vision-text">Map</span></li>
 							<li id="switch-trade"><span class="name vision-text">Trade</span></li>
 							<li id="switch-projects"><span class="name vision-text">Projects</span></li>
-							<li id="switch-blueprints"><span class="name vision-text">Blueprints</span></li>
 							<li id="switch-upgrades"><span class="name vision-text">Upgrades</span></li>
 							<li id="switch-world"><span class="name vision-text">Tribe</span></li>
 						</ul>
@@ -195,47 +191,6 @@
 								<h3>Population</h3>
 								<p style="display:none" id="in-population-status">free / diseased</p>
 								<table class="full-width" id="in-assign-workers">
-									<tr id="in-assign-water">
-										<td class="in-assing-worker-desc"><div class="info-callout-target info-callout-target-small">Water collector</div></td>
-										<td><div class="stepper" id="stepper-water"></div></td>
-										<td class="in-assign-worker-limit"></td>
-									</tr><tr id="in-assign-trapper">
-										<td class="in-assing-worker-desc"><div class="info-callout-target info-callout-target-small">Trapper</div></td>
-										<td><div class="stepper" id="stepper-trapper"></div></td>
-										<td class="in-assign-worker-limit"></td>
-									</tr><tr id="in-assign-scavenger">
-										<td class="in-assing-worker-desc"><div class="info-callout-target info-callout-target-small">Scavenger</div></td>
-										<td><div class="stepper" id="stepper-scavenger"></div></td>
-										<td class="in-assign-worker-limit"></td>
-									</tr><tr id="in-assign-weaver">
-										<td class="in-assing-worker-desc"><div class="info-callout-target info-callout-target-small">Rope-maker</div></td>
-										<td><div class="stepper" id="stepper-rope"></div></td>
-										<td class="in-assign-worker-limit"></td>
-									</tr><tr id="in-assign-chemist">
-										<td class="in-assing-worker-desc"><div class="info-callout-target info-callout-target-small">Chemist</div></td>
-										<td><div class="stepper" id="stepper-fuel"></div></td>
-										<td class="in-assign-worker-limit"><div class='info-callout-target info-callout-target-small' description=""></div></td>
-									</tr><tr id="in-assign-apothecary">
-										<td class="in-assing-worker-desc"><div class="info-callout-target info-callout-target-small">Apothecary</div></td>
-										<td><div class="stepper" id="stepper-medicine"></div></td>
-										<td class="in-assign-worker-limit"><div class='info-callout-target info-callout-target-small' description=""></div></td>
-									</tr><tr id="in-assign-concrete">
-										<td class="in-assing-worker-desc"><div class="info-callout-target info-callout-target-small">Concrete mixer</div></td>
-										<td><div class="stepper" id="stepper-concrete"></div></td>
-										<td class="in-assign-worker-limit"><div class='info-callout-target info-callout-target-small' description=""></div></td>
-									</tr><tr id="in-assign-smith">
-										<td class="in-assing-worker-desc"><div class="info-callout-target info-callout-target-small">Toolsmith</div></td>
-										<td><div class="stepper" id="stepper-smith"></div></td>
-										<td class="in-assign-worker-limit"><div class='info-callout-target info-callout-target-small' description=""></div></td>
-									</tr><tr id="in-assign-scientist">
-										<td class="in-assing-worker-desc"><div class="info-callout-target info-callout-target-small">Scientist</div></td>
-										<td><div class="stepper" id="stepper-scientist"></div></td>
-										<td class="in-assign-worker-limit"><div class='info-callout-target info-callout-target-small' description=""></div></td>
-									</tr><tr id="in-assign-soldier">
-										<td class="in-assing-worker-desc"><div class="info-callout-target info-callout-target-small">Soldier</div></td>
-										<td><div class="stepper" id="stepper-soldier"></div></td>
-										<td class="in-assign-worker-limit"><div class='info-callout-target info-callout-target-small' description=""></div></td>
-									</tr>
 								</table>
 								<p style="display:none" id="in-population-next">Next worker:</p>
 								<div id="in-population-bar-next" class="progress-wrap progress">
@@ -314,9 +269,10 @@
 					<div class="grid tabelement" id="container-tab-two-out" data-tab="switch-out">
                         <div class="unit unit-compass" id="out-container-compass">
                             <div id="minimap-container" class="canvas-container" style="width: 208px; height: 208px">
-                            <canvas id="minimap" width="208" height="208">
-                            </canvas>
+                                <canvas id="minimap" width="208" height="208">
+                                </canvas>
                             </div>
+                            <span id="out-position-indicator" class="vision-text"></span>
                         </div>
 						<div class="unit unit-rest">
                             <h2 id="header-sector">Sector header</h2>
@@ -329,26 +285,26 @@
                         <h3>Wander</h3>
                             <table id="table-out-actions-movement">
                                 <tr>
-                                    <td><button class="action btn-icon action-move" id="out-action-move-nw" action="move_sector_nw"><span>NW</span></button></td>
-                                    <td><button class="action btn-icon action-move" id="out-action-move-north" action="move_sector_north"><span>N</span></button></td>
-                                    <td><button class="action btn-icon action-move" id="out-action-move-ne" action="move_sector_ne"><span>NE</span></button></td>
+                                    <td><button class="action btn-icon action-move tabbutton" data-tab="switch-out" id="out-action-move-nw" action="move_sector_nw"><span>NW</span></button></td>
+                                    <td><button class="action btn-icon action-move tabbutton" data-tab="switch-out" id="out-action-move-north" action="move_sector_north"><span>N</span></button></td>
+                                    <td><button class="action btn-icon action-move tabbutton" data-tab="switch-out" id="out-action-move-ne" action="move_sector_ne"><span>NE</span></button></td>
                                 </tr>
                                 <tr>
-                                    <td><button class="action btn-icon action-move" id="out-action-move-west" action="move_sector_west"><span>W</span></button></td>
+                                    <td><button class="action btn-icon action-move tabbutton" data-tab="switch-out" id="out-action-move-west" action="move_sector_west"><span>W</span></button></td>
                                     <td></td>
-                                    <td><button class="action btn-icon action-move" id="out-action-move-east" action="move_sector_east"><span>E</span></button></td>
+                                    <td><button class="action btn-icon action-move tabbutton" data-tab="switch-out" id="out-action-move-east" action="move_sector_east"><span>E</span></button></td>
                                 </tr>
                                 <tr>
-                                    <td><button class="action btn-icon action-move" id="out-action-move-sw" action="move_sector_sw"><span>SW</span></button></td>
-                                    <td><button class="action btn-icon action-move" id="out-action-move-south" action="move_sector_south"><span>S</span></button></td>
-                                    <td><button class="action btn-icon action-move" id="out-action-move-se" action="move_sector_se"><span>SE</span></button></td>
+                                    <td><button class="action btn-icon action-move tabbutton" data-tab="switch-out" id="out-action-move-sw" action="move_sector_sw"><span>SW</span></button></td>
+                                    <td><button class="action btn-icon action-move tabbutton" data-tab="switch-out" id="out-action-move-south" action="move_sector_south"><span>S</span></button></td>
+                                    <td><button class="action btn-icon action-move tabbutton" data-tab="switch-out" id="out-action-move-se" action="move_sector_se"><span>SE</span></button></td>
                                 </tr>
                             </table>
                             <div id="out-actions-movement" class="actionbox">
-                            <button class="action action-location" id="out-action-enter" action="enter_camp">Enter camp</button>
-                            <button class="action btn-icon" id="out-action-move-up" action="move_level_up"><span>Move up</span></button>
-                            <button class="action btn-icon" id="out-action-move-down" action="move_level_down"><span>Move down</span></button>
-                            <button class="action btn-icon" id="out-action-move-camp" action="move_camp_level"><span>Back to camp</span></button>
+                            <button class="action action-location" data-tab="switch-out" id="out-action-enter" action="enter_camp">Enter camp</button>
+                            <button class="action btn-icon" data-tab="switch-out" id="out-action-move-up" action="move_level_up"><span>Move up</span></button>
+                            <button class="action btn-icon" data-tab="switch-out" id="out-action-move-down" action="move_level_down"><span>Move down</span></button>
+                            <button class="action btn-icon" data-tab="switch-out" id="out-action-move-camp" action="move_camp_level"><span>Back to camp</span></button>
                             <p id="out-action-move-camp-details" class="p-meta button-detail-label">(2 blocks)</p>
                             <button class="action btn-icon" id="out-action-nap" action="nap"><span>Rest</span></button>
                             <button class="action action-location" id="out-action-despair" action="despair">Despair</button>
@@ -360,7 +316,7 @@
 								<h3>Search</h3>
 							</div>
                             <div id="out-actions" class="actionbox">
-                            <button class="action action-location" id="out-action-sca" action="scavenge">Scavenge</button>
+                            <button class="action action-location tabbutton" data-tab="switch-out" id="out-action-sca" action="scavenge">Scavenge</button>
                             <button class="action action-location" id="out-action-scout" action="scout">Scout</button>
                             <button class="action action-location" id="out-action-investigate" action="investigate">Investigate</button>
                             <button class="action action-location" id="out-action-clear-workshop" action="clear_workshop">Scout workshop</button>
@@ -377,13 +333,18 @@
 								<tr id="out-improvements-collector-water">
 									<td><button class="action action-build action-location" action="build_out_collector_water" id="out-action-build-bucket">Bucket</button></td>
 									<td class="list-amount vision-text">0</td>
-									<td><button class="action action-use action-location" action="use_out_collector_water" id="out-action-use-bucket">Collect</button></td>
+									<td><button class="action action-use action-location btn-narrow" action="use_out_collector_water" id="out-action-use-bucket">Collect all</button></td>
+									<td><button class="action action-use action-location btn-compact" action="use_out_collector_water_one" id="out-action-use-bucket_one">1</button></td>
 									<td class="list-storage vision-text"></td>
 								</tr><tr id="out-improvements-collector-food">
 									<td><button class="action action-build action-location" action="build_out_collector_food" id="out-action-build-trap">Trap</button></td>
 									<td class="list-amount vision-text">0</td>
-									<td><button class="action action-use action-location" action="use_out_collector_food" id="out-action-use-trap">Collect</button></td>
+									<td><button class="action action-use action-location btn-narrow" action="use_out_collector_food" id="out-action-use-trap">Collect all</button></td>
+									<td><button class="action action-use action-location btn-compact" action="use_out_collector_food_one" id="out-action-use-trap_one">1</button></td>
 									<td class="list-storage vision-text"></td>
+								</tr><tr id="out-improvements-beacon">
+									<td><button class="action action-build action-location" action="build_out_beacon" id="out-action-build-beacon">Beacon</button></td>
+									<td class="list-amount vision-text">0</td>
 								</tr><tr id="out-improvements-camp">
 									<td><button class="action action-build action-location" action="build_out_camp" >Camp</button></td>
 									<td class="list-amount vision-text">0</td>
@@ -458,10 +419,10 @@
                                     <p class="meta">Click on a sector to see details.</p>
                                 </div>
                                 <div id="mainmap-sector-details-content">
-                                    <h3>Sector <span id="mainmap-sector-details-pos"/></h3>
+                                    <h3><span id="mainmap-sector-details-name">Sector</span> <span id="mainmap-sector-details-pos"/></h3>
                                     <table class="spacious">
                                         <tr><td>Points of interest:</td><td><span id="mainmap-sector-details-poi"></span></td></tr>
-                                        <tr><td>Resources scavenged:</td><td><span id="mainmap-sector-details-res-sca"></span></td></tr>
+                                        <tr><td>Scavenging:</td><td><span id="mainmap-sector-details-res-sca"></span></td></tr>
                                         <tr><td>Collectors:</td><td><span id="mainmap-sector-details-res-col"></span></td></tr>
                                         <tr><td>Threats:</td><td><span id="mainmap-sector-details-threats"></span></td></tr>
                                         <tr><td>Blockers:</td><td><span id="mainmap-sector-details-blockers"></span></td></tr>
@@ -471,6 +432,7 @@
                                 </div>
                                 <div id="mainmap-sector-details-content-debug">
                                     <button id="btn-cheat-teleport" class="meta">Teleport</button>
+                                    <span id="mainmap-sector-debug-text"></span>
                                 </div>
                             </div>
                         </div>
@@ -522,19 +484,13 @@
                     
                     <div class="grid tabelement" id="container-tab-two-blueprints" data-tab="switch-blueprints" style="display:none;">
                         <div class="unit whole">
-                            <p>Notes, sketches, devices, parts, plans and experiments collected from the City.</p>
-                            <div id="blueprints-list-container" class="actionbox">
-                            <table id="blueprints-pieces-list" class="fullwidth">
-                            </table>
-                            <p id="blueprints-list-empty-message">There are currently no blueprints in progress.</p>
-                            </div>
                         </div>
                     </div>
                     
 					<div class="grid tabelement" id="container-tab-two-upgrades" data-tab="switch-upgrades" style="display: none;">
 						<div class="unit whole">
 							<div id="world-blueprints" class="actionbox">
-								<div class="subheader"><h3>Completed blueprints</h3></div>
+								<div class="subheader"><h3>Blueprints</h3></div>
 								<table id="blueprints-list" class="fullwidth">
 								</table>
 							</div>
@@ -578,7 +534,7 @@
                                 <p id="world-message">No news from other camps at the moment.</p>
 								<div class="subheader"><h3>Camp overview</h3></div>
 								<table id="camp-overview" class="full-width">
-									<tr id="camp-overview-header" class="lvl13-box-1">
+									<tr id="camp-overview-header" class="lvl13-box-1 header-mini">
 										<th class="th-text" colspan="2"></th>
 										<th class="th-number">pop</th>
 										<th class="th-number">rep</th>
@@ -627,15 +583,15 @@
 		</div>
 	</div><!-- sticky footer -->
                         
-    <div id="fight-popup" class="popup fill-on-mobiles" style="display:none">
+    <div id="fight-popup" class="popup fill-on-mobiles hidden-by-default" style="display:none">
         <h3 id="fight-title"></h3>
         <p id="fight-desc"></p>
         <div class="infobox" id="fight-popup-enemy-info">
             <div class="container-relative">
-                <p id="fight-popup-enemy-name">Enemy name & strength</p>
+                <p id="fight-popup-enemy-name" class="nomargin">Enemy name & strength</p>
                 <div id="fight-damage-indictor-enemy" class="fight-damage-indicator">-5</div>
             </div>
-            <p id="fight-popup-enemy-stats">Enemy strength</p>
+            <p id="fight-popup-enemy-stats" class="nomargin">Enemy strength</p>
         </div>
         <div id="fight-popup-bars">
             <div id="fight-bar-enemy" class="progress-wrap progress centered">
@@ -649,10 +605,10 @@
         </div>
         <div class="infobox" id="fight-popup-self-info">
             <div class="container-relative">
-                <p id="fight-popup-self-name">Player name</p>
+                <p id="fight-popup-self-name" class="nomargin">Player name</p>
                 <div id="fight-damage-indictor-self" class="fight-damage-indicator">-5</div>
             </div>
-            <p id="fight-popup-self-stats">Player strength</p>
+            <p id="fight-popup-self-stats" class="nomargin">Player strength</p>
             <span id="fight-popup-self-equipment"></span>
         </div>
         <div class="container-nomargin" id="fight-popup-items">
@@ -672,7 +628,7 @@
         </div>
     </div>
     
-    <div id="inn-popup" class="popup fill-on-mobiles" style="display:none">
+    <div id="inn-popup" class="popup fill-on-mobiles hidden-by-default" style="display:none">
         <h3>Inn</h3>
         <div id="inn-popup-state-recruit">
             <p id="inn-popup-desc">Some travellers staying at the inn are willing to join your party.</p>
@@ -690,7 +646,7 @@
         </div>
     </div>
     
-    <div id="incoming-caravan-popup" class="popup popup-wide fill-on-mobiles" style="display:none">
+    <div id="incoming-caravan-popup" class="popup popup-wide fill-on-mobiles hidden-by-default" style="display:none">
         <h3>Trader</h3>
         <p id="incoming-caravan-popup-markup"></p>
         <div class="inventorybox" style="display:flex">
@@ -725,7 +681,7 @@
         </div>
     </div>
     
-    <div id="manage-save-popup" class="popup fill-on-mobiles" style="display:none">
+    <div id="manage-save-popup" class="popup fill-on-mobiles hidden-by-default" style="display:none">
         <h3>Export / import save</h3>
         <p>Export / import your save data for backup or to continue playing on another computer.<br/>Note that the game is still in alpha and updates can break your save.</p>
         <p>Your world seed: <span id="save-seed">?</span><br>Current version: <span id="save-version">?</span></p>
@@ -743,7 +699,7 @@
         </div>
     </div>
     
-    <div id="common-popup" class="popup fill-on-mobiles" style="display:none">
+    <div id="common-popup" class="popup fill-on-mobiles hidden-by-default" style="display:none">
         <h3></h3>
         <p id="common-popup-desc"></p>
         <p id="common-popup-input-container"><input class="text" autocomplete="false" autofocus="true"/></p>

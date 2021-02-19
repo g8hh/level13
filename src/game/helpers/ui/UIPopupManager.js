@@ -49,11 +49,11 @@ function (Ash, ExceptionHandler, GameGlobals, GlobalSignals) {
             var $defaultButton = null;
             $("#common-popup .buttonbox").empty();
             $("#common-popup .buttonbox").append("<button id='info-ok' class='action'>" + okButtonLabel + "</button>");
-            if (hasResult) $("#info-ok").attr("action", "accept_inventory");
+            $("#info-ok").attr("action", hasResult ? "accept_inventory" : null);
             $("#info-ok").toggleClass("inventory-selection-ok", hasResult);
+            $("#info-ok").toggleClass("action", hasResult);
             $("#info-ok").click(ExceptionHandler.wrapClick(function (e) {
-                popUpManager.closePopup("common-popup");
-                if (okCallback) okCallback(false);
+                popUpManager.handleOkButton(false, okCallback);
             }));
             $defaultButton = $("#info-ok");
             
@@ -61,8 +61,7 @@ function (Ash, ExceptionHandler, GameGlobals, GlobalSignals) {
             if (showTakeAll) {
                 $("#common-popup .buttonbox").append("<button id='confirmation-takeall' class='action' action='take_all'>Take all</button>");
                 $("#confirmation-takeall").click(ExceptionHandler.wrapClick(function (e) {
-                    popUpManager.closePopup("common-popup");
-                    if (okCallback) okCallback(true);
+                    popUpManager.handleOkButton(true, okCallback);
                 }));
                 $defaultButton = $("#confirmation-takeall");
             }
@@ -79,8 +78,10 @@ function (Ash, ExceptionHandler, GameGlobals, GlobalSignals) {
             $("#common-popup").wrap("<div class='popup-overlay' style='display:none'></div>");
             GameGlobals.uiFunctions.toggle(".popup-overlay", true);
             popUpManager.repositionPopups();
+            GameGlobals.uiFunctions.slideToggleIf($("#common-popup"), null, true, 150, 150, popUpManager.repositionPopups);
             GlobalSignals.popupOpenedSignal.dispatch("common-popup");
-            $("#common-popup").slideDown(150, popUpManager.repositionPopups);
+            
+            gtag('event', 'screen_view', { 'screen_name': "popup-common" });
             
             GameGlobals.uiFunctions.generateButtonOverlays("#common-popup .buttonbox");
             GameGlobals.uiFunctions.generateCallouts("#common-popup .buttonbox");
@@ -93,12 +94,18 @@ function (Ash, ExceptionHandler, GameGlobals, GlobalSignals) {
             GameGlobals.gameState.isPaused = this.hasOpenPopup();
         },
         
+        handleOkButton: function (isTakeAll, okCallback) {
+            let canClose = !okCallback || okCallback(isTakeAll) !== false;
+            if (!canClose) return;
+            this.closePopup("common-popup");
+        },
+        
         closePopup: function (id) {
             var popupManager = this;
             if (popupManager.popupQueue.length === 0) {
                 GlobalSignals.popupClosingSignal.dispatch(id);
                 $("#" + id).data("fading", true);
-                $("#" + id).slideUp(100, function () {
+                GameGlobals.uiFunctions.slideToggleIf($("#" + id), null, false, 100, 100, function () {
                     GameGlobals.uiFunctions.toggle(".popup-overlay", false);
                     $("#" + id).unwrap();
                     $("#" + id).data("fading", false);

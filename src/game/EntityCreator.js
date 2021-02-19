@@ -4,7 +4,6 @@ define([
 	'game/constants/PerkConstants',
 	'game/constants/ItemConstants',
 	'game/constants/PositionConstants',
-	'game/constants/WorldCreatorConstants',
 	'game/components/player/BagComponent',
 	'game/components/player/ExcursionComponent',
 	'game/components/player/VisionComponent',
@@ -52,7 +51,6 @@ define([
 	PerkConstants,
 	ItemConstants,
 	PositionConstants,
-	WorldCreatorConstants,
 	BagComponent,
     ExcursionComponent,
 	VisionComponent,
@@ -120,7 +118,7 @@ define([
 				.add(new ResourceAccumulationComponent(saveKey))
 				.add(new RumoursComponent())
 				.add(new EvidenceComponent())
-				.add(new PositionComponent(13, WorldCreatorConstants.FIRST_CAMP_X, WorldCreatorConstants.FIRST_CAMP_Y, false))
+				.add(new PositionComponent(13, 0, 0, false))
 				.add(new LogMessagesComponent())
 				.add(new PlayerActionComponent())
 				.add(new SaveComponent(saveKey, [
@@ -135,7 +133,8 @@ define([
 					EvidenceComponent,
 					LogMessagesComponent,
 					PlayerActionComponent,
-                    ExcursionComponent
+                    ExcursionComponent,
+                    DeityComponent
 				]));
 
 			this.engine.addEntity(player);
@@ -144,7 +143,7 @@ define([
 
 		createLevel: function (saveKey, pos, levelVO) {
 			var level = new Ash.Entity()
-				.add(new LevelComponent(pos, levelVO))
+				.add(new LevelComponent(pos, levelVO.isCampable, levelVO.isHard, levelVO.notCampableReason, levelVO.populationFactor, levelVO.minX, levelVO.maxX, levelVO.minY, levelVO.maxY))
 				.add(new PositionComponent(pos))
 				.add(new LevelPassagesComponent())
 				.add(new SaveComponent(saveKey, [CampComponent, VisitedComponent]));
@@ -164,26 +163,26 @@ define([
 				.add(new MovementOptionsComponent())
 				.add(new SectorStatusComponent())
 				.add(new PassagesComponent(
-					passageOptions.passageUp,
-					passageOptions.passageDown,
+					passageOptions.passageUpType,
+					passageOptions.passageDownType,
 					movementBlockers))
 				.add(new SectorFeaturesComponent(
 					level,
                     sectorFeatures.criticalPaths,
                     sectorFeatures.zone,
 					sectorFeatures.buildingDensity,
-					sectorFeatures.stateOfRepair,
+					sectorFeatures.wear,
+					sectorFeatures.damage,
 					sectorFeatures.sectorType,
-					sectorFeatures.buildingStyle,
 					sectorFeatures.sunlit,
+                    sectorFeatures.ground,
 					sectorFeatures.hazards,
-					sectorFeatures.weather,
-					sectorFeatures.campable,
+					sectorFeatures.isCamp,
 					sectorFeatures.notCampableReason,
 					sectorFeatures.resourcesScavengable,
 					sectorFeatures.resourcesCollectable,
 					sectorFeatures.hasSpring,
-					sectorFeatures.stash))
+					sectorFeatures.stashes))
 				.add(new SectorLocalesComponent(locales))
 				.add(new SaveComponent(saveKey, [
 					ResourcesComponent,
@@ -201,9 +200,9 @@ define([
 					LastVisitedCampComponent
 				]));
 
-			if (sectorFeatures.workshopResource) {
-				sector.add(new WorkshopComponent(sectorFeatures.workshopResource));
-			}
+            if (sectorFeatures.hasWorkshop) {
+	             sector.add(new WorkshopComponent(sectorFeatures.workshopResource, sectorFeatures.hasClearableWorkshop, sectorFeatures.hasBuildableWorkshop));
+            }
 
 			this.engine.addEntity(sector);
 			return sector;
@@ -231,9 +230,11 @@ define([
         },
 
 		initPlayer: function (entity) {
-			var defaultInjury = PerkConstants.perkDefinitions.injury[0];
+			var defaultInjury = PerkConstants.perkDefinitions.injury[0].clone();
+            defaultInjury.effectTimer = PerkConstants.TIMER_DISABLED;
 			var perksComponent = entity.get(PerksComponent);
-			perksComponent.addPerk(defaultInjury.clone());
+			perksComponent.addPerk(defaultInjury);
+			entity.add(new ExcursionComponent());
 
 			var logComponent = entity.get(LogMessagesComponent);
 			logComponent.addMessage(LogConstants.MSG_ID_START, "You are alone in a massive dark corridor, far below sunlight.");

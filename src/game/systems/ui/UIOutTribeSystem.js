@@ -12,14 +12,16 @@ define([
     'game/components/common/PositionComponent',
     'game/components/common/ResourcesComponent',
     'game/components/common/ResourceAccumulationComponent',
+    'game/components/player/DeityComponent',
     'game/components/type/LevelComponent',
     'game/components/sector/improvements/SectorImprovementsComponent',
     'game/components/sector/events/TraderComponent',
-    'game/components/sector/events/RaidComponent'
+    'game/components/sector/events/RaidComponent',
+    'game/components/sector/OutgoingCaravansComponent'
 ], function (
     Ash, GameGlobals, GlobalSignals, UIConstants, CampConstants, OccurrenceConstants,
     CampNode, PlayerPositionNode, PlayerStatsNode, TribeUpgradesNode,
-    PositionComponent, ResourcesComponent, ResourceAccumulationComponent, LevelComponent, SectorImprovementsComponent, TraderComponent, RaidComponent
+    PositionComponent, ResourcesComponent, ResourceAccumulationComponent, DeityComponent, LevelComponent, SectorImprovementsComponent, TraderComponent, RaidComponent, OutgoingCaravansComponent
 ) {
     var UIOutTribeSystem = Ash.System.extend({
 
@@ -38,7 +40,8 @@ define([
             EVENT_TRADER: "event_trader",
             POP_UNASSIGNED: "population-unassigned",
             POP_DECREASING: "population-decreasing",
-            POP_INCREASING: "population-increasing"
+            POP_INCREASING: "population-increasing",
+            EVENT_OUTGOING_CARAVAN: "outoing-caravan"
         },
 
         constructor: function () {
@@ -153,6 +156,7 @@ define([
         updateCampNotifications: function (node) {
 			var camp = node.camp;
 			var level = node.entity.get(PositionComponent).level;
+			var caravansComponent = node.entity.get(OutgoingCaravansComponent);
 			var playerPosComponent = this.playerPosNodes.head.position;
             var isPlayerInCampLevel = level === playerPosComponent.level;
 
@@ -164,6 +168,8 @@ define([
             var secondsSinceLastRaid = camp.lastRaid ? Math.floor((new Date() - camp.lastRaid.timestamp) / 1000) : 0;
             var hasRecentRaid = camp.lastRaid && !camp.lastRaid.wasVictory && camp.lastRaid.isValid() && secondsSinceLastRaid < 60 * 60;
             var unAssignedPopulation = camp.getFreePopulation();
+            
+            var numCaravans = caravansComponent.outgoingCaravans.length;
 
             if (!isPlayerInCampLevel) {
                 if (hasRaid) {
@@ -188,6 +194,9 @@ define([
                 if (camp.populationChangePerSec > 0) {
                     this.notifications[level].push(this.campNotificationTypes.POP_INCREASING);
                 }
+                if (numCaravans > 0) {
+                    this.notifications[level].push(this.campNotificationTypes.EVENT_OUTGOING_CARAVAN);
+                }
             }
         },
 
@@ -200,8 +209,8 @@ define([
             var btnAction = "move_camp_global_" + level;
             rowHTML += "<td class='camp-overview-level'><div class='camp-overview-level-container lvl13-box-1'>" + level + "</div></td>";
             rowHTML += "<td class='camp-overview-name'>" + camp.campName + "</td>";
-            rowHTML += "<td class='camp-overview-population list-amount'><span class='value'></span><span class='change-indicator'></span></td>";
-            rowHTML += "<td class='camp-overview-reputation list-amount'><span class='value'></span><span class='change-indicator'></span></td>";
+            rowHTML += "<td class='camp-overview-population list-amount nowrap'><span class='value'></span><span class='change-indicator'></span></td>";
+            rowHTML += "<td class='camp-overview-reputation list-amount nowrap'><span class='value'></span><span class='change-indicator'></span></td>";
             rowHTML += "<td class='camp-overview-raid list-amount'><span class='value'></span></span></td>";
             rowHTML += "<td class='camp-overview-levelpop list-amount'></td>";
             rowHTML += "<td class='camp-overview-storage list-amount'></td>";
@@ -217,7 +226,10 @@ define([
             rowHTML += "<span class='icon'><img src='img/stat-evidence.png' alt='evidence'/></span><span class='change-indicator'></span> ";
             rowHTML += "</span> ";
             rowHTML += "<span class='camp-overview-stats-rumours info-callout-target info-callout-target-small'>";
-            rowHTML += "<span class='icon'><img src='img/stat-rumours.png' alt='rumours'/><span class='change-indicator'></span> ";
+            rowHTML += "<span class='icon'><img src='img/stat-rumours.png' alt='rumours'/></span><span class='change-indicator'></span> ";
+            rowHTML += "</span>";
+            rowHTML += "<span class='camp-overview-stats-favour info-callout-target info-callout-target-small'>";
+            rowHTML += "<span class='icon'><img src='img/stat-favour.png' alt='favour'/></span><span class='change-indicator'></span> ";
             rowHTML += "</span>";
             rowHTML += "</td>";
 
@@ -261,7 +273,7 @@ define([
             this.updateChangeIndicator($("#camp-overview tr#" + rowID + " .camp-overview-population .change-indicator"), camp.populationChangePerSec);
 
             var reputationComponent = node.reputation;
-            $("#camp-overview tr#" + rowID + " .camp-overview-reputation .value").text(UIConstants.roundValue(reputationComponent.value, true, true) + "/" + UIConstants.roundValue(reputationComponent.targetValue, true, true));
+            $("#camp-overview tr#" + rowID + " .camp-overview-reputation .value").text(UIConstants.roundValue(reputationComponent.value, true, true));
             $("#camp-overview tr#" + rowID + " .camp-overview-reputation .value").toggleClass("warning", reputationComponent.targetValue < 1);
             this.updateChangeIndicator($("#camp-overview tr#" + rowID + " .camp-overview-reputation .change-indicator"), reputationComponent.accumulation);
             
@@ -272,8 +284,8 @@ define([
             $("#camp-overview tr#" + rowID + " .camp-overview-raid .value").text(UIConstants.roundValue(raidDanger * 100) + "%");
             $("#camp-overview tr#" + rowID + " .camp-overview-raid .value").toggleClass("warning", raidWarning);
 
-            var levelVO = GameGlobals.levelHelper.getLevelEntityForSector(node.entity).get(LevelComponent).levelVO;
-			$("#camp-overview tr#" + rowID + " .camp-overview-levelpop").text(levelVO.populationGrowthFactor * 100 + "%");
+            var levelComponent = GameGlobals.levelHelper.getLevelEntityForSector(node.entity).get(LevelComponent);
+			$("#camp-overview tr#" + rowID + " .camp-overview-levelpop").text(levelComponent.populationFactor * 100 + "%");
 
             // TODO updateResourceIndicatorCallout is a performance bottleneck
 			var resources = node.entity.get(ResourcesComponent);
@@ -289,12 +301,13 @@ define([
 					amount,
 					change,
 					storage,
-					false,
                     true,
 					false,
 					false,
                     name === resourceNames.food || name === resourceNames.water,
-					amount > 0 || Math.abs(change) > 0.001);
+					amount > 0 || Math.abs(change) > 0.001,
+                    false
+                );
 				UIConstants.updateResourceIndicatorCallout("#" + rowID+"-"+name, resourceAcc.getSources(name));
 			}
             
@@ -310,6 +323,12 @@ define([
             this.updateChangeIndicator($("#camp-overview tr#" + rowID + " .camp-overview-stats-rumours .change-indicator"), rumoursChange);
             UIConstants.updateCalloutContent("#camp-overview tr#" + rowID + " .camp-overview-stats-rumours", "rumours: " + UIConstants.roundValue(rumoursChange, true, true, 1000), true);
             
+            var deityComponent = this.playerStatsNodes.head.entity.get(DeityComponent);
+            var favourChange = deityComponent  ? deityComponent.accumulationPerCamp[level] || 0 : 0;
+            GameGlobals.uiFunctions.toggle($("#camp-overview tr#" + rowID + " .camp-overview-stats-favour"), favourChange > 0);
+            this.updateChangeIndicator($("#camp-overview tr#" + rowID + " .camp-overview-stats-favour .change-indicator"), favourChange);
+            UIConstants.updateCalloutContent("#camp-overview tr#" + rowID + " .camp-overview-stats-favour", "favour: " + UIConstants.roundValue(favourChange, true, true, 1000), true);
+            
 			var hasTradePost = improvements.getCount(improvementNames.tradepost) > 0;
             var storageText = resources.storageCapacity;
             if (!hasTradePost) {
@@ -324,6 +343,7 @@ define([
                 case this.campNotificationTypes.EVENT_TRADER: return "trader";
                 case this.campNotificationTypes.POP_UNASSIGNED: return "unassigned workers";
                 case this.campNotificationTypes.POP_DECREASING: return "population decreasing";
+                case this.campNotificationTypes.EVENT_OUTGOING_CARAVAN: return "outgoing caravan";
                 default: return "";
             }
         },
@@ -343,6 +363,7 @@ define([
                 case this.campNotificationTypes.EVENT_TRADER: return "There is a trader currently on level " + level + ".";
                 case this.campNotificationTypes.POP_UNASSIGNED: return "Unassigned workers on level " + level + ".";
                 case this.campNotificationTypes.POP_DECREASING: return "Population is decreasing on level " + level + "!";
+                case this.campNotificationTypes.EVENT_OUTGOING_CARAVAN: return "Outgoing caravan on level " + level + ".";
                 case this.campNotificationTypes.POP_INCREASING: return "Population is increasing on level " + level + ".";
                 default: return null;
             }
@@ -356,7 +377,8 @@ define([
                 case this.campNotificationTypes.EVENT_TRADER: return 3;
                 case this.campNotificationTypes.POP_UNASSIGNED: return 2;
                 case this.campNotificationTypes.POP_DECREASING: return 1;
-                case this.campNotificationTypes.POP_INCREASING: return 4;
+                case this.campNotificationTypes.POP_INCREASING: return 5;
+                case this.campNotificationTypes.EVENT_OUTGOING_CARAVAN: return 4;
                 default: return 5;
             }
         },
@@ -382,8 +404,8 @@ define([
         },
 
         onTabChanged: function () {
+            this.sortCampNodes();
             if (GameGlobals.gameState.uiStatus.currentTab === GameGlobals.uiFunctions.elementIDs.tabs.world) {
-                this.sortCampNodes();
                 this.refresh();
             }
         },

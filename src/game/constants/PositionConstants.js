@@ -22,8 +22,8 @@ define(['ash', 'game/vos/PositionVO'], function (Ash, PositionVO) {
             return this.getPositionOnPath(sectorPos, direction, 1);
         },
         
-        getPositionOnPath: function (pathStartingPos, pathDirection, pathStep) {
-            var resultPos = pathStartingPos.clone();
+        getPositionOnPath: function (pathStartPos, pathDirection, pathStep, round) {
+            var resultPos = pathStartPos.clone();
             
             if (pathDirection === this.DIRECTION_NORTH || pathDirection === this.DIRECTION_NE || pathDirection === this.DIRECTION_NW)
                 resultPos.sectorY -= pathStep;
@@ -37,11 +37,46 @@ define(['ash', 'game/vos/PositionVO'], function (Ash, PositionVO) {
             if (pathDirection === this.DIRECTION_UP) resultPos.level += pathStep;
             if (pathDirection === this.DIRECTION_DOWN) resultPos.level -= pathStep;
             
+            if (round) resultPos.normalize();
+            
             return resultPos;
+        },
+        
+        isOnPath: function (pos, pathStartPos, pathDirection, len) {
+            for (var i = 0; i < len; i++) {
+                var posOnPath = this.getPositionOnPath(pathStartPos, pathDirection, i);
+                if (pos.equals(posOnPath)) {
+                    return true;
+                }
+            }
+            return false;
+        },
+        
+        isBetween: function (pos1, pos2, testPos) {
+            var minx = Math.min(pos1.sectorX, pos2.sectorX);
+            var maxx = Math.max(pos1.sectorX, pos2.sectorX);
+            var miny = Math.min(pos1.sectorY, pos2.sectorY);
+            var maxy = Math.max(pos1.sectorY, pos2.sectorY);
+            return testPos.sectorX >= minx && testPos.sectorX <= maxx && testPos.sectorY >= miny && testPos.sectorY <= maxy;
         },
         
         isPositionInArea: function (sectorPos, areaSize) {
             return Math.abs(sectorPos.sectorX) <= areaSize && Math.abs(sectorPos.sectorY) <= areaSize;
+        },
+        
+        getAllPositionsInArea: function (pos, areaSize) {
+            pos = pos || new PositionVO(0, 0, 0);
+            var result = [];
+            result.push(new PositionVO(pos.level, pos.sectorX, pos.sectorY));
+            for (var x = 1; x <= areaSize; x++) {
+                for (var y = 1; y <= areaSize; y++) {
+                    result.push(new PositionVO(pos.level, pos.sectorX + x, pos.sectorY + y));
+                    result.push(new PositionVO(pos.level, pos.sectorX + x, pos.sectorY - y));
+                    result.push(new PositionVO(pos.level, pos.sectorX - x, pos.sectorY + y));
+                    result.push(new PositionVO(pos.level, pos.sectorX - x, pos.sectorY - y));
+                }
+            }
+            return result;
         },
         
         getYDirectionFrom: function (sectorPosFrom, sectorPosTo) {
@@ -97,6 +132,10 @@ define(['ash', 'game/vos/PositionVO'], function (Ash, PositionVO) {
             return Math.sqrt(xs + ys);
         },
         
+        getBlockDistanceTo: function (sectorPosFrom, sectorPosTo) {
+            return Math.abs(sectorPosFrom.sectorX - sectorPosTo.sectorX) + (Math.abs(sectorPosFrom.sectorY - sectorPosTo.sectorY));
+        },
+        
         getDistanceInDirection: function (sectorPosFrom, sectorPosTo, direction) {
             var dx = Math.abs(sectorPosFrom.sectorX - sectorPosTo.sectorX);
             var dy = Math.abs(sectorPosFrom.sectorY - sectorPosTo.sectorY);
@@ -120,17 +159,24 @@ define(['ash', 'game/vos/PositionVO'], function (Ash, PositionVO) {
             return 0;
         },
         
-        getMiddlePoint: function (positions) {
+        getMiddlePoint: function (positions, rounded) {
             var result = new PositionVO(0, 0, 0);
             if (positions && positions.length > 0) {
                 for (var i = 0; i < positions.length; i++) {
-                    result.level += positions[i].level;
-                    result.sectorX += positions[i].sectorX;
-                    result.sectorY += positions[i].sectorY;
+                    if (positions[i]) {
+                        result.level += positions[i].level;
+                        result.sectorX += positions[i].sectorX;
+                        result.sectorY += positions[i].sectorY;
+                    }
                 }
                 result.level /= positions.length;
                 result.sectorX /= positions.length;
                 result.sectorY /= positions.length;
+            }
+            if (rounded) {
+                result.level = Math.round(result.level);
+                result.sectorX = Math.round(result.sectorX);
+                result.sectorY = Math.round(result.sectorY);
             }
             return result;
         },
@@ -209,9 +255,8 @@ define(['ash', 'game/vos/PositionVO'], function (Ash, PositionVO) {
             }
         },
         
-        isNeighbouringDirection: function (direction1, direction2) {
-            return this.getNextClockWise(direction1, false) == direction2 || this.getNextClockWise(direction1, true) == direction2 ||
-                this.getNextClockWise(direction2, false) == direction1 || this.getNextClockWise(direction2, true) == direction1;
+        isNeighbouringDirection: function (direction1, direction2, includeDiagonals) {
+            return this.getNextClockWise(direction1, includeDiagonals) == direction2 || this.getNextCounterClockWise(direction1, includeDiagonals) == direction2;
         },
         
         getDirectionName: function (direction, short) {

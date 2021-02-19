@@ -24,7 +24,6 @@ define([
     'game/systems/ui/UIOutTradeSystem',
     'game/systems/ui/UIOutUpgradesSystem',
     'game/systems/ui/UIOutTribeSystem',
-    'game/systems/ui/UIOutBlueprintsSystem',
     'game/systems/ui/UIOutFightSystem',
     'game/systems/ui/UIOutLogSystem',
     'game/systems/ui/UIOutManageSaveSystem',
@@ -44,20 +43,22 @@ define([
     'game/systems/FightSystem',
     'game/systems/FollowerSystem',
     'game/systems/PopulationSystem',
+    'game/systems/PerkSystem',
     'game/systems/WorkerSystem',
     'game/systems/FaintingSystem',
     'game/systems/ReputationSystem',
     'game/systems/RumourSystem',
     'game/systems/EvidenceSystem',
     'game/systems/EndingSystem',
+    'game/systems/FavourSystem',
     'game/systems/GlobalResourcesSystem',
     'game/systems/GlobalResourcesResetSystem',
     'game/systems/BagSystem',
-    'game/systems/HazardSystem',
     'game/systems/UnlockedFeaturesSystem',
     'game/systems/occurrences/CampEventsSystem',
     'game/PlayerActionFunctions',
     'game/UIFunctions',
+    'game/helpers/AutoPlayHelper',
     'game/helpers/PlayerActionsHelper',
     'game/helpers/PlayerActionResultsHelper',
     'game/helpers/ui/ChangeLogHelper',
@@ -75,6 +76,7 @@ define([
     'game/helpers/UpgradeEffectsHelper',
     'game/helpers/ui/UIMapHelper',
     'game/helpers/ui/UITechTreeHelper',
+	'utils/StringUtils',
     'brejep/tickprovider',
 ], function (
     Ash,
@@ -102,7 +104,6 @@ define([
     UIOutTradeSystem,
     UIOutUpgradesSystem,
     UIOutTribeSystem,
-    UIOutBlueprintsSystem,
     UIOutFightSystem,
     UIOutLogSystem,
     UIOutManageSaveSystem,
@@ -122,20 +123,22 @@ define([
     FightSystem,
     FollowerSystem,
     PopulationSystem,
+    PerkSystem,
     WorkerSystem,
     FaintingSystem,
     ReputationSystem,
     RumourSystem,
     EvidenceSystem,
     EndingSystem,
+    FavourSystem,
     GlobalResourcesSystem,
     GlobalResourcesResetSystem,
     BagSystem,
-    HazardSystem,
     UnlockedFeaturesSystem,
     CampEventsSystem,
     PlayerActionFunctions,
     UIFunctions,
+    AutoPlayHelper,
     PlayerActionsHelper,
     PlayerActionResultsHelper,
     ChangeLogHelper,
@@ -153,6 +156,7 @@ define([
     UpgradeEffectsHelper,
     UIMapHelper,
     UITechTreeHelper,
+    StringUtils,
     TickProvider
 ) {
     var Level13 = Ash.Class.extend({
@@ -204,6 +208,7 @@ define([
 
             GameGlobals.itemsHelper = new ItemsHelper(this.engine);
 			GameGlobals.upgradeEffectsHelper = new UpgradeEffectsHelper();
+            GameGlobals.autoPlayHelper = new AutoPlayHelper();
 			GameGlobals.saveHelper = new SaveHelper();
             GameGlobals.changeLogHelper = new ChangeLogHelper();
             GameGlobals.gameFlowLogger = new GameFlowLogger();
@@ -230,25 +235,26 @@ define([
 			log.i("START " + GameConstants.STARTTimeNow() + "\t initializing systems");
 
 			this.engine.addSystem(new SaveSystem(), SystemPriorities.preUpdate);
+			this.engine.addSystem(new LevelPassagesSystem(), SystemPriorities.preupdate);
 			this.engine.addSystem(new PlayerPositionSystem(), SystemPriorities.preupdate);
 
 			this.engine.addSystem(new GlobalResourcesResetSystem(), SystemPriorities.update);
 			this.engine.addSystem(new VisionSystem(), SystemPriorities.update);
 			this.engine.addSystem(new StaminaSystem(), SystemPriorities.update);
 			this.engine.addSystem(new BagSystem(), SystemPriorities.update);
-			this.engine.addSystem(new HazardSystem(), SystemPriorities.update);
 			this.engine.addSystem(new CollectorSystem(), SystemPriorities.update);
 			this.engine.addSystem(new FightSystem(), SystemPriorities.update);
 			this.engine.addSystem(new FollowerSystem(), SystemPriorities.update);
 			this.engine.addSystem(new PopulationSystem(), SystemPriorities.update);
+			this.engine.addSystem(new PerkSystem(), SystemPriorities.update);
 			this.engine.addSystem(new WorkerSystem(), SystemPriorities.update);
 			this.engine.addSystem(new FaintingSystem(), SystemPriorities.update);
 			this.engine.addSystem(new ReputationSystem(), SystemPriorities.update);
 			this.engine.addSystem(new RumourSystem(), SystemPriorities.update);
 			this.engine.addSystem(new EvidenceSystem(), SystemPriorities.update);
+			this.engine.addSystem(new FavourSystem(), SystemPriorities.update);
 			this.engine.addSystem(new PlayerActionSystem(), SystemPriorities.update);
 			this.engine.addSystem(new SectorStatusSystem(), SystemPriorities.update);
-			this.engine.addSystem(new LevelPassagesSystem(), SystemPriorities.update);
 			this.engine.addSystem(new UnlockedFeaturesSystem(), SystemPriorities.update);
 			this.engine.addSystem(new GlobalResourcesSystem(), SystemPriorities.update);
 			this.engine.addSystem(new CampEventsSystem(), SystemPriorities.update);
@@ -269,7 +275,6 @@ define([
 			this.engine.addSystem(new UIOutMapSystem(), SystemPriorities.render);
 			this.engine.addSystem(new UIOutTradeSystem(), SystemPriorities.render);
 			this.engine.addSystem(new UIOutUpgradesSystem(), SystemPriorities.render);
-			this.engine.addSystem(new UIOutBlueprintsSystem(), SystemPriorities.render);
 			this.engine.addSystem(new UIOutTribeSystem(), SystemPriorities.render);
 			this.engine.addSystem(new UIOutFightSystem(), SystemPriorities.render);
 			this.engine.addSystem(new UIOutLogSystem(), SystemPriorities.render);
@@ -285,37 +290,26 @@ define([
 		},
 
 		start: function () {
+            log.i("START " + GameConstants.STARTTimeNow() + "\t start tick");
+            this.gameManager.startGame();
 			this.tickProvider.add(this.gameManager.update, this.gameManager);
 			this.tickProvider.start();
-            this.gameManager.startGame();
 		},
 
         handleException: function (ex) {
-            var exshortdesc = (ex.name ? ex.name : "Unknown") + ": " + (ex.message ? ex.message : "No message");
-            var stack = (ex.stack ? ex.stack : "Not available");
-            var stackParts = stack.split("\n");
-            
-            var cleanString = function (s) {
-                var result = s.replace(/\n/g, "%0A").replace(/\'/g, "%27");
-                return encodeURI(result);
-            }
-
-            // track to ga
-            var gastack = stackParts[0];
-            if (stackParts.length > 0) gastack += " " + stackParts[1];
-            gastack = gastack.replace(/\s+/g, ' ');
-            gastack = gastack.replace(/\(.*:[\/\\]+.*[\/\\]/g, '(');
-            var gadesc = exshortdesc + " | " + gastack;
+            var desc = StringUtils.getExceptionDescription(ex);
+            var gadesc = desc.title + " | " + desc.shortstack;
+            log.i("logging exception to gtag");
             gtag('event', 'exception', {
                 'description': gadesc,
                 'fatal': true,
             });
             
             // show popup
-            var bugTitle = "[JS Error] " + cleanString(exshortdesc);
-            var bugBody =
-               "Details:%0A[Fill in any details here that you think will help tracking down this bug, such as what you did in the game just before it happened.]" +
-               "%0A%0AStacktrace:%0A" + cleanString(stack);
+            var bugTitle = StringUtils.encodeURI("[JS Error] " + desc.title);
+            var bugBody = StringUtils.encodeURI(
+               "Details:\n[Fill in any details here that you think will help tracking down this bug, such as what you did in the game just before it happened.]" +
+               "\n\nStacktrace:\n" + desc.stack);
             var url = "https://github.com/nroutasuo/level13/issues/new?title=" + bugTitle + "&body=" + bugBody + "&labels=exception";
             GameGlobals.uiFunctions.showInfoPopup(
                 "Error",

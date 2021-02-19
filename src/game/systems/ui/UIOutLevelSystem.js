@@ -1,5 +1,6 @@
 define([
     'ash',
+    'text/Text',
     'game/GameGlobals',
     'game/GlobalSignals',
     'game/constants/PlayerActionConstants',
@@ -12,7 +13,6 @@ define([
     'game/constants/LevelConstants',
     'game/constants/MovementConstants',
 	'game/constants/TradeConstants',
-    'game/constants/WorldCreatorConstants',
     'game/nodes/PlayerPositionNode',
     'game/nodes/PlayerLocationNode',
     'game/nodes/NearestCampNode',
@@ -33,7 +33,7 @@ define([
     'game/components/sector/SectorStatusComponent',
     'game/components/sector/EnemiesComponent'
 ], function (
-    Ash, GameGlobals, GlobalSignals, PlayerActionConstants, PlayerStatConstants, TextConstants, LogConstants, UIConstants, PositionConstants, LocaleConstants, LevelConstants, MovementConstants, TradeConstants, WorldCreatorConstants,
+    Ash, Text,GameGlobals, GlobalSignals, PlayerActionConstants, PlayerStatConstants, TextConstants, LogConstants, UIConstants, PositionConstants, LocaleConstants, LevelConstants, MovementConstants, TradeConstants,
     PlayerPositionNode, PlayerLocationNode, NearestCampNode,
     VisionComponent, StaminaComponent, ItemsComponent, PassagesComponent, SectorControlComponent, SectorFeaturesComponent, SectorLocalesComponent,
     MovementOptionsComponent, ExcursionComponent, PositionComponent, LogMessagesComponent, CampComponent,
@@ -101,12 +101,18 @@ define([
             GlobalSignals.sectorScoutedSignal.add(function () {
                 sys.updateAll();
             });
+            GlobalSignals.sectorScavengedSignal.add(function () {
+                sys.updateSectorDescription();
+            });
             GlobalSignals.visionChangedSignal.add(function () {
                 sys.updateAll();
             });
             GlobalSignals.gameShownSignal.add(function () {
                 sys.updateAll();
             });
+            GlobalSignals.add(this, GlobalSignals.collectorCollectedSignal, this.updateOutImprovementsStatus);
+            GlobalSignals.add(this, GlobalSignals.movementBlockerClearedSignal, this.updateAll);
+            GlobalSignals.add(this, GlobalSignals.slowUpdateSignal, this.slowUpdate);
 			this.rebuildVis();
             this.updateUnlockedFeatures();
 		},
@@ -117,10 +123,7 @@ define([
 
 			var posComponent = this.playerPosNodes.head.position;
 
-            if (!this.playerLocationNodes.head) {
-                log.w("No player location");
-                return;
-            }
+            if (!this.playerLocationNodes.head) return;
 
 			if (!posComponent.inCamp) {
 				this.updateLevelPage();
@@ -128,6 +131,10 @@ define([
                     this.rebuildVis();
 			}
 		},
+        
+        slowUpdate: function () {
+			this.updateOutImprovementsStatus();
+        },
 
 		updateAll: function () {
 		    if (GameGlobals.gameState.uiStatus.isHidden) return;
@@ -142,6 +149,7 @@ define([
             this.updateLevelPageActions();
             this.updateUnlockedFeatures();
 			this.updateOutImprovementsList();
+			this.updateOutImprovementsStatus();
         },
 
         updateUnlockedFeatures: function () {
@@ -152,14 +160,13 @@ define([
 
 		updateLevelPage: function () {
 		    if (GameGlobals.gameState.uiStatus.isHidden) return;
-			var sectorStatusComponent = this.playerLocationNodes.head.entity.get(SectorStatusComponent);
+			var sectorStatus = this.playerLocationNodes.head.entity.get(SectorStatusComponent);
 			var improvements = this.playerLocationNodes.head.entity.get(SectorImprovementsComponent);
 
 			var hasCamp = GameGlobals.levelHelper.getLevelEntityForSector(this.playerLocationNodes.head.entity).has(CampComponent);
 			var hasCampHere = this.playerLocationNodes.head.entity.has(CampComponent);
-            var isScouted = sectorStatusComponent.scouted;
+            var isScouted = sectorStatus.scouted;
 
-			this.updateOutImprovementsStatus(hasCamp, improvements);
             this.updateNap(isScouted, hasCampHere);
             this.updateDespair(hasCampHere);
 		},
@@ -167,10 +174,10 @@ define([
         updateLevelPageActions: function (isScouted, hasCamp, hasCampHere) {
 		    if (GameGlobals.gameState.uiStatus.isHidden) return;
             
-            var sectorStatusComponent = this.playerLocationNodes.head.entity.get(SectorStatusComponent);
+            var sectorStatus = this.playerLocationNodes.head.entity.get(SectorStatusComponent);
 			var hasCamp = GameGlobals.levelHelper.getLevelEntityForSector(this.playerLocationNodes.head.entity).has(CampComponent);
 			var hasCampHere = this.playerLocationNodes.head.entity.has(CampComponent);
-            var isScouted = sectorStatusComponent.scouted;
+            var isScouted = sectorStatus.scouted;
             
             var sectorLocalesComponent = this.playerLocationNodes.head.entity.get(SectorLocalesComponent);
             var sectorControlComponent = this.playerLocationNodes.head.entity.get(SectorControlComponent);
@@ -194,11 +201,10 @@ define([
             GameGlobals.uiFunctions.toggle("#out-action-scout", GameGlobals.gameState.unlockedFeatures.vision);
             GameGlobals.uiFunctions.toggle("#out-action-use-spring", isScouted && featuresComponent.hasSpring);
             GameGlobals.uiFunctions.toggle("#out-action-investigate", GameGlobals.gameState.unlockedFeatures.investigate);
-            GameGlobals.uiFunctions.toggle("#out-action-fight-gang", GameGlobals.gameState.unlockedFeatures.fight);
 
-            var showWorkshop = isScouted && workshopComponent != null && !sectorControlComponent.hasControlOfLocale(LocaleConstants.LOCALE_ID_WORKSHOP)
+            var showWorkshop = isScouted && workshopComponent != null && workshopComponent.isClearable && !sectorControlComponent.hasControlOfLocale(LocaleConstants.LOCALE_ID_WORKSHOP)
             GameGlobals.uiFunctions.toggle("#out-action-clear-workshop", showWorkshop);
-            if (workshopComponent) {
+            if (showWorkshop) {
                 var workshopName = TextConstants.getWorkshopName(workshopComponent.resource);
                 this.elements.btnClearWorkshop.find(".btn-label").text("scout " + workshopName);
             }
@@ -214,77 +220,49 @@ define([
         },
 
         updateNap: function (isScouted, hasCampHere) {
-            // TODO move some of the requirements to PlayerActionConstants
-            
             if (hasCampHere) {
                 GameGlobals.uiFunctions.toggle(this.elements.btnNap, false);
                 return;
             }
             
-            var featuresComponent = this.playerLocationNodes.head.entity.get(SectorFeaturesComponent);
-            var excursionComponent = this.playerPosNodes.head.entity.get(ExcursionComponent);
-            var improvementsComponent = this.playerLocationNodes.head.entity.get(SectorImprovementsComponent);
             var staminaComponent = this.playerPosNodes.head.entity.get(StaminaComponent);
-            
             var hasFirstCamp = GameGlobals.gameState.numCamps > 0;
-			var hasCollectibleFood = isScouted && featuresComponent.resourcesCollectable.food > 0;
-			var hasCollectibleWater = isScouted && (featuresComponent.resourcesCollectable.water > 0 || featuresComponent.hasSpring);
-            var waterAvailable = GameGlobals.resourcesHelper.getCurrentStorage().resources.water > 1 || hasCollectibleWater;
-            var foodAvailable = GameGlobals.resourcesHelper.getCurrentStorage().resources.food > 1 || hasCollectibleFood;
-            var suppliesAvailable = waterAvailable && foodAvailable;
-            var blockedBySupplies = hasFirstCamp && !suppliesAvailable;
-            
-            if (blockedBySupplies) {
-                GameGlobals.uiFunctions.toggle(this.elements.btnNap, false);
-                return;
-            }
 
-            var lowStamina = false;
             var costToCamp = GameGlobals.playerActionsHelper.getCosts("move_camp_level");
-            if (GameGlobals.playerActionsHelper.isRequirementsMet("move_camp_level")) {
-                var staminaToCamp = costToCamp.stamina || 10;
-                var staminaCostToMove = staminaToCamp;
-                var missingStamina = staminaCostToMove - staminaComponent.stamina;
-                lowStamina = missingStamina > 0 && missingStamina <= PlayerStatConstants.STAMINA_GAINED_FROM_NAP;
-            }
+            var staminaToCamp = costToCamp.stamina || 10;
+            var staminaCostToMove = staminaToCamp;
+            var missingStamina = staminaCostToMove - staminaComponent.stamina;
+            var lowStamina = missingStamina > 0 || staminaComponent.stamina <= PlayerStatConstants.STAMINA_GAINED_FROM_NAP;
 
-            var collectorFood = improvementsComponent.getVO(improvementNames.collector_food);
-            var collectorWater = improvementsComponent.getVO(improvementNames.collector_water);
-            var storedFood = collectorFood.storedResources.getResource(resourceNames.food);
-            var storedWater = collectorWater.storedResources.getResource(resourceNames.water);
-            var lowFood = GameGlobals.resourcesHelper.getCurrentStorage().resources.food + storedFood < Math.min(costToCamp.resource_food, 5);
-            var lowWater = GameGlobals.resourcesHelper.getCurrentStorage().resources.water + storedWater < Math.min(costToCamp.resource_water, 5);
-
-            var blockedByTutorial = !hasFirstCamp && staminaComponent.stamina > 15;
-            var showNap = (lowStamina || (lowWater && hasCollectibleWater) || (lowFood && hasCollectibleFood)) && !blockedBySupplies && !blockedByTutorial;
-            GameGlobals.uiFunctions.toggle(this.elements.btnNap, showNap);
+            let blockedByTutorial = !hasFirstCamp && staminaComponent.stamina > 15;
+            GameGlobals.uiFunctions.toggle(this.elements.btnNap, lowStamina && !blockedByTutorial);
         },
 
         updateDespair: function (hasCampHere) {
             var logComponent = this.playerPosNodes.head.entity.get(LogMessagesComponent);
             var posComponent = this.playerLocationNodes.head.position;
             var movementOptionsComponent = this.playerLocationNodes.head.entity.get(MovementOptionsComponent);
-            var discoveredResources = GameGlobals.sectorHelper.getLocationDiscoveredResources();
-            var isValidDespairHunger = discoveredResources.indexOf(resourceNames.food) < 0 && GameGlobals.gameState.unlockedFeatures.resources.food && GameGlobals.resourcesHelper.getCurrentStorage().resources.food < 1;
-            var isValidDespairThirst = discoveredResources.indexOf(resourceNames.water) < 0 && GameGlobals.gameState.unlockedFeatures.resources.water && GameGlobals.resourcesHelper.getCurrentStorage().resources.water < 1;
+            var isValidDespairHunger = GameGlobals.gameState.unlockedFeatures.resources.food && !this.hasAccessToResource(resourceNames.food, true, false);
+            var isValidDespairThirst = GameGlobals.gameState.unlockedFeatures.resources.water && !this.hasAccessToResource(resourceNames.water, true, false);
             var isValidDespairStamina = this.playerPosNodes.head.entity.get(StaminaComponent).stamina < PlayerActionConstants.costs.move_sector_east.stamina;
-            var isValidDespairMove = !movementOptionsComponent.canMove(); // conceivably happens in hazard sectors if you lose equipment
-            var isFirstPosition = posComponent.level === 13 && posComponent.sectorX === WorldCreatorConstants.FIRST_CAMP_X && posComponent.sectorY === WorldCreatorConstants.FIRST_CAMP_Y;
-            var showDespair = !hasCampHere && !isFirstPosition && (isValidDespairHunger || isValidDespairThirst || isValidDespairStamina) || isValidDespairMove;
-
-            if (this.isDespairShown !== showDespair) {
-                if (showDespair) {
-                    this.showDespairTimeoutID = window.setTimeout(function () {
-                        logComponent.addMessage(LogConstants.MSG_ID_DESPAIR_AVAILABLE, LogConstants.getDespairMessage(isValidDespairHunger, isValidDespairThirst, isValidDespairStamina, isValidDespairMove));
-                        GameGlobals.uiFunctions.toggle("#out-action-despair", true);
-                    }, 1250);
-                    // TODO do this somewhere other than UI system - maybe a global detection if despair is available
-                } else {
-                    if (this.showDespairTimeoutID) window.clearTimeout(this.showDespairTimeoutID);
-                    GameGlobals.uiFunctions.toggle("#out-action-despair", false);
-                }
-                this.isDespairShown = showDespair;
+            var isValidDespairMove = !movementOptionsComponent.canMove(); // can happen in hazard sectors if you lose equipment
+            var isFirstPosition = !GameGlobals.gameState.unlockedFeatures.sectors;
+            var showDespair = GameGlobals.gameState.unlockedFeatures.camp && !hasCampHere && !isFirstPosition && (isValidDespairHunger || isValidDespairThirst || isValidDespairStamina || isValidDespairMove);
+            if (this.isDespairShown === showDespair) {
+                return;
             }
+            
+            if (showDespair) {
+                this.showDespairTimeoutID = window.setTimeout(function () {
+                    logComponent.addMessage(LogConstants.MSG_ID_DESPAIR_AVAILABLE, LogConstants.getDespairMessage(isValidDespairHunger, isValidDespairThirst, isValidDespairStamina, isValidDespairMove));
+                    GameGlobals.uiFunctions.toggle("#out-action-despair", true);
+                }, 1250);
+                // TODO do this somewhere other than UI system - maybe a global detection if despair is available
+            } else {
+                if (this.showDespairTimeoutID) window.clearTimeout(this.showDespairTimeoutID);
+                GameGlobals.uiFunctions.toggle("#out-action-despair", false);
+            }
+            this.isDespairShown = showDespair;
         },
 
 		getDescription: function (entity, hasCampHere, hasCampOnLevel, hasVision, isScouted) {
@@ -292,38 +270,37 @@ define([
 			var passagesComponent = this.playerLocationNodes.head.entity.get(PassagesComponent);
 			var workshopComponent = this.playerLocationNodes.head.entity.get(WorkshopComponent);
 			var featuresComponent = this.playerLocationNodes.head.entity.get(SectorFeaturesComponent);
-			var statusComponent = this.playerLocationNodes.head.entity.get(SectorStatusComponent);
+			var sectorStatus = this.playerLocationNodes.head.entity.get(SectorStatusComponent);
             var enemiesComponent = this.playerLocationNodes.head.entity.get(EnemiesComponent);
 			var localesComponent = entity.get(SectorLocalesComponent);
 			var hasEnemies = enemiesComponent.hasEnemies;
 
 			var description = "<p>";
-			description += this.getTextureDescription(hasVision, position, featuresComponent, statusComponent, localesComponent);
+			description += this.getTextureDescription(hasVision, entity, position, featuresComponent, sectorStatus, localesComponent);
 			description += this.getFunctionalDescription(hasVision, isScouted, featuresComponent, workshopComponent, hasCampHere, hasCampOnLevel);
 			description += "</p><p>";
 			description += this.getStatusDescription(hasVision, isScouted, hasEnemies, featuresComponent, passagesComponent, hasCampHere, hasCampOnLevel);
 			description += this.getMovementDescription(isScouted, passagesComponent, entity);
 			description += "</p><p>";
-			description += this.getResourcesDescription(isScouted, featuresComponent);
+			description += this.getResourcesDescription(isScouted, featuresComponent, sectorStatus);
 			description += "</p>";
 			return description;
 		},
 
-		// Sector type, density, repair. Sunlight.
-		getTextureDescription: function (hasVision, position, featuresComponent, statusComponent, localesComponent) {
-			var desc = TextConstants.getSectorDescription(
-				hasVision,
-				featuresComponent.sunlit,
-				featuresComponent.sectorType,
-				featuresComponent.buildingDensity,
-				featuresComponent.stateOfRepair) + " ";
+		getTextureDescription: function (hasVision, sector, position, featuresComponent, sectorStatus, localesComponent) {
+            var campOrdinal = GameGlobals.gameState.getCampOrdinal(position.level);
+            
+            // sector static description
+            var features = GameGlobals.sectorHelper.getTextFeatures(sector);
+			var desc = TextConstants.getSectorDescription(hasVision, features) + ". ";
 
+            // light / darkness description
 			if (featuresComponent.sunlit) {
 				if (hasVision) desc += "The area is swathed in relentless <span class='hl-functionality'>daylight</span>. ";
 				else desc += "The area is swathed in blinding <span class='hl-functionality'>sunlight</span>. ";
 			} else {
-                if (statusComponent.glowStickSeconds > -5) {
-                    if (statusComponent.glowStickSeconds < 5)
+                if (sectorStatus.glowStickSeconds > -5) {
+                    if (sectorStatus.glowStickSeconds < 5)
                         desc += "The glowstick fades out.";
                     else
                         desc += "A glowstick casts a sickly <span class='hl-functionality'>light</span>.";
@@ -333,11 +310,11 @@ define([
                 }
             }
             
+            // locales / POIs description
             for (var i = 0; i < localesComponent.locales.length; i++) {
                 var locale = localesComponent.locales[i];
-                if (statusComponent.isLocaleScouted(i)) {
+                if (sectorStatus.isLocaleScouted(i)) {
                     if (locale.type == localeTypes.tradingpartner) {
-                        var campOrdinal = GameGlobals.gameState.getCampOrdinal(position.level);
                         var partner = TradeConstants.getTradePartner(campOrdinal);
                         desc += "<span class='hl-functionality'>" + partner.name + "</span> is located here. ";
                     }
@@ -350,6 +327,7 @@ define([
 		// Existing improvements. Workshops. Potential improvements (camp).
 		getFunctionalDescription: function (hasVision, isScouted, featuresComponent, workshopComponent, hasCampHere, hasCampOnLevel) {
 			var sectorControlComponent = this.playerLocationNodes.head.entity.get(SectorControlComponent);
+			var improvements = this.playerLocationNodes.head.entity.get(SectorImprovementsComponent);
 
 			var description = "";
 
@@ -375,11 +353,15 @@ define([
 
 			if (hasCampHere) description += "There is a <span class='hl-functionality'>camp</span> here. ";
 
-			if (isScouted && workshopComponent) {
+			if (isScouted && workshopComponent && workshopComponent.isClearable) {
 				var workshopName = TextConstants.getWorkshopName(workshopComponent.resource);
                 var workshopControl = sectorControlComponent.hasControlOfLocale(LocaleConstants.LOCALE_ID_WORKSHOP);
                 var workshopStatus = workshopControl ? "cleared for use" : "not cleared";
-				description += "There is " + TextConstants.addArticle(workshopName) + " here (" + workshopStatus + "). ";
+				description += "There is <span class='hl-functionality'>" + Text.addArticle(workshopName) + "</span> here (" + workshopStatus + "). ";
+			}
+
+			if (isScouted && improvements.getCount(improvementNames.greenhouse) > 0) {
+				description += "There is a <span class='hl-functionality'>greenhouse</span> here. ";
 			}
 
 			return description;
@@ -401,13 +383,16 @@ define([
 			return description;
 		},
 
-        getResourcesDescription: function (isScouted, featuresComponent) {
+        getResourcesDescription: function (isScouted, featuresComponent, statusComponent) {
             if (!featuresComponent) return;
             var description = "";
+            if (GameGlobals.gameState.unlockedFeatures.scavenge) {
+                description += "Scavenged: " + UIConstants.roundValue(statusComponent.getScavengedPercent()) + "% ";
+            }
 			if (featuresComponent.resourcesScavengable.getTotal() > 0) {
 				var discoveredResources = GameGlobals.sectorHelper.getLocationDiscoveredResources();
 				if (discoveredResources.length > 0) {
-					description += "Resources found by scavenging: " + featuresComponent.getScaResourcesString(discoveredResources);
+					description += "Resources found: " + featuresComponent.getScaResourcesString(discoveredResources);
 				}
 			}
 			return description;
@@ -416,6 +401,7 @@ define([
 		getMovementDescription: function (isScouted, passagesComponent, entity) {
 			var description = "";
 			var improvements = this.playerLocationNodes.head.entity.get(SectorImprovementsComponent);
+            var position = entity.get(PositionComponent);
 
 			// Passages up / down
 			var passageUpBuilt = improvements.getCount(improvementNames.passageUpStairs) +
@@ -440,15 +426,20 @@ define([
 
 				if (blocker) {
                 	var enemiesComponent = this.playerLocationNodes.head.entity.get(EnemiesComponent);
-                    var blockerName = TextConstants.getMovementBlockerName(blocker, enemiesComponent).toLowerCase();
+                    var gangComponent = GameGlobals.levelHelper.getGangComponent(position, direction);
+                    var blockerName = TextConstants.getMovementBlockerName(blocker, enemiesComponent, gangComponent).toLowerCase();
                     if (GameGlobals.movementHelper.isBlocked(entity, direction)) {
-                        if (blocker.type == MovementConstants.BLOCKER_TYPE_DEBRIS) {
-                            description += "Passage to the " + directionName + " is blocked by " + blockerName + ". ";
-                        } else {
-                            description += "Passage to the " + directionName + " is blocked by a " + blockerName + ". ";
+                        switch (blocker.type) {
+                            case MovementConstants.BLOCKER_TYPE_DEBRIS:
+                            case MovementConstants.BLOCKER_TYPE_WASTE_TOXIC:
+                            case MovementConstants.BLOCKER_TYPE_WASTE_RADIOACTIVE:
+                                description += "Passage to the " + directionName + " is blocked by <span class='hl-functionality'>" + blockerName + "</span>. ";
+                                break;
+                            default:
+                                description += "Passage to the " + directionName + " is blocked by a <span class='hl-functionality'>" + blockerName + "</span>. ";
+                                break;
                         }
                     } else {
-                        var position = entity.get(PositionComponent).getPosition();
                         var gang = GameGlobals.levelHelper.getGang(position, direction);
                         if (blocker.type == MovementConstants.BLOCKER_TYPE_DEBRIS) {
                             description += "Debris to the " + directionName + " has been cleared away. ";
@@ -472,6 +463,7 @@ define([
 			var enemyDesc = "";
 
 			var sectorControlComponent = this.playerLocationNodes.head.entity.get(SectorControlComponent);
+            var sectorStatus = this.playerLocationNodes.head.entity.get(SectorStatusComponent);
 			var enemiesComponent = this.playerLocationNodes.head.entity.get(EnemiesComponent);
 			var hasEnemies = enemiesComponent.hasEnemies;
 
@@ -493,7 +485,7 @@ define([
                     var inhabited = featuresComponent.level > 10;
                     switch (featuresComponent.notCampableReason) {
                         case LevelConstants.UNCAMPABLE_LEVEL_TYPE_RADIATION:
-                            if (inhabited && featuresComponent.stateOfRepair > 6)
+                            if (inhabited && featuresComponent.wear < 6)
                                 notCampableDesc = "Many entrances have big yellow warning signs on them, with the text 'KEEP OUT' and a <span class='hl-functionality'>radiation</span> sign. ";
                             else if (inhabited && featuresComponent.buildingDensity > 5)
                                 notCampableDesc = "Walls are covered in graffiti warning about <span class='hl-functionality'>radiation</span>. ";
@@ -502,7 +494,7 @@ define([
                             break;
 
                         case LevelConstants.UNCAMPABLE_LEVEL_TYPE_POLLUTION:
-                            if (inhabited && featuresComponent.stateOfRepair > 6)
+                            if (inhabited && featuresComponent.wear < 6)
                                 notCampableDesc = "Many entrances have big red warning signs on them with a <span class='hl-functionality'>skull sign</span> and the text 'KEEP OUT'. ";
                             else if (inhabited && featuresComponent.buildingDensity > 5)
                                 notCampableDesc = "Walls are covered in graffiti warning about some kind of <span class='hl-functionality'>pollution</span>.";
@@ -523,17 +515,18 @@ define([
                 }
             }
 
-            var hasHazards = featuresComponent.hazards.hasHazards();
+            var hasHazards = GameGlobals.sectorHelper.hasHazards(featuresComponent, sectorStatus);
+            var hazards = GameGlobals.sectorHelper.getEffectiveHazards(featuresComponent, sectorStatus);
             var hazardDesc = "";
             if (hasHazards) {
-                if (featuresComponent.hazards.radiation > 0) {
-                    hazardDesc += "This place is <span class='hl-functionality'>radioactive</span> (" + featuresComponent.hazards.radiation + "). ";
+                if (hazards.radiation > 0) {
+                    hazardDesc += "This place is <span class='hl-functionality'>radioactive</span> (" + hazards.radiation + "). ";
                 }
-                if (featuresComponent.hazards.poison > 0) {
-                    hazardDesc += "This place is dangerously <span class='hl-functionality'>polluted</span> (" + featuresComponent.hazards.poison + "). ";
+                if (hazards.poison > 0) {
+                    hazardDesc += "This place is dangerously <span class='hl-functionality'>polluted</span> (" + hazards.poison + "). ";
                 }
-                if (featuresComponent.hazards.cold > 0) {
-                    hazardDesc += "It's very <span class='hl-functionality'>cold</span> here (" + featuresComponent.hazards.cold + "). ";
+                if (hazards.cold > 0) {
+                    hazardDesc += "It's very <span class='hl-functionality'>cold</span> here (" + hazards.cold + "). ";
                 }
             }
 
@@ -572,11 +565,12 @@ define([
 
         updateOutImprovementsVisibility: function () {
             if (!this.playerLocationNodes.head) return;
+            if (GameGlobals.gameState.uiStatus.isHidden) return;
 			var improvements = this.playerLocationNodes.head.entity.get(SectorImprovementsComponent);
 			var featuresComponent = this.playerLocationNodes.head.entity.get(SectorFeaturesComponent);
-			var sectorStatusComponent = this.playerLocationNodes.head.entity.get(SectorStatusComponent);
+			var sectorStatus = this.playerLocationNodes.head.entity.get(SectorStatusComponent);
 
-            var isScouted = sectorStatusComponent.scouted;
+            var isScouted = sectorStatus.scouted;
 
 			var collectorFood = improvements.getVO(improvementNames.collector_food);
 			var collectorWater = improvements.getVO(improvementNames.collector_water);
@@ -584,10 +578,13 @@ define([
 			var hasWater = isScouted && featuresComponent.resourcesCollectable.water > 0;
 			GameGlobals.uiFunctions.toggle("#out-improvements-collector-food", collectorFood.count > 0 || hasFood);
 			GameGlobals.uiFunctions.toggle("#out-improvements-collector-water", collectorWater.count > 0 || hasWater);
-			GameGlobals.uiFunctions.toggle("#out-improvements-camp", sectorStatusComponent.canBuildCamp);
+			GameGlobals.uiFunctions.toggle("#out-improvements-camp", sectorStatus.canBuildCamp);
         },
 
-        updateOutImprovementsStatus: function(hasCamp, improvements) {
+        updateOutImprovementsStatus: function () {
+            var improvements = this.playerLocationNodes.head.entity.get(SectorImprovementsComponent);
+			var hasCamp = GameGlobals.levelHelper.getLevelEntityForSector(this.playerLocationNodes.head.entity).has(CampComponent);
+        
 			var collectorFood = improvements.getVO(improvementNames.collector_food);
 			var collectorWater = improvements.getVO(improvementNames.collector_water);
 			var collectorFoodCapacity = collectorFood.storageCapacity.food * collectorFood.count;
@@ -606,13 +603,13 @@ define([
             var position = currentSector.get(PositionComponent);
 			var sectorLocalesComponent = currentSector.get(SectorLocalesComponent);
 			var sectorFeaturesComponent = currentSector.get(SectorFeaturesComponent);
-			var sectorStatusComponent = currentSector.get(SectorStatusComponent);
+			var sectorStatus = currentSector.get(SectorStatusComponent);
 			$("#table-out-actions-locales").empty();
 			for (var i = 0; i < sectorLocalesComponent.locales.length; i++) {
 				var locale = sectorLocalesComponent.locales[i];
-				var button = "<button class='action multiline' action='scout_locale_" + locale.getCategory() + "_" + i + "'>" + TextConstants.getLocaleName(locale, sectorFeaturesComponent.stateOfRepair) + "</button>";
+				var button = "<button class='action multiline' action='scout_locale_" + locale.getCategory() + "_" + i + "'>" + TextConstants.getLocaleName(locale, sectorFeaturesComponent) + "</button>";
 				var info = "<span class='p-meta'>";
-                if (sectorStatusComponent.isLocaleScouted(i)) {
+                if (sectorStatus.isLocaleScouted(i)) {
                     if (locale.type == localeTypes.tradingpartner) {
                         var campOrdinal = GameGlobals.gameState.getCampOrdinal(position.level);
                         var partner = TradeConstants.getTradePartner(campOrdinal);
@@ -624,6 +621,7 @@ define([
                 info += "</span>";
 				$("#table-out-actions-locales").append("<tr><td>" + button + "</td><td>" + info + "</td></tr>");
 			}
+            GameGlobals.buttonHelper.updateButtonDisabledStates("#table-out-actions-locales", true);
             GameGlobals.uiFunctions.registerActionButtonListeners("#table-out-actions-locales");
             GameGlobals.uiFunctions.generateButtonOverlays("#table-out-actions-locales");
             GameGlobals.uiFunctions.generateCallouts("#table-out-actions-locales");
@@ -636,13 +634,16 @@ define([
 			var currentSector = this.playerLocationNodes.head.entity;
 			var movementOptionsComponent = currentSector.get(MovementOptionsComponent);
             var enemiesComponent = currentSector.get(EnemiesComponent);
+            var enemiesComponent = currentSector.get(PositionComponent);
+            var position = currentSector.get(PositionComponent).getPosition();
 			$("#container-out-actions-movement-related").empty();
 
 			function addBlockerActionButton(blocker, direction) {
                 if (blocker.type !== MovementConstants.BLOCKER_TYPE_GAP) {
                     if (!movementOptionsComponent.canMoveToDirection(direction)) {
                         var action = blocker.actionBaseID + "_" + direction;
-                        var description = TextConstants.getMovementBlockerAction(blocker, enemiesComponent) + " (" +  PositionConstants.getDirectionName(direction, true) + ")";
+                        var gangComponent = GameGlobals.levelHelper.getGangComponent(position, direction);
+                        var description = TextConstants.getMovementBlockerAction(blocker, enemiesComponent, gangComponent) + " (" +  PositionConstants.getDirectionName(direction, true) + ")";
                         var button = "<button class='action' action='" + action + "'>" + description + "</button>";
                         $("#container-out-actions-movement-related").append(button);
                     }
@@ -660,29 +661,30 @@ define([
             GameGlobals.uiFunctions.registerActionButtonListeners("#container-out-actions-movement-related");
             GameGlobals.uiFunctions.generateButtonOverlays("#container-out-actions-movement-related");
             GameGlobals.uiFunctions.generateCallouts("#container-out-actions-movement-related");
+            GameGlobals.uiFunctions.updateButtonCooldowns("#container-out-actions-movement-related");
+            
             GlobalSignals.elementCreatedSignal.dispatch();
 		},
 
         updateSectorDescription: function () {
             if (GameGlobals.gameState.uiStatus.isHidden) return;
 			var featuresComponent = this.playerLocationNodes.head.entity.get(SectorFeaturesComponent);
-			var sectorStatusComponent = this.playerLocationNodes.head.entity.get(SectorStatusComponent);
+			var sectorStatus = this.playerLocationNodes.head.entity.get(SectorStatusComponent);
 
+            var sector = this.playerLocationNodes.head.entity;
 			var vision = this.playerPosNodes.head.entity.get(VisionComponent).value;
 			var hasVision = vision > PlayerStatConstants.VISION_BASE;
 			var hasCamp = GameGlobals.levelHelper.getLevelEntityForSector(this.playerLocationNodes.head.entity).has(CampComponent);
 			var hasCampHere = this.playerLocationNodes.head.entity.has(CampComponent);
-            var isScouted = sectorStatusComponent.scouted;
+            var isScouted = sectorStatus.scouted;
 
 			// Header
-			var header = "";
-			var name = featuresComponent.getSectorTypeName(hasVision || featuresComponent.sunlit, hasCampHere);
-			header = name;
-            this.elements.sectorHeader.text(header);
+            var features = GameGlobals.sectorHelper.getTextFeatures(sector);
+            this.elements.sectorHeader.text(TextConstants.getSectorHeader(hasVision, features));
 
 			// Description
             this.elements.description.html(this.getDescription(
-                this.playerLocationNodes.head.entity,
+                sector,
                 hasCampHere,
                 hasCamp,
                 hasVision,
@@ -705,6 +707,53 @@ define([
             this.pendingUpdateMap = false;
             GameGlobals.uiMapHelper.rebuildMap("minimap", null, this.playerLocationNodes.head.position.getPosition(), UIConstants.MAP_MINIMAP_SIZE, true);
 		},
+        
+        hasAccessToResource: function (resourceName, includeScavenge, includeUnbuiltCollectible) {
+            if (GameGlobals.resourcesHelper.getCurrentStorage().resources.getResource(resourceName) >= 1) {
+                return true;
+            }
+            if (includeScavenge && this.hasScavengeableResource(resourceName)) {
+                return true;
+            }
+            if (this.hasCollectibleResource(resourceName, includeUnbuiltCollectible)) {
+                return true;
+            }
+                         
+            return false;
+        },
+        
+        hasScavengeableResource: function (resourceName) {
+            var discoveredResources = GameGlobals.sectorHelper.getLocationDiscoveredResources();
+            if (discoveredResources.indexOf(resourceName) > 0) {
+                return true;
+            }
+            return false;
+        },
+        
+        hasCollectibleResource: function (resourceName, includeUnbuilt) {
+            var featuresComponent = this.playerLocationNodes.head.entity.get(SectorFeaturesComponent);
+			var statusComponent = this.playerLocationNodes.head.entity.get(SectorStatusComponent);
+			var improvements = this.playerLocationNodes.head.entity.get(SectorImprovementsComponent);
+            
+            var isScouted = statusComponent.scouted;
+                
+			if (isScouted && featuresComponent.resourcesCollectable.getResource(resourceName) > 0) {
+                return includeUnbuilt || improvements.getVO(this.getCollectorName(resourceName)).count > 0;
+            }
+            if (isScouted && resourceName == resourceNames.water && featuresComponent.hasSpring) {
+                return includeUnbuilt || improvements.getVO(this.getCollectorName(resourceName)).count > 0;
+            }
+        },
+        
+        getCollectorName: function (resourceName) {
+            if (resourceName == resourceNames.water) {
+                return improvementNames.collector_water;
+            }
+            if (resourceName == resourceNames.food) {
+                return improvementNames.collector_food;
+            }
+            return null;
+        }
     });
 
     return UIOutLevelSystem;

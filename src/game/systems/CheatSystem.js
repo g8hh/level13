@@ -11,6 +11,7 @@ define(['ash',
     'game/constants/TradeConstants',
     'game/constants/UpgradeConstants',
     'game/components/common/CampComponent',
+    'game/components/common/PositionComponent',
     'game/components/player/AutoPlayComponent',
     'game/components/player/ItemsComponent',
     'game/components/player/PerksComponent',
@@ -37,6 +38,7 @@ define(['ash',
     TradeConstants,
     UpgradeConstants,
     CampComponent,
+    PositionComponent,
     AutoPlayComponent,
     ItemsComponent,
     PerksComponent,
@@ -95,10 +97,10 @@ define(['ash',
                 this.playerStatsNodes.head.vision.value = Math.min(200, Math.max(0, parseInt(params[0])));
             });
             this.registerCheat(CheatConstants.CHEAT_NAME_EVIDENCE, "Set evidence.", ["value"], function (params) {
-                this.playerStatsNodes.head.evidence.value = Math.max(0, parseInt(params[0]));
+                this.setEvidence(parseInt(params[0]));
             });
             this.registerCheat(CheatConstants.CHEAT_NAME_RUMOURS, "Set rumours.", ["value"], function (params) {
-                this.playerStatsNodes.head.rumours.value = Math.max(0, parseInt(params[0]));
+                this.setRumours(parseInt(params[0]));
             });
             this.registerCheat(CheatConstants.CHEAT_NAME_FAVOUR, "Set favour.", ["value"], function (params) {
                 var value = parseInt(params[0]);
@@ -107,8 +109,15 @@ define(['ash',
             this.registerCheat(CheatConstants.CHEAT_NAME_POPULATION, "Add population to nearest camp.", ["value (1-n)"], function (params) {
                 this.addPopulation(Math.max(1, parseInt(params[0])));
             });
+            this.registerCheat(CheatConstants.CHEAT_NAME_WORKERS, "Auto-assign workers in nearest camp.", [], function (params) {
+                this.autoAssignWorkers();
+            });
             this.registerCheat(CheatConstants.CHEAT_NAME_STAMINA, "Refill stamina for free.", [], function () {
                 this.refillStamina();
+            });
+            this.registerCheat(CheatConstants.CHEAT_NAME_SET_STAMINA, "Set stamina.", [ "value" ], function (params) {
+                var value = parseInt(params[0]);
+                this.setStamina(value);
             });
             this.registerCheat(CheatConstants.CHEAT_NAME_POS, "Set position of the player. Must be an existing sector.", ["level", "x", "y"], function (params) {
                 this.setPlayerPosition(parseInt(params[0]), parseInt(params[1]), parseInt(params[2]));
@@ -275,7 +284,7 @@ define(['ash',
             GameGlobals.playerActionFunctions.passTime(mins * 60);
         },
 
-        setAutoPlay: function (type, numCampsTarget, expeditionTarget) {
+        setAutoPlay: function (type, numCampsTarget) {
             var start = false;
             var stop = false;
             var isExpedition = false;
@@ -327,7 +336,7 @@ define(['ash',
                     if (isExpedition) {
                         component.isPendingExploring = true;
                         component.isExpedition = true;
-                        component.forcedExpeditionType = expeditionTarget;
+                        component.autoExploratioVO.limitToCurrentLevel = true;
                     }
                     this.playerStatsNodes.head.entity.add(component);
                 }
@@ -342,6 +351,14 @@ define(['ash',
                 log.i(name + " is not a valid resource. Possible names are:");
                 log.i(Object.keys(resourceNames));
             }
+        },
+        
+        setEvidence: function (value) {
+            this.playerStatsNodes.head.evidence.value = Math.max(0, value);
+        },
+        
+        setRumours: function (value) {
+            this.playerStatsNodes.head.rumours.value = Math.max(0, value);
         },
 
         setFavour: function (value) {
@@ -381,9 +398,21 @@ define(['ash',
                 log.w("Camp not found.");
             }
         },
+        
+        autoAssignWorkers: function () {
+            var currentSector = this.playerLocationNodes.head ? this.playerLocationNodes.head.entity : null;
+            var camp = currentSector.get(CampComponent);
+            if (!camp) return;
+            var assignment = GameGlobals.campHelper.getDefaultWorkerAssignment(currentSector);
+            GameGlobals.playerActionFunctions.assignWorkers(currentSector, assignment);
+        },
 
         refillStamina: function () {
             this.playerStatsNodes.head.stamina.stamina = 1000;
+        },
+
+        setStamina: function (value) {
+            this.playerStatsNodes.head.stamina.stamina = value;
         },
 
         setPlayerPosition: function (lvl, x, y, inCamp) {
@@ -395,10 +424,18 @@ define(['ash',
         },
 
         goToLevel: function (level) {
-            var levelVO = GameGlobals.levelHelper.getLevelEntityForPosition(level).get(LevelComponent).levelVO;
-            var i = Math.floor(Math.random() * levelVO.centralSectors.length);
-            var sector = levelVO.centralSectors[i];
-            this.setPlayerPosition(level, sector.position.sectorX, sector.position.sectorY);
+            for (var dx = 0; dx < 200; dx++) {
+                for (var dy = 0; dy < 200; dy++) {
+                    var sector = GameGlobals.levelHelper.getSectorByPosition(level, dx, dy);
+                    sector = sector || GameGlobals.levelHelper.getSectorByPosition(level, -dx, dy);
+                    sector = sector || GameGlobals.levelHelper.getSectorByPosition(level, dx, -dy);
+                    sector = sector || GameGlobals.levelHelper.getSectorByPosition(level, -dx, -dy);
+                    if (sector) {
+                        this.setPlayerPosition(level, sector.position.sectorX, sector.position.sectorY);
+                        return;
+                    }
+                }
+            }
         },
 
         addBuilding: function (name, amount) {
@@ -438,7 +475,7 @@ define(['ash',
 
         addBlueprintsForLevel: function (campOrdinal) {
             var id;
-            var blueprints = UpgradeConstants.getblueprintsByCampOrdinal(campOrdinal);
+            var blueprints = UpgradeConstants.getBlueprintsByCampOrdinal(campOrdinal);
 			for (var i in blueprints) {
                 id = blueprints[i];
                 this.addBlueprints(id, UpgradeConstants.piecesByBlueprint[id]);
@@ -524,7 +561,7 @@ define(['ash',
             var perksComponent = this.playerPositionNodes.head.entity.get(PerksComponent);
             var injuryi = Math.round(Math.random() * PerkConstants.perkDefinitions.injury.length);
             var defaultInjury = PerkConstants.perkDefinitions.injury[injuryi];
-            perksComponent.addPerk(defaultInjury.clone());
+            perksComponent.addPerk(PerkConstants.getPerk(defaultInjury.id));
         },
 
         revealMap: function (value) {
@@ -542,19 +579,21 @@ define(['ash',
             GameGlobals.playerActionFunctions.leaveCamp();
             var startSector = this.playerLocationNodes.head.entity;
             var originalPos = this.playerPositionNodes.head.position.getPosition();
-            var levelVO = GameGlobals.levelHelper.getLevelEntityForPosition(originalPos.level).get(LevelComponent).levelVO;
-            var sectorVO;
+            var level = originalPos.level;
+            var sectors = GameGlobals.levelHelper.getSectorsByLevel(level);
+            var sector;
             var i = 0;
             var binding = null;
             var updateFunction = function () {
-                if (i < levelVO.sectors.length) {
-                    sectorVO = levelVO.sectors[i];
-                    var goalSector = GameGlobals.levelHelper.getSectorByPosition(levelVO.level, sectorVO.position.sectorX, sectorVO.position.sectorY);
+                if (i < sectors.length) {
+                    sector = sectors[i];
+                    var pos = sector.get(PositionComponent);
+                    var goalSector = GameGlobals.levelHelper.getSectorByPosition(level, pos.sectorX, pos.sectorY);
                     if (GameGlobals.levelHelper.isSectorReachable(startSector, goalSector)) {
-                        this.setPlayerPosition(levelVO.level, sectorVO.position.sectorX, sectorVO.position.sectorY);
+                        this.setPlayerPosition(level, pos.sectorX, pos.sectorY);
                         GameGlobals.playerActionFunctions.scout();
                     }
-                } else if (i == levelVO.sectors.length) {
+                } else if (i == sectors.length) {
                     this.setPlayerPosition(originalPos.level, originalPos.sectorX, originalPos.sectorY);
                     GameGlobals.uiFunctions.popupManager.closeAllPopups();
                     binding.detach();

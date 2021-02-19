@@ -176,15 +176,15 @@ define([
             var campPopulation = Math.floor(campComponent.population);
             if (staminaComponent.stamina < PlayerStatConstants.getStaminaWarningLimit(staminaComponent)) {
                 warning = "Won't get far with low stamina.";
-            } else if (campPopulation > 1) {
+            } else if (campPopulation >= 1) {
                 var remainingWater = campResources.resources.getResource(resourceNames.water) - selectedWater;
                 var remainingFood = campResources.resources.getResource(resourceNames.food) - selectedFood;
                 var isWaterDecreasing = campResourcesAcc.resourceChange.getResource(resourceNames.water) < 0;
                 var isFoodDecreasing = campResourcesAcc.resourceChange.getResource(resourceNames.food) < 0;
-                if (isWaterDecreasing && selectedWater > 0 && remainingWater <= campPopulation) {
+                if ((isWaterDecreasing && selectedWater > 0 && remainingWater <= campPopulation) || remainingWater < 1) {
                     warning = "There won't be much water left in the camp.";
                 }
-                else if (isFoodDecreasing && selectedFood > 0 && remainingFood <= campPopulation) {
+                else if ((isFoodDecreasing && selectedFood > 0 && remainingFood <= campPopulation) || remainingFood < 1) {
                     warning = "There won't be much food left in the camp.";
                 }
             } else if (selectedWater < 1 || selectedFood < 1) {
@@ -205,6 +205,7 @@ define([
                 if (item.type === ItemConstants.itemTypes.follower) continue;
                 if (item.type === ItemConstants.itemTypes.artefact) continue;
                 if (item.type === ItemConstants.itemTypes.note) continue;
+                if (item.type === ItemConstants.itemTypes.ingredient) continue;
                 
                 var count = itemsComponent.getCountById(item.id, true);
                 var showCount = item.equipped ? count - 1 : count;

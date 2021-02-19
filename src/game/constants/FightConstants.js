@@ -1,12 +1,13 @@
 define(['ash',
+    'game/GameGlobals',
 	'game/constants/ItemConstants',
 	'game/constants/PerkConstants',
 	'game/constants/LocaleConstants',
 	'game/constants/PositionConstants',
-	'game/constants/WorldCreatorConstants',
 	'game/constants/UpgradeConstants',
+	'game/constants/WorldConstants',
 	'game/vos/ResourcesVO'],
-function (Ash, ItemConstants, PerkConstants, LocaleConstants, PositionConstants, WorldCreatorConstants, UpgradeConstants, ResourcesVO) {
+function (Ash, GameGlobals, ItemConstants, PerkConstants, LocaleConstants, PositionConstants, UpgradeConstants, WorldConstants, ResourcesVO) {
 
     var FightConstants = {
 	
@@ -19,7 +20,7 @@ function (Ash, ItemConstants, PerkConstants, LocaleConstants, PositionConstants,
         // applies both to enemy and player damage and makes fights to faster (with fewer hits)
         FIGHT_DAMAGE_BASE: 18,
         // applies to both enemy and player and makes fights go faster (less time between hits)
-        FIGHT_SPEED_FACTOR: 1,
+        FIGHT_SPEED_FACTOR: 1.25,
         
         PARTICIPANT_TYPE_FRIENDLY: 0,
         PARTICIPANT_TYPE_ENEMY: 1,
@@ -42,7 +43,7 @@ function (Ash, ItemConstants, PerkConstants, LocaleConstants, PositionConstants,
             var weapons = itemsComponent.getEquipped(ItemConstants.itemTypes.weapon);
             var weapon = weapons.length > 0 ? weapons[0] : null;
             var weaponSpeedBonus = weapon ? weapon.getBonus(ItemConstants.itemBonusTypes.fight_speed) || 1 : 1;
-            return weaponSpeedBonus / this.FIGHT_SPEED_FACTOR;
+            return 1 / weaponSpeedBonus / this.FIGHT_SPEED_FACTOR;
         },
 		 
 		getPlayerAtt: function (playerStamina, itemsComponent) {
@@ -84,7 +85,7 @@ function (Ash, ItemConstants, PerkConstants, LocaleConstants, PositionConstants,
         getMaxFollowers: function (numCamps) {
 			var firstFollowerCamp = UpgradeConstants.getMinimumCampOrdinalForUpgrade("unlock_building_inn");
 			var numFollowerCamps = numCamps - firstFollowerCamp + 1;
-			var totalFollowerCamps = (WorldCreatorConstants.CAMPS_TOTAL - firstFollowerCamp + 1);
+			var totalFollowerCamps = (WorldConstants.CAMPS_TOTAL - firstFollowerCamp + 1);
 			var maxFollowers = Math.ceil(numFollowerCamps / totalFollowerCamps * this.MAX_FOLLOWER_MAX);
 			return Math.max(0, maxFollowers);
         },
@@ -102,6 +103,7 @@ function (Ash, ItemConstants, PerkConstants, LocaleConstants, PositionConstants,
         
         // Damage done by player to an enemy per sec
         getEnemyDamagePerSec: function (enemy, playerStamina, itemsComponent) {
+            if (!enemy) return 0;
             var playerAtt = FightConstants.getPlayerAtt(playerStamina, itemsComponent);
             return this.getDamagePerSec(playerAtt, enemy.def);
         },
@@ -114,6 +116,7 @@ function (Ash, ItemConstants, PerkConstants, LocaleConstants, PositionConstants,
         
         // Damage done by the enemy to the player per sec
         getPlayerDamagePerSec: function (enemy, playerStamina, itemsComponent) {
+            if (!enemy) return 0;
             var playerDef = FightConstants.getPlayerDef(playerStamina, itemsComponent);
             return this.getDamagePerSec(enemy.att, playerDef);
         },
@@ -160,6 +163,7 @@ function (Ash, ItemConstants, PerkConstants, LocaleConstants, PositionConstants,
         },
         
         getFightWinProbability: function(enemy, playerStamina, itemsComponent) {
+            if (!enemy) return 1;
             var enemyDamage = this.getEnemyDamagePerSec(enemy, playerStamina, itemsComponent);
             var playerDamage = this.getPlayerDamagePerSec(enemy, playerStamina, itemsComponent);
             
@@ -174,7 +178,6 @@ function (Ash, ItemConstants, PerkConstants, LocaleConstants, PositionConstants,
             if (ratio < 0.05) ratio = 0.05;
             if (ratio > 0.95) ratio = 0.95;
             
-            log.i("getFightWinProbability: time alive player: " + timeAlivePlayerMin + "-" + timeAlivePlayerMax + ", enemy: " + timeAliveEnemy + " -> " + ratio);
             return ratio;
         },
         		

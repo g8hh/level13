@@ -1,52 +1,63 @@
 // A component that describes features of a sector, both functional (ability to build stuff)
 // and purely aesthetic (description)
 define(
-    ['ash', 'game/constants/WorldCreatorConstants', 'game/vos/ResourcesVO'],
-    function (Ash, WorldCreatorConstants, ResourcesVO) {
+    ['ash', 'game/constants/GameConstants', 'game/constants/SectorConstants', 'game/constants/WorldConstants', 'game/vos/ResourcesVO'],
+    function (Ash, GameConstants, SectorConstants, WorldConstants, ResourcesVO) {
     
     var SectorFeaturesComponent = Ash.Class.extend({
         
-        // Primary attributes
+        // primary attributes
         level: 0,
-        buildingDensity: 0,
-        stateOfRepair: 0,
         sectorType: 0,
         
+        // description / atmosphere
+        buildingDensity: 0,
+        wear: 0,
+        damage: 0,
+        sunlit: false,
+        ground: false,
+        
+        // pathfinding attributes
         criticalPaths: [],
         zone: null,
         
-        sunlit: false,
+        // functionality
         hazards: null,
-        weather: false,
         campable: false,
+        stashes: [],
         
+        // resources
         resourcesScavengable: null,
         resourcesCollectable: null,
         
-        constructor: function (level, criticalPaths, zone, buildingDensity, stateOfRepair, sectorType, buildingStyle, sunlit, hazards, weather,
-                               campable, notCampableReason, resourcesScavengable, resourcesCollectable, hasSpring, stash) {
+        constructor: function (level, criticalPaths, zone, buildingDensity, wear, damage, sectorType, sunlit, ground, hazards,
+                               campable, notCampableReason, resourcesScavengable, resourcesCollectable, hasSpring, stashes) {
             this.level = level;
             this.criticalPaths = criticalPaths;
             this.zone = zone;
             this.buildingDensity = buildingDensity;
-            this.stateOfRepair = stateOfRepair;
+            this.wear = wear;
+            this.damage = damage;
             this.sectorType = sectorType;
-            this.buildingStyle = buildingStyle,
             this.sunlit = sunlit;
+            this.ground = ground;
             this.hazards = hazards;
-            this.weather = weather;
             this.campable = campable;
             this.notCampableReason = notCampableReason;
             this.resourcesScavengable = resourcesScavengable || new ResourcesVO();
             this.resourcesCollectable = resourcesCollectable || new ResourcesVO();
             this.hasSpring = hasSpring;
-            this.stash = stash || null;
+            this.stashes = stashes || [];
         },
         
         // Secondary attributes
         
         isOnCriticalPath: function (type) {
-            return this.criticalPaths.indexOf(type) >= 0;
+            if (type) {
+                return this.criticalPathTypes.indexOf(type) >= 0;
+            } else {
+                return this.criticalPathTypes.length > 0;
+            }
         },
         
         canHaveCamp: function () {
@@ -55,63 +66,16 @@ define(
         
         // Text functions
         
-        getSectorTypeName: function (hasLight, hasCamp) {
-            var densityAdj = "";
-            var repairAdj = "";
-            var typeNoun = "";
-            var genericNoun = "";
-        
-            if (this.buildingDensity > 8)      densityAdj = "narrow";
-            else if (this.buildingDensity < 1) densityAdj = "emty";
-            else                               densityAdj = "";
-            
-            if (hasLight) {
-                if (this.stateOfRepair > 7)      repairAdj = "quiet";
-                else if (this.stateOfRepair > 5) repairAdj = "abandoned";
-                else if (this.stateOfRepair > 2) repairAdj = "crumbling";
-                else                             repairAdj = "ruined";
-            } else {
-                if (this.stateOfRepair > 5)      repairAdj = "";
-                else                             repairAdj = "crumbling";
-            }
-            
-            switch (this.sectorType) {
-                case WorldCreatorConstants.SECTOR_TYPE_RESIDENTIAL: typeNoun = "residential"; break;
-                case WorldCreatorConstants.SECTOR_TYPE_INDUSTRIAL: typeNoun = "industrial"; break;
-                case WorldCreatorConstants.SECTOR_TYPE_MAINTENANCE: typeNoun = "maintenance"; break;
-                case WorldCreatorConstants.SECTOR_TYPE_COMMERCIAL: typeNoun = "commercial"; break;
-                case WorldCreatorConstants.SECTOR_TYPE_SLUM: typeNoun = "slum"; break;
-            }
-                 
-            if (this.buildingDensity > 9)       genericNoun = "passage";
-            if (this.buildingDensity > 8)       genericNoun = "corridor";
-            else if (this.buildingDensity > 4)  genericNoun = "street";
-            else if (this.buildingDensity > 0)  genericNoun = "square";
-            else genericNoun = "sector";
-           
-            var wholeNoun = typeNoun + " " + genericNoun;
-            if (this.sectorType === WorldCreatorConstants.SECTOR_TYPE_COMMERCIAL && this.buildingDensity > 8) {
-                wholeNoun = "back alley";
-            }
-            
-            if (hasCamp) {
-                return genericNoun + " with camp";
-            } else if (hasLight) {
-                return repairAdj + " " + wholeNoun;
-            } else {
-                return "dark" + " " + repairAdj + " " + densityAdj + " " + genericNoun;
-            }
-        },
-        
         getScaResourcesString: function (discoveredResources) {
             var s = "";
              for(var key in resourceNames) {
                 var name = resourceNames[key];
                 var amount = this.resourcesScavengable.getResource(name);
                 if (amount > 0 && discoveredResources.indexOf(name) >= 0) {
-                    var amountDesc = "scarce";
+                    var amountDesc =  "scarce";
                     if (amount > 3) amountDesc = "common"
                     if (amount > 7) amountDesc = "abundant"
+                    if (GameConstants.isDebugVersion) amountDesc += " " + Math.round(amount);
                     s += key + " (" + amountDesc + "), ";
                 }
             }
@@ -119,6 +83,24 @@ define(
             else if (this.resourcesScavengable.getTotal() > 0) return "Unknown";
             else return "None";
         },
+        
+        getCondition: function () {
+            if (this.damage > 7 || this.wear > 9)
+                return SectorConstants.SECTOR_CONDITION_RUINED;
+            if (this.damage > 0)
+                return SectorConstants.SECTOR_CONDITION_DAMAGED;
+            if (this.wear > 7)
+                return SectorConstants.SECTOR_CONDITION_ABANDONED;
+            if (this.wear > 4)
+                return SectorConstants.SECTOR_CONDITION_WORN;
+            if (this.wear > 0)
+                return SectorConstants.SECTOR_CONDITION_RECENT;
+            return SectorConstants.SECTOR_CONDITION_MAINTAINED;
+        },
+        
+        isEarlyZone: function () {
+            return WorldConstants.getStage(this.zone) == WorldConstants.CAMP_STAGE_EARLY;
+        }
         
     });
 

@@ -1,4 +1,4 @@
-define(['ash', 'game/worldcreator/WorldCreatorHelper'], function (Ash, WorldCreatorHelper) {
+define(['ash', 'worldcreator/WorldCreatorHelper'], function (Ash, WorldCreatorHelper) {
     var GameState = Ash.Class.extend({
 
         constructor: function () {
@@ -9,7 +9,8 @@ define(['ash', 'game/worldcreator/WorldCreatorHelper'], function (Ash, WorldCrea
             this.level = 0;
             this.worldSeed = 0;
             this.gameStartTimeStamp = 0;
-            this.gamePlayedSeconds = 0;
+            this.gameTime = 0; // total tick time passed
+            this.playTime = 0; // total active play time - gameTime minus fast-forwarded time
             this.isPaused = false;
             this.numCamps = 0;
             this.numTradePostCamps = 0;
@@ -34,6 +35,7 @@ define(['ash', 'game/worldcreator/WorldCreatorHelper'], function (Ash, WorldCrea
                     rope: false,
                     herbs: false,
                     fuel: false,
+                    rubber: false,
                     medicine: false,
                     tools: false,
                     concrete: false,
@@ -93,9 +95,33 @@ define(['ash', 'game/worldcreator/WorldCreatorHelper'], function (Ash, WorldCrea
         getCampOrdinal: function (level) {
             return WorldCreatorHelper.getCampOrdinal(this.worldSeed, level);
         },
+        
+        getCampOrdinalForLevelOrdinal: function (levelOrdinal) {
+            let level = this.getLevelForOrdinal(levelOrdinal);
+            return this.getCampOrdinal(level);
+        },
+        
+        getLevelsForCamp: function (campOrdinal) {
+            return WorldCreatorHelper.getLevelsForCamp(this.worldSeed, campOrdinal);
+        },
+        
+        getLevelForCamp: function (campOrdinal) {
+            let levelOrdinal = this.getLevelOrdinalForCampOrdinal(campOrdinal);
+            return this.getLevelForOrdinal(levelOrdinal);
+        },
 
         getLevelOrdinalForCampOrdinal: function (campOrdinal) {
             return WorldCreatorHelper.getLevelOrdinalForCampOrdinal(this.worldSeed, campOrdinal);
+        },
+        
+        getLevelIndex: function (level) {
+            var campOrdinal = this.getCampOrdinal(level);
+            return WorldCreatorHelper.getLevelIndexForCamp(this.worldSeed, campOrdinal, level);
+        },
+        
+        getMaxLevelIndex: function (level) {
+            var campOrdinal = this.getCampOrdinal(level);
+            return WorldCreatorHelper.getMaxLevelIndexForCamp(this.worldSeed, campOrdinal, level);
         },
 
         getTotalLevels: function () {
@@ -131,7 +157,7 @@ define(['ash', 'game/worldcreator/WorldCreatorHelper'], function (Ash, WorldCrea
             var timestamp = this.actionCooldownEndTimestamps[actionKey];
             if (timestamp) {
                 var now = new Date().getTime();
-                var diff = timestamp - now;
+                var diff = (timestamp - now) / 1000;
                 if (diff > 0) {
                     if (max && diff > max) {
                         log.w("fix action cooldown: " + diff + " -> " + max);

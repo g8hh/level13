@@ -30,9 +30,6 @@ body {
 #tab-header h2 {
   margin: 2px 0px;
 }
-#grid-location-header {
-  padding: 10px 0px 0px 0px;
-}
 #unit-main {
   padding-left: 28px;
   /* for the self-bar */
@@ -80,6 +77,7 @@ canvas {
   height: 100%;
   top: 0;
   pointer-events: none;
+  z-index: 10;
 }
 .vision-step-0 #grid-main {
   opacity: 0.5;
@@ -327,6 +325,19 @@ body.dark .centered {
 body.dark .hidden {
   display: none;
 }
+body.dark .nowrap {
+  white-space: nowrap;
+}
+body.dark .unselectable {
+  -webkit-user-select: none;
+  /* Safari */
+  -moz-user-select: none;
+  /* Firefox */
+  -ms-user-select: none;
+  /* IE10+/Edge */
+  user-select: none;
+  /* Standard */
+}
 body.dark .full-width {
   width: 100%;
 }
@@ -341,13 +352,6 @@ body.dark .strike-through p {
 }
 body.dark .container-dimmed .dimmable {
   opacity: 0.5;
-}
-body.dark .rotate-on-hover:hover {
-  -moz-transform: rotate(360deg);
-  -webkit-transform: rotate(360deg);
-  -o-transform: rotate(360deg);
-  -ms-transform: rotate(360deg);
-  transform: rotate(360deg);
 }
 body.dark span.icon {
   padding: 2px;
@@ -423,6 +427,9 @@ body.dark tr.current {
   background: #2f322f;
   border-color: #2f322f;
 }
+body.dark tr.header-mini {
+  font-size: 85%;
+}
 body.dark hr {
   color: #555;
   margin: 1em 5px;
@@ -439,6 +446,12 @@ body.dark td > div.container-btn-action {
 }
 body.dark button {
   cursor: pointer;
+}
+body.dark ::-moz-selection {
+  background: #ccc;
+}
+body.dark ::selection {
+  background: #ccc;
 }
 body.dark h1,
 body.dark h2,
@@ -474,6 +487,14 @@ body.dark .p-dense p {
 }
 body.dark p.nomargin {
   margin: 0;
+}
+body.dark .ui-anim {
+  transform: scale(1.15, 1.15);
+  opacity: 0.8;
+  font-weight: bold;
+}
+body.dark .ui-anim-negative {
+  color: #e64646 !important;
 }
 body.dark button {
   width: 95pt;
@@ -729,7 +750,7 @@ body.dark div.callout-arrow-up {
   border-bottom-color: #555 !important;
   width: 0;
   height: 0;
-  z-index: 40;
+  z-index: 10;
   position: relative;
   top: 0px;
   margin: 0 0 0 3.5px;
@@ -756,28 +777,31 @@ body.dark .action-separator {
   height: 10px;
 }
 body.dark ul.tabs {
-  margin: 0 0 5px 0;
+  margin: 0;
+  padding: 0;
   list-style-type: none;
-  padding: 7px 0px;
 }
 body.dark ul.tabs li {
-  display: inline;
-  margin: 0px 5px 0px 0px;
-  padding: 6px 10px;
-  border-width: 1px !important;
+  display: inline-block;
+  margin: 0px 1px;
+  padding: 5px 10px 5px 10px;
+  border-width: 1px;
   border-style: solid;
   position: relative;
-  top: 2px;
-  z-index: 3;
+  z-index: 0;
   white-space: nowrap;
+  top: 2px;
+  height: 32px;
   cursor: pointer;
   text-transform: lowercase;
   background-color: #202220;
   border-color: #3a3a3a;
+  box-sizing: border-box;
 }
 body.dark ul.tabs li.selected {
-  padding-bottom: 12px;
   font-weight: bold;
+  z-index: 2;
+  width: auto;
 }
 body.dark ul.tabs li.selected {
   background: #282a28;
@@ -788,7 +812,11 @@ body.dark ul.tabs li:hover {
 body.dark ul.tabs li.selected {
   border-color: #3a3a3a;
   border-bottom-color: #282a28;
-  border-width: 2px !important;
+}
+body.dark ul.tabs li span {
+  display: inline-block;
+  overflow-x: hidden;
+  width: 100%;
 }
 body.dark div.popup {
   background: #282a28;
@@ -801,7 +829,7 @@ body.dark div.popup {
   margin: 0;
   min-width: 30%;
   max-width: 60%;
-  z-index: 7;
+  z-index: 16;
   -webkit-box-shadow: 1px 2px 7px 3px rgba(0, 0, 0, 0.25);
   -moz-box-shadow: 1px 2px 7px 3px rgba(0, 0, 0, 0.25);
   box-shadow: 1px 2px 7px 3px rgba(0, 0, 0, 0.25);
@@ -810,7 +838,7 @@ body.dark div.popup-overlay {
   position: fixed;
   top: 0;
   left: 0;
-  z-index: 6;
+  z-index: 15;
   width: 100%;
   height: 100%;
   background-color: rgba(0, 0, 0, 0.85);
@@ -1571,6 +1599,10 @@ body.dark #main-header-items {
 body.dark #header-tribe-container {
   margin-bottom: 5px;
 }
+body.dark #grid-switch-content {
+  z-index: 1;
+  position: relative;
+}
 body.dark #grid-main-header .unit {
   padding: 2px;
   position: relative;
@@ -1611,16 +1643,25 @@ body.dark #header-self-bar .info-callout {
   width: 75px;
   max-width: 75px;
 }
-body.dark #header-self-inout img {
-  -webkit-transition: -webkit-transform 1s;
-  transition: all 1s;
-}
 body.dark #header-self-bar .change-indicator {
   vertical-align: top;
   margin: 0.2em 0 0 0.25em;
 }
 body.dark #header-self-bar div.callout-arrow-up {
   margin: 0 0 0 23px;
+}
+body.dark #grid-location-header {
+  padding: 10px 0px 0px 0px;
+}
+body.dark #grid-location-header h1,
+body.dark #grid-location-header img {
+  display: inline-block;
+  vertical-align: middle;
+}
+body.dark #level-icon {
+  margin: 3px 3px 3px 0;
+  width: 2.5em;
+  height: 2.5em;
 }
 body.dark .item-bag-options {
   margin-top: 5px;
@@ -1641,8 +1682,7 @@ body.dark #notification-player .progress {
   max-width: 100%;
   margin: 0;
 }
-body.dark span#out-position-indicator,
-body.dark span#out-position-indicator-header {
+body.dark span#out-position-indicator {
   font-size: 80%;
   line-height: 1.1em;
 }
@@ -1879,7 +1919,7 @@ body.dark .thinking-content {
   position: fixed;
   top: 0;
   left: 0;
-  z-index: 6;
+  z-index: 20;
   width: 100%;
   height: 100%;
   background: rgba(32, 34, 32, 0.5);
@@ -2045,7 +2085,7 @@ body.dark #vis-camp-info-overlay {
   padding: 1px;
   vertical-align: middle;
   text-align: center;
-  z-index: 10;
+  z-index: 9;
 }
 body.dark .vis-camp-layer {
   position: absolute;
@@ -2166,6 +2206,19 @@ body.sunlit .centered {
 body.sunlit .hidden {
   display: none;
 }
+body.sunlit .nowrap {
+  white-space: nowrap;
+}
+body.sunlit .unselectable {
+  -webkit-user-select: none;
+  /* Safari */
+  -moz-user-select: none;
+  /* Firefox */
+  -ms-user-select: none;
+  /* IE10+/Edge */
+  user-select: none;
+  /* Standard */
+}
 body.sunlit .full-width {
   width: 100%;
 }
@@ -2180,13 +2233,6 @@ body.sunlit .strike-through p {
 }
 body.sunlit .container-dimmed .dimmable {
   opacity: 0.5;
-}
-body.sunlit .rotate-on-hover:hover {
-  -moz-transform: rotate(360deg);
-  -webkit-transform: rotate(360deg);
-  -o-transform: rotate(360deg);
-  -ms-transform: rotate(360deg);
-  transform: rotate(360deg);
 }
 body.sunlit span.icon {
   padding: 2px;
@@ -2262,6 +2308,9 @@ body.sunlit tr.current {
   background: #e6e6e6;
   border-color: #e6e6e6;
 }
+body.sunlit tr.header-mini {
+  font-size: 85%;
+}
 body.sunlit hr {
   color: #999;
   margin: 1em 5px;
@@ -2278,6 +2327,12 @@ body.sunlit td > div.container-btn-action {
 }
 body.sunlit button {
   cursor: pointer;
+}
+body.sunlit ::-moz-selection {
+  background: #ccc;
+}
+body.sunlit ::selection {
+  background: #ccc;
 }
 body.sunlit h1,
 body.sunlit h2,
@@ -2313,6 +2368,14 @@ body.sunlit .p-dense p {
 }
 body.sunlit p.nomargin {
   margin: 0;
+}
+body.sunlit .ui-anim {
+  transform: scale(1.15, 1.15);
+  opacity: 0.8;
+  font-weight: bold;
+}
+body.sunlit .ui-anim-negative {
+  color: #e64646 !important;
 }
 body.sunlit button {
   width: 95pt;
@@ -2568,7 +2631,7 @@ body.sunlit div.callout-arrow-up {
   border-bottom-color: #999 !important;
   width: 0;
   height: 0;
-  z-index: 40;
+  z-index: 10;
   position: relative;
   top: 0px;
   margin: 0 0 0 3.5px;
@@ -2595,28 +2658,31 @@ body.sunlit .action-separator {
   height: 10px;
 }
 body.sunlit ul.tabs {
-  margin: 0 0 5px 0;
+  margin: 0;
+  padding: 0;
   list-style-type: none;
-  padding: 7px 0px;
 }
 body.sunlit ul.tabs li {
-  display: inline;
-  margin: 0px 5px 0px 0px;
-  padding: 6px 10px;
-  border-width: 1px !important;
+  display: inline-block;
+  margin: 0px 1px;
+  padding: 5px 10px 5px 10px;
+  border-width: 1px;
   border-style: solid;
   position: relative;
-  top: 2px;
-  z-index: 3;
+  z-index: 0;
   white-space: nowrap;
+  top: 2px;
+  height: 32px;
   cursor: pointer;
   text-transform: lowercase;
   background-color: #fbfbfb;
   border-color: #aaa;
+  box-sizing: border-box;
 }
 body.sunlit ul.tabs li.selected {
-  padding-bottom: 12px;
   font-weight: bold;
+  z-index: 2;
+  width: auto;
 }
 body.sunlit ul.tabs li.selected {
   background: #fff;
@@ -2627,7 +2693,11 @@ body.sunlit ul.tabs li:hover {
 body.sunlit ul.tabs li.selected {
   border-color: #aaa;
   border-bottom-color: #fff;
-  border-width: 1px !important;
+}
+body.sunlit ul.tabs li span {
+  display: inline-block;
+  overflow-x: hidden;
+  width: 100%;
 }
 body.sunlit div.popup {
   background: #fbfbfb;
@@ -2640,7 +2710,7 @@ body.sunlit div.popup {
   margin: 0;
   min-width: 30%;
   max-width: 60%;
-  z-index: 7;
+  z-index: 16;
   -webkit-box-shadow: 1px 2px 5px 2px rgba(96, 96, 96, 0.25);
   -moz-box-shadow: 1px 2px 5px 2px rgba(96, 96, 96, 0.25);
   box-shadow: 1px 2px 5px 2px rgba(96, 96, 96, 0.25);
@@ -2649,7 +2719,7 @@ body.sunlit div.popup-overlay {
   position: fixed;
   top: 0;
   left: 0;
-  z-index: 6;
+  z-index: 15;
   width: 100%;
   height: 100%;
   background-color: rgba(215, 215, 215, 0.85);
@@ -3410,6 +3480,10 @@ body.sunlit #main-header-items {
 body.sunlit #header-tribe-container {
   margin-bottom: 5px;
 }
+body.sunlit #grid-switch-content {
+  z-index: 1;
+  position: relative;
+}
 body.sunlit #grid-main-header .unit {
   padding: 2px;
   position: relative;
@@ -3450,16 +3524,25 @@ body.sunlit #header-self-bar .info-callout {
   width: 75px;
   max-width: 75px;
 }
-body.sunlit #header-self-inout img {
-  -webkit-transition: -webkit-transform 1s;
-  transition: all 1s;
-}
 body.sunlit #header-self-bar .change-indicator {
   vertical-align: top;
   margin: 0.2em 0 0 0.25em;
 }
 body.sunlit #header-self-bar div.callout-arrow-up {
   margin: 0 0 0 23px;
+}
+body.sunlit #grid-location-header {
+  padding: 10px 0px 0px 0px;
+}
+body.sunlit #grid-location-header h1,
+body.sunlit #grid-location-header img {
+  display: inline-block;
+  vertical-align: middle;
+}
+body.sunlit #level-icon {
+  margin: 3px 3px 3px 0;
+  width: 2.5em;
+  height: 2.5em;
 }
 body.sunlit .item-bag-options {
   margin-top: 5px;
@@ -3480,8 +3563,7 @@ body.sunlit #notification-player .progress {
   max-width: 100%;
   margin: 0;
 }
-body.sunlit span#out-position-indicator,
-body.sunlit span#out-position-indicator-header {
+body.sunlit span#out-position-indicator {
   font-size: 80%;
   line-height: 1.1em;
 }
@@ -3718,7 +3800,7 @@ body.sunlit .thinking-content {
   position: fixed;
   top: 0;
   left: 0;
-  z-index: 6;
+  z-index: 20;
   width: 100%;
   height: 100%;
   background: rgba(251, 251, 251, 0.5);
@@ -3884,7 +3966,7 @@ body.sunlit #vis-camp-info-overlay {
   padding: 1px;
   vertical-align: middle;
   text-align: center;
-  z-index: 10;
+  z-index: 9;
 }
 body.sunlit .vis-camp-layer {
   position: absolute;

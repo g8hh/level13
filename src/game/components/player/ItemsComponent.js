@@ -92,25 +92,49 @@ function (Ash, ItemVO, ItemConstants) {
                 default: return true;
             }
         },
-
-        // returns 1 if given item is better than current equipment, 0 if the same or depends on bonus type, -1 if worse
+        
         getEquipmentComparison: function (item) {
             if (!item) return -1;
             if (item.equipped) return 0;
             if (!item.equippable) return -1;
             var currentItems = this.getEquipped(item.type);
-            var currentItem = currentItems[0];
+            return this.getEquipmentComparisonWithItems(item, currentItems);
+        },
+        
+        getAllEquipmentComparison: function (item, includeNotCarried) {
+            if (!item) return -1;
+            if (!item.equippable) return -1;
+            var currentItems = this.getAllByType(item.type, includeNotCarried);
+            return this.getEquipmentComparisonWithItems(item, currentItems);
+        },
+        
+        getEquipmentComparisonWithItems: function (item, items) {
+            if (!item) return 0;
+            if (!items || items.length == 0) return 1;
+            var result = 0;
+            for (let i = 0; i < items.length; i++) {
+                if (i == 0) {
+                    result = this.getEquipmentComparisonWithItem(item, items[i]);
+                } else {
+                    result = Math.min(result, this.getEquipmentComparisonWithItem(item, items[i]));
+                }
+            }
+            return result;
+        },
+        
+        // returns 1 if given item is better than the given items, 0 if the same or depends on bonus type, -1 if worse
+        getEquipmentComparisonWithItem: function (item, currentItem) {
             var result = 0;
             for (var bonusKey in ItemConstants.itemBonusTypes) {
                 var bonusType = ItemConstants.itemBonusTypes[bonusKey];
-                var currentBonus = currentItem ? currentItem.getBonus(bonusType) : 0;
-                var newBonus = item.getBonus(bonusType);
-                if (bonusType == ItemConstants.itemBonusTypes.movement) {
-                    currentBonus = 1 / (currentBonus || 1);
-                    newBonus = 1 / (newBonus || 1);
-                }
+                var currentBonus = ItemConstants.getItemBonusComparisonValue(currentItem, bonusType);
+                var newBonus = ItemConstants.getItemBonusComparisonValue(item, bonusType);
+                
+                // TODO take speed inco account, but only together with damage
                 if (bonusType == ItemConstants.itemBonusTypes.fight_speed) {
-                    // TODO smarter item comparison (now just ignore speed to rank weapons by attack but should consider both)
+                    continue;
+                }
+                if (currentBonus == newBonus) {
                     continue;
                 }
                 if (newBonus < currentBonus) {
@@ -179,6 +203,7 @@ function (Ash, ItemVO, ItemConstants) {
 
         // Equips the given item regardless of whether it's better than the previous equipment
         equip: function (item) {
+            if (!item) return;
             if (item.equippable) {
                 var previousItems = this.getEquipped(item.type);
                 for (var i = 0; i < previousItems.length; i++) {
@@ -263,8 +288,15 @@ function (Ash, ItemVO, ItemConstants) {
             return all.sort(this.itemSortFunction);
         },
 
-        getAllByType: function (type) {
-            return this.items[type] ? this.items[type] : [];
+        getAllByType: function (type, includeNotCarried) {
+            if (!this.items[type]) return [];
+            var all = [];
+            var item;
+            for (var i = 0; i < this.items[type].length; i++) {
+                item = this.items[type][i];
+                if (includeNotCarried || item.carried) all.push(item);
+            }
+            return all.sort(this.itemSortFunction);
         },
 
         getUnique: function (includeNotCarried) {

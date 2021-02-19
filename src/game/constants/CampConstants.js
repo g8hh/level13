@@ -1,10 +1,10 @@
-define(['ash'], function (Ash) {
+define(['ash', 'game/GameGlobals'], function (Ash, GameGlobals) {
     
     var CampConstants = {
     
         // population
         POPULATION_PER_HOUSE: 4,
-        POPULATION_PER_HOUSE2: 10,
+        POPULATION_PER_HOUSE2: 6,
         POOL_RUMOURS_PER_POPULATION: 3,
         
         // Storage
@@ -22,10 +22,13 @@ define(['ash'], function (Ash) {
         RUMOURS_BONUS_PER_MARKET_PER_UPGRADE: 0.01,
         RUMOUR_BONUS_PER_INN_BASE: 1.1,
         RUMOURS_BONUS_PER_INN_PER_UPGRADE: 0.01,
-        RUMOURS_PER_VISIT_MARKET: 2,
+        RUMOURS_PER_VISIT_MARKET_BASE: 0,
         
         // Evidence
         EVIDENCE_BONUS_PER_LIBRARY_LEVEL: 0.15,
+        
+        // Favour
+        FAVOUR_BONUS_PER_TEMPLE_LEVEL: 0.1,
         
         // Cost of workers
         CONSUMPTION_WATER_PER_WORKER_PER_S: 0.02,
@@ -40,13 +43,16 @@ define(['ash'], function (Ash) {
         PRODUCTION_WATER_PER_WORKER_PER_S: 0.05,
         PRODUCTION_ROPE_PER_WORKER_PER_S: 0.03,
         PRODUCTION_FUEL_PER_WORKER_PER_S: 0.02,
+        PRODUCTION_RUBBER_PER_WORKER_PER_S: 0.02,
+        PRODUCTION_HERBS_PER_WORKER_PER_S: 0.02,
         PRODUCTION_MEDICINE_PER_WORKER_PER_S: 0.01,
         PRODUCTION_TOOLS_PER_WORKER_PER_S: 0.02,
         PRODUCTION_CONCRETE_PER_WORKER_PER_S: 0.03,
-        PRODUCTION_EVIDENCE_PER_WORKER_PER_S: 0.0005,
+        PRODUCTION_EVIDENCE_PER_WORKER_PER_S: 0.00075,
+        PRODUCTION_FAVOUR_PER_WORKER_PER_S: 0.00075,
         
         // reputation
-        REPUTATION_TO_POPULATION_FACTOR: 0.82,
+        REPUTATION_TO_POPULATION_FACTOR: 0.83,
         REPUTATION_TO_POPULATION_OFFSET: -0.25,
         REPUTATION_PER_RADIO_PER_SEC: 0.1,
         REPUTATION_PER_HOUSE_FROM_GENERATOR: 0.3,
@@ -58,24 +64,73 @@ define(['ash'], function (Ash) {
         REPUTATION_PENALTY_TYPE_LEVEL_POP: "LEVEL_POPULATION",
         
         // raids
-        CAMP_BASE_DEFENCE: 5,
+        CAMP_BASE_DEFENCE: 7,
         FORTIFICATION_1_DEFENCE: 6,
         FORTIFICATION_2_DEFENCE: 10,
         
         // Workers per building
         CHEMISTS_PER_WORKSHOP: 5,
-        
-        WORKER_TYPES: {
-            scavenger: "scavenger",
-            trapper: "trapper",
-            water: "water",
-            ropemaker: "ropemaker",
-            chemist: "chemist",
-            apothecary: "apothecary",
-            toolsmith: "toolsmith",
-            concrete: "concrete",
-            scientist: "scientist",
-            soldier: "soldier",
+        RUBBER_WORKER_PER_WORKSHOP: 5,
+        GARDENER_PER_GREENHOUSE: 5,
+    
+        workerTypes: {
+            scavenger: {
+                id: "scavenger",
+            },
+            trapper: {
+                id: "trapper",
+            },
+            water: {
+                id: "water",
+            },
+            ropemaker: {
+                id: "ropemaker",
+            },
+            chemist: {
+                id: "chemist",
+                getLimitNum: function (campOrdinal, improvements) { return GameGlobals.levelHelper.getCampClearedWorkshopCount(campOrdinal, resourceNames.fuel); },
+                getLimitText: function (num) { return num + " refineries cleared"; },
+            },
+            rubbermaker: {
+                id: "rubbermaker",
+                getLimitNum: function (campOrdinal, improvements) { return GameGlobals.levelHelper.getCampClearedWorkshopCount(campOrdinal, resourceNames.rubber); },
+                getLimitText: function (num) { return num + " plantations found"; },
+            },
+            gardener: {
+                id: "gardener",
+                getLimitNum: function (campOrdinal, improvements) { return GameGlobals.levelHelper.getCampBuiltOutImprovementsCount(campOrdinal, improvementNames.greenhouse); },
+                getLimitText: function (num) { return num + " greenhouses"; },
+            },
+            apothecary: {
+                id: "apothecary",
+                getLimitNum: function (level, improvements) { return improvements.getCount(improvementNames.apothecary); },
+                getLimitText: function (num) { return num + " apothecaries built"; },
+            },
+            toolsmith: {
+                id: "toolsmith",
+                getLimitNum: function (level, improvements) { return improvements.getCount(improvementNames.smithy); },
+                getLimitText: function (num) { return num + " smithies built"; },
+            },
+            concrete: {
+                id: "concrete",
+                getLimitNum: function (level, improvements) { return improvements.getCount(improvementNames.cementmill); },
+                getLimitText: function (num) { return num + " cement mills built"; },
+            },
+            scientist: {
+                id: "scientist",
+                getLimitNum: function (level, improvements) { return improvements.getCount(improvementNames.library); },
+                getLimitText: function (num) { return num + " libraries built"; },
+            },
+            soldier: {
+                id: "soldier",
+                getLimitNum: function (level, improvements) { return improvements.getCount(improvementNames.barracks); },
+                getLimitText: function (num) { return num + " barracks built"; },
+            },
+            cleric: {
+                id: "cleric",
+                getLimitNum: function (level, improvements) { return improvements.getCount(improvementNames.temple); },
+                getLimitText: function (num) { return num + " temples built"; },
+            },
         },
         
         // storage capacity of one camp
@@ -88,8 +143,15 @@ define(['ash'], function (Ash) {
         
         // population cap of one camp
         getHousingCap: function (improvementsComponent) {
-            var result = improvementsComponent.getCount(improvementNames.house) * CampConstants.POPULATION_PER_HOUSE;
-            result += improvementsComponent.getCount(improvementNames.house2) * CampConstants.POPULATION_PER_HOUSE2;
+            return this.getHousingCap2(
+                improvementsComponent.getCount(improvementNames.house),
+                improvementsComponent.getCount(improvementNames.house2));
+            return result;
+        },
+        
+        getHousingCap2: function (numHouses, numHouses2) {
+            var result = numHouses * CampConstants.POPULATION_PER_HOUSE;
+            result += numHouses2 * CampConstants.POPULATION_PER_HOUSE2;
             return result;
         },
         
@@ -113,6 +175,10 @@ define(['ash'], function (Ash) {
             return 2;
         },
         
+        getClericsPerTemple: function (upgradeLevel) {
+            return 5;
+        },
+        
         getRequiredReputation: function (pop) {
             if (pop < 1) return 0;
             pop = Math.ceil(pop);
@@ -127,7 +193,12 @@ define(['ash'], function (Ash) {
         
         getSoldierDefence: function (upgradeLevel) {
             return (1 + upgradeLevel);
-        }
+        },
+        
+        getRumoursPerVisitMarket: function (marketLevel, marketUpgradeLevel) {
+            marketLevel = marketLevel || 1;
+            return CampConstants.RUMOURS_PER_VISIT_MARKET_BASE + marketLevel + (marketUpgradeLevel - 1);
+        },
     
     };
     

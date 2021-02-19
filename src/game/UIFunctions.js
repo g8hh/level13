@@ -4,14 +4,18 @@ define(['ash',
 		'game/GameGlobals',
 		'game/GlobalSignals',
 		'game/constants/GameConstants',
+		'game/constants/CampConstants',
 		'game/constants/UIConstants',
 		'game/constants/ItemConstants',
 		'game/constants/PlayerActionConstants',
 		'game/constants/PositionConstants',
 		'game/helpers/ui/UIPopupManager',
-		'game/vos/ResourcesVO'
+		'game/vos/ResourcesVO',
+        'utils/MathUtils',
 	],
-	function (Ash, ExceptionHandler, GameGlobals, GlobalSignals, GameConstants, UIConstants, ItemConstants, PlayerActionConstants, PositionConstants, UIPopupManager, ResourcesVO) {
+	function (Ash, ExceptionHandler, GameGlobals, GlobalSignals, GameConstants, CampConstants, UIConstants, ItemConstants, PlayerActionConstants, PositionConstants, UIPopupManager, ResourcesVO, MathUtils) {
+
+        // TODO separate generic utils and tabs handling to a different file
 
 		var UIFunctions = Ash.Class.extend({
 
@@ -39,6 +43,7 @@ define(['ash',
 					stamina: "stamina",
 					resource_metal: "metal",
 					resource_fuel: "fuel",
+					resource_rubber: "rubber",
 					resource_rope: "rope",
 					resource_food: "food",
 					resource_water: "water",
@@ -58,6 +63,7 @@ define(['ash',
             
             init: function () {
 				this.generateElements();
+                this.hideElements();
 				this.registerListeners();
 				this.registerGlobalMouseEvents();
             },
@@ -118,17 +124,11 @@ define(['ash',
 				});
 
 				$("#in-assign-workers input.amount").change(function (e) {
-					var scavengers = parseInt($("#stepper-scavenger input").val());
-					var trappers = parseInt($("#stepper-trapper input").val());
-					var waters = parseInt($("#stepper-water input").val());
-					var ropers = parseInt($("#stepper-rope input").val());
-					var chemists = parseInt($("#stepper-fuel input").val());
-					var apothecaries = parseInt($("#stepper-medicine input").val());
-					var smiths = parseInt($("#stepper-smith input").val());
-					var concrete = parseInt($("#stepper-concrete input").val());
-					var soldiers = parseInt($("#stepper-soldier input").val());
-					var scientists = parseInt($("#stepper-scientist input").val());
-					GameGlobals.playerActionFunctions.assignWorkers(scavengers, trappers, waters, ropers, chemists, apothecaries, smiths, concrete, soldiers, scientists);
+                    var assignment = {};
+                    for (var key in CampConstants.workerTypes) {
+                        assignment[key] = parseInt($("#stepper-" + key + " input").val());
+                    }
+					GameGlobals.playerActionFunctions.assignWorkers(null, assignment);
 				});
 
 				// Buttons: In: Other
@@ -138,10 +138,14 @@ define(['ash',
 						"Rename Camp",
 						"Give your camp a new name",
 						prevCampName,
+                        true,
 						function (input) {
 							GameGlobals.playerActionFunctions.setNearestCampName(input);
-						});
+						}
+                    );
 				});
+                
+                $(document).on("keyup", this.onKeyUp);
 			},
 
 			registerGlobalMouseEvents: function () {
@@ -183,7 +187,6 @@ define(['ash',
 							return;
 						}
                         
-                        log.i("action button clicked: " + action);
 						GlobalSignals.actionButtonClickedSignal.dispatch(action);
 
 						var param = null;
@@ -192,7 +195,7 @@ define(['ash',
 						var isProject = $(this).hasClass("action-level-project");
 						if (isProject) param = $(this).attr("sector");
 
-						var locationKey = uiFunctions.getLocationKey($(this));
+						var locationKey = uiFunctions.getLocationKey(action);
 						var isStarted = GameGlobals.playerActionFunctions.startAction(action, param);
 						if (!isStarted)
 							return;
@@ -270,6 +273,20 @@ define(['ash',
 					$element.click(ExceptionHandler.wrapClick(fn));
                 });
             },
+            
+            updateButtonCooldowns: function (scope) {
+                scope = scope || "";
+                let updates = false;
+                let sys = this;
+                $.each($(scope + " button.action"), function () {
+					var action = $(this).attr("action");
+					if (action) {
+						sys.updateButtonCooldown($(this), action);
+                        updates = true;
+					}
+				});
+                return updates;
+            },
 
 			registerCollapsibleContainerListeners: function (scope) {
 				var sys = this;
@@ -317,6 +334,10 @@ define(['ash',
 					$("#container-equipment-stats").append(div);
 				}
 			},
+            
+            hideElements: function () {
+                this.toggle($(".hidden-by-default"), false);
+            },
 
 			generateTabBubbles: function () {
 				$("#switch li").append("<div class='bubble' style='display:none'>1</div>");
@@ -352,6 +373,7 @@ define(['ash',
                 });
 
 				// Button callouts
+                // TODO performance bottleneck - detach elements to edit
 				var uiFunctions = this;
                 $.each($(scope + " div.container-btn-action"), function () {
                     var $container = $(this);
@@ -369,7 +391,7 @@ define(['ash',
                         var button = $(this).children("button")[0];
     					var action = $(button).attr("action");
                         if (!action) {
-                            log.w("Action button with no action " + uiFunctions.count);
+                            log.w("Action button with no action ");
                             log.i($(button))
                             return "";
                         }
@@ -407,7 +429,7 @@ define(['ash',
 					content += "<span>" + description + "</span>";
 				}
 
-				// visible if button is enabled: costs & risks
+				// visible if button is enabled: costs, special requirements, & risks
 				var costs = GameGlobals.playerActionsHelper.getCosts(action);
 				var hasCosts = action && costs && Object.keys(costs).length > 0;
 				if (hasCosts) {
@@ -426,11 +448,21 @@ define(['ash',
 					if (content.length > 0 || enabledContent.length) enabledContent += "<hr/>";
 					enabledContent += "<span class='action-duration'>duration: " + Math.round(duration * 100) / 100 + "s</span>";
 				}
+                
+                let specialReqs = GameGlobals.playerActionsHelper.getSpecialReqs(action);
+                if (specialReqs) {
+                    let s = this.getSpecialReqsText(action);
+                    if (s.length > 0) {
+    					if (content.length > 0 || enabledContent.length) enabledContent += "<hr/>";
+                        enabledContent += "<span class='action-special-reqs'>" + s + "</span>";
+                    }
+                }
 
+                var encounterFactor = GameGlobals.playerActionsHelper.getEncounterFactor(action);
 				var injuryRiskMax = PlayerActionConstants.getInjuryProbability(action, 0);
 				var inventoryRiskMax = PlayerActionConstants.getLoseInventoryProbability(action, 0);
-				var fightRiskMax = PlayerActionConstants.getRandomEncounterProbability(baseActionId, 0);
-				var fightRiskMin = PlayerActionConstants.getRandomEncounterProbability(baseActionId, 100);
+				var fightRiskMax = PlayerActionConstants.getRandomEncounterProbability(baseActionId, 0, 1, encounterFactor);
+				var fightRiskMin = PlayerActionConstants.getRandomEncounterProbability(baseActionId, 100, 1, encounterFactor);
 				if (injuryRiskMax > 0 || inventoryRiskMax > 0 || fightRiskMax > 0) {
 					if (content.length > 0 || enabledContent.length) enabledContent += "<hr/>";
 					var inventoryRiskLabel = action === "despair" ? "lose items" : "lose item";
@@ -463,6 +495,37 @@ define(['ash',
 					return "";
 				}
 			},
+            
+            getSpecialReqsText: function (action) {
+                var position = GameGlobals.playerActionFunctions.playerPositionNodes.head ? GameGlobals.playerActionFunctions.playerPositionNodes.head.position : {};
+                let s = "";
+                let specialReqs = GameGlobals.playerActionsHelper.getSpecialReqs(action);
+                if (specialReqs) {
+                    for (let key in specialReqs) {
+                        switch (key) {
+                            case "improvementsOnLevel":
+                                let actionImprovementName = GameGlobals.playerActionsHelper.getImprovementNameForAction(action);
+                                for (let improvementID in specialReqs[key]) {
+                                    let range = specialReqs[key][improvementID];
+                                    let count = GameGlobals.playerActionsHelper.getCurrentImprovementCountOnLevel(position.level, improvementID);
+                                    let rangeText = UIConstants.getRangeText(range);
+                                    let displayName = GameGlobals.playerActionsHelper.getImprovementDisplayName(improvementID);
+                                    if (actionImprovementName == displayName) {
+                                        displayName = "";
+                                    }
+                                    s += rangeText + " " + displayName + " on level (" + count + ")";
+                                }
+                                break;
+                            default:
+                                s += key + ": " + specialReqs[key];
+                                log.w("unknown special req: " + key);
+                                break;
+                        }
+                    }
+                }
+                s.trim();
+                return s;
+            },
 
 			generateSteppers: function (scope) {
 				$(scope + " .stepper").append("<button type='button' class='btn-glyph' data-type='minus' data-field=''>-</button>");
@@ -508,14 +571,17 @@ define(['ash',
 				var baseId = GameGlobals.playerActionsHelper.getBaseActionID(action);
 				var cooldown = PlayerActionConstants.getCooldown(baseId);
 				if (cooldown > 0) {
-					var button = $("button[action='" + action + "']");
-					var locationKey = this.getLocationKey($(button));
+					var locationKey = this.getLocationKey(action);
 					GameGlobals.gameState.setActionCooldown(action, locationKey, cooldown);
-					this.startButtonCooldown($(button), cooldown);
+                    if (!GameGlobals.gameState.isAutoPlaying) {
+    					var button = $("button[action='" + action + "']");
+    					this.startButtonCooldown($(button), cooldown);
+                    }
 				}
 			},
 
 			showGame: function () {
+                this.hideGameCounter = this.hideGameCounter || 1;
                 this.hideGameCounter--;
                 if (this.hideGameCounter > 0) return;
                 this.setGameOverlay(false, false);
@@ -532,6 +598,14 @@ define(['ash',
 				this.setGameElementsVisibility(showThinking);
                 this.setUIStatus(true, true);
 			},
+            
+            blockGame: function () {
+                this.setUIStatus(GameGlobals.gameState.uiStatus.isHidden, true);
+            },
+            
+            unblockGame: function () {
+                this.setUIStatus(GameGlobals.gameState.uiStatus.isHidden, false);
+            },
             
             setUIStatus: function (isHidden, isBlocked) {
                 isBlocked = isBlocked || isHidden;
@@ -586,6 +660,9 @@ define(['ash',
 				$.each($(".tabelement"), function () {
 					uiFunctions.slideToggleIf($(this), null, $(this).attr("data-tab") === tabID, transitionTime, 200);
 				});
+                $.each($(".tabbutton"), function () {
+					uiFunctions.slideToggleIf($(this), null, $(this).attr("data-tab") === tabID, transitionTime, 200);
+				});
 
 				GlobalSignals.tabChangedSignal.dispatch(tabID, tabProps);
 			},
@@ -627,6 +704,36 @@ define(['ash',
 
 				this.updateStepperButtons("#" + $(input).parent().attr("id"));
 			},
+            
+            onKeyUp: function (e) {
+                var playerPos = GameGlobals.playerActionFunctions.playerPositionNodes.head.position;
+                if (!e.shiftKey && !playerPos.inCamp) {
+                    if (e.keyCode == 65) {
+                        GameGlobals.playerActionFunctions.startAction("move_sector_west");
+                    }
+                    if (e.keyCode == 87) {
+                        GameGlobals.playerActionFunctions.startAction("move_sector_north");
+                    }
+                    if (e.keyCode == 83) {
+                        GameGlobals.playerActionFunctions.startAction("move_sector_south")
+                    }
+                    if (e.keyCode == 68) {
+                        GameGlobals.playerActionFunctions.startAction("move_sector_east")
+                    }
+                    if (e.keyCode == 81) {
+                        GameGlobals.playerActionFunctions.startAction("move_sector_nw")
+                    }
+                    if (e.keyCode == 69) {
+                        GameGlobals.playerActionFunctions.startAction("move_sector_ne")
+                    }
+                    if (e.keyCode == 90) {
+                        GameGlobals.playerActionFunctions.startAction("move_sector_sw")
+                    }
+                    if (e.keyCode == 67) {
+                        GameGlobals.playerActionFunctions.startAction("move_sector_se")
+                    }
+                }
+            },
 
 			onNumberInputKeyDown: function (e) {
 				// Allow: backspace, delete, tab, escape, enter and .
@@ -658,37 +765,18 @@ define(['ash',
 			onTextInputKeyUp: function (e) {
 				var value = $(e.target).val();
 				value = value.replace(/[&\/\\#,+()$~%.'":*?<>{}\[\]=]/g, '_');
-				$(e.target).val(value)
+				$(e.target).val(value);
 			},
 
 			onPlayerMoved: function () {
 				if (GameGlobals.gameState.uiStatus.isHidden) return;
-				var uiFunctions = this;
-				var cooldownLeft;
-				var cooldownTotal;
-				var durationLeft;
-				var durationTotal;
                 var updates = false;
-				$.each($("button.action"), function () {
-					var action = $(this).attr("action");
-					var baseId = GameGlobals.playerActionsHelper.getBaseActionID(action);
-					if (action) {
-						var locationKey = uiFunctions.getLocationKey($(this));
-						cooldownTotal = PlayerActionConstants.getCooldown(action);
-						cooldownLeft = Math.min(cooldownTotal, GameGlobals.gameState.getActionCooldown(action, locationKey, cooldownTotal) / 1000);
-						durationTotal = PlayerActionConstants.getDuration(baseId);
-						durationLeft = Math.min(durationTotal, GameGlobals.gameState.getActionDuration(action, locationKey, durationTotal) / 1000);
-						if (cooldownLeft > 0) uiFunctions.startButtonCooldown($(this), cooldownTotal, cooldownLeft);
-						else uiFunctions.stopButtonCooldown($(this));
-						if (durationLeft > 0) uiFunctions.startButtonDuration($(this), cooldownTotal, durationLeft);
-                        updates = true;
-					}
-				});
+				updates = this.updateButtonCooldowns("") || updates;
                 if (updates)
                     GlobalSignals.updateButtonsSignal.dispatch();
 			},
 
-			slideToggleIf: function (element, replacement, show, durationIn, durationOut) {
+			slideToggleIf: function (element, replacement, show, durationIn, durationOut, cb) {
 				var visible = this.isElementToggled(element);
 				var toggling = ($(element).attr("data-toggling") == "true");
 				var sys = this;
@@ -699,6 +787,7 @@ define(['ash',
 					$(element).slideToggle(durationIn, function () {
 						sys.toggle(element, true);
 						$(element).attr("data-toggling", "false");
+                        if (cb) cb();
 					});
 				} else if (!show && (visible == true || visible == null) && !toggling) {
 					$(element).attr("data-toggling", "true");
@@ -706,6 +795,7 @@ define(['ash',
 						if (replacement) sys.toggle(replacement, true);
 						sys.toggle(element, false);
 						$(element).attr("data-toggling", "false");
+                        if (cb) cb();
 					});
 				}
 			},
@@ -752,7 +842,7 @@ define(['ash',
 				}
 			},
 
-			toggle: function (element, show) {
+			toggle: function (element, show, signalParams) {
 				var $element = typeof (element) === "string" ? $(element) : element;
 				if (($element).length === 0)
 					return;
@@ -768,9 +858,15 @@ define(['ash',
 				$element.toggle(show);
                 // NOTE: For some reason the element isn't immediately :visible for checks in UIOutElementsSystem without the timeout
                 setTimeout(function () {
-                    GlobalSignals.elementToggledSignal.dispatch(element, show);
+                    GlobalSignals.elementToggledSignal.dispatch(element, show, signalParams);
                 }, 1);
 			},
+            
+            toggleContainer: function (element, show, signalParams) {
+				var $element = typeof (element) === "string" ? $(element) : element;
+                this.toggle($element, show, signalParams);
+                this.toggle($element.children("button"), show, signalParams);
+            },
 
 			isElementToggled: function (element) {
 				var $element = typeof (element) === "string" ? $(element) : element;
@@ -802,10 +898,20 @@ define(['ash',
 
 			isElementVisible: function (element) {
 				var $element = typeof (element) === "string" ? $(element) : element;
-				var toggled = this.isElementToggled(element);
+				var toggled = this.isElementToggled($element);
 				if (toggled === false)
 					return false;
-				return (($element).is(":visible"));
+                var $e = $element.parent();
+                while ($e && $e.length > 0) {
+                    if (!$e.hasClass("collapsible-content")) {
+                        var parentToggled = this.isElementToggled($e);
+                        if (parentToggled === false) {
+                            return false;
+                        }
+                    }
+                    $e = $e.parent();
+                }
+                return (($element).is(":visible"));
 			},
 
 			stopButtonCooldown: function (button) {
@@ -815,10 +921,22 @@ define(['ash',
 				$(button).children(".cooldown-action").css("width", "100%");
                 GlobalSignals.updateButtonsSignal.dispatch();
 			},
+            
+            updateButtonCooldown: function (button, action) {
+                var baseId = GameGlobals.playerActionsHelper.getBaseActionID(action);
+                var locationKey = this.getLocationKey(action);
+                cooldownTotal = PlayerActionConstants.getCooldown(baseId);
+                cooldownLeft = Math.min(cooldownTotal, GameGlobals.gameState.getActionCooldown(action, locationKey, cooldownTotal) / 1000);
+                durationTotal = PlayerActionConstants.getDuration(baseId);
+                durationLeft = Math.min(durationTotal, GameGlobals.gameState.getActionDuration(action, locationKey, durationTotal) / 1000);
+                if (cooldownLeft > 0) this.startButtonCooldown(button, cooldownTotal, cooldownLeft);
+                else this.stopButtonCooldown(button);
+                if (durationLeft > 0) this.startButtonDuration(button, cooldownTotal, durationLeft);
+            },
 
 			startButtonCooldown: function (button, cooldown, cooldownLeft) {
 				if (GameGlobals.gameState.uiStatus.isHidden) return;
-				var action = $(button).attr("action");
+                var action = $(button).attr("action");
                 if (!GameGlobals.playerActionsHelper.isRequirementsMet(action)) return;
 				if (!cooldownLeft) cooldownLeft = cooldown;
 				var uiFunctions = this;
@@ -858,8 +976,7 @@ define(['ash',
 				);
 			},
 
-			getLocationKey: function (button) {
-				var action = $(button).attr("action");
+			getLocationKey: function (action) {
 				var isLocationAction = PlayerActionConstants.isLocationAction(action);
 				var playerPos = GameGlobals.playerActionFunctions.playerPositionNodes.head.position;
 				return GameGlobals.gameState.getActionLocationKey(isLocationAction, playerPos);
@@ -882,7 +999,7 @@ define(['ash',
 				var name = $input.attr('name');
 				var minValue = parseInt($input.attr('min'));
 				var maxValue = parseInt($input.attr('max'));
-				var valueCurrent = parseInt($input.val());
+				var valueCurrent = MathUtils.clamp(parseInt($input.val()), minValue, maxValue);
 
 				var decEnabled = false;
 				var incEnabled = false;
@@ -991,15 +1108,13 @@ define(['ash',
 				this.generateCallouts("#" + popupID);
 			},
 
-			showInfoPopup: function (title, msg, buttonLabel, resultVO) {
+			showInfoPopup: function (title, msg, buttonLabel, resultVO, callback) {
 				if (!buttonLabel) buttonLabel = "Continue";
-				this.popupManager.showPopup(title, msg, buttonLabel, false, resultVO);
-				if (GameGlobals.gameState.uiStatus.isHidden) return;
+				this.popupManager.showPopup(title, msg, buttonLabel, false, resultVO, callback);
 			},
 
 			showResultPopup: function (title, msg, resultVO, callback) {
 				this.popupManager.showPopup(title, msg, "Continue", false, resultVO, callback);
-				if (GameGlobals.gameState.uiStatus.isHidden) return;
 			},
 
 			showConfirmation: function (msg, callback) {
@@ -1027,12 +1142,22 @@ define(['ash',
 				this.popupManager.showPopup(title, msg, buttonLabel, cancelButtonLabel, null, okCallback, cancelCallback);
 			},
 
-			showInput: function (title, msg, defaultValue, callback) {
+			showInput: function (title, msg, defaultValue, allowCancel, confirmCallback, inputCallback) {
+                // TODO improve input validation (check and show feedback on input, not just on confirm)
+                
 				var okCallback = function () {
-					var input = $("#common-popup input").val();
-					callback(input);
+					let input = $("#common-popup input").val();
+                    let ok = inputCallback ? inputCallback(input) : true;
+                    if (ok) {
+	                   confirmCallback(input);
+                       return true;
+                   } else {
+                       log.w("invalid input: " + input);
+                       return false;
+                   }
 				};
-				this.popupManager.showPopup(title, msg, "Confirm", "Cancel", null, okCallback);
+                let cancelButtonLabel = allowCancel ? "Cancel" : null;
+				this.popupManager.showPopup(title, msg, "Confirm", cancelButtonLabel, null, okCallback);
 
 				var uiFunctions = this;
 				var maxChar = 40;

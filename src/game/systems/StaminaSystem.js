@@ -39,11 +39,11 @@ define([
         update: function (time) {
             if (GameGlobals.gameState.isPaused) return;
             for (var node = this.nodeList.head; node; node = node.next) {
-                this.updateNode(node, time);
+                this.updateStamina(node, time);
             }
         },
 
-        updateNode: function (node, time) {
+        updateStamina: function (node, time) {
 			var staminaComponent = node.stamina;
 			var perksComponent = node.perks;
             var busyComponent = node.entity.get(PlayerActionComponent);
@@ -53,10 +53,15 @@ define([
             // health
 			var injuryEffects = perksComponent.getTotalEffect(PerkConstants.perkTypes.injury);
 			var healthEffects = perksComponent.getTotalEffect(PerkConstants.perkTypes.health);
+            var staminaEffects = perksComponent.getTotalEffect(PerkConstants.perkTypes.stamina);
+            
 			healthEffects = healthEffects === 0 ? 1 : healthEffects;
+			staminaEffects = staminaEffects === 0 ? 1 : staminaEffects;
+            
             var newHealth = Math.max(PlayerStatConstants.HEALTH_MINIMUM, Math.round(200 * healthEffects * injuryEffects) / 2);
             var oldHealth = staminaComponent.health;
 			staminaComponent.health = newHealth;
+            staminaComponent.maxStamina = newHealth * PlayerStatConstants.HEALTH_TO_STAMINA_FACTOR * staminaEffects;
             staminaComponent.maxHP = newHealth;
             if (staminaComponent.hp > newHealth) staminaComponent.hp = newHealth;
             
@@ -66,8 +71,7 @@ define([
             }
 			
             // stamina
-            var healthVal = staminaComponent.health;
-            var maxVal = healthVal * PlayerStatConstants.HEALTH_TO_STAMINA_FACTOR;
+            var maxVal = staminaComponent.maxStamina;
             var staminaPerSec = 0;
             staminaComponent.accSources = [];
             var addAccumulation = function (sourceName, value) {

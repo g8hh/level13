@@ -1,6 +1,6 @@
 // Locale / point of interest: an additional scoutable location in a sector
-define(['ash', 'game/vos/ResourcesVO', 'game/constants/LocaleConstants', 'game/constants/WorldCreatorConstants'],
-function (Ash, ResourcesVO, LocaleConstants, WorldCreatorConstants) {
+define(['ash', 'game/vos/ResourcesVO', 'game/constants/LocaleConstants', 'game/constants/PlayerStatConstants'],
+function (Ash, ResourcesVO, LocaleConstants, PlayerStatConstants) {
 
 	localeTypes = {
 		factory: 0,
@@ -12,6 +12,7 @@ function (Ash, ResourcesVO, LocaleConstants, WorldCreatorConstants) {
 		transport: 6,
 		sewer: 7,
         warehouse: 8,
+        library: 9,
 		
 		camp: 50,
 		hut: 51,
@@ -35,7 +36,9 @@ function (Ash, ResourcesVO, LocaleConstants, WorldCreatorConstants) {
 			this.requirements.vision = [this.getVisionRequirement(), -1];
 			this.costs = {};
 			this.costs.stamina = this.getStaminaRequirement();
-			this.costs.item_exploration_1 = this.getCategory() == "u" ? 1 : 0;
+            if (type !== localeTypes.grove) {
+	             this.costs.item_exploration_1 = 1;
+            }
 		},
         
         getVisionRequirement: function () {
@@ -43,7 +46,7 @@ function (Ash, ResourcesVO, LocaleConstants, WorldCreatorConstants) {
         },
         
         getStaminaRequirement: function () {
-            var maxCost = WorldCreatorConstants.MAX_SCOUT_LOCALE_STAMINA_COST;
+            var maxCost = PlayerStatConstants.MAX_SCOUT_LOCALE_STAMINA_COST;
             var minCost = 100;
             var difficulty = 0.5;
             switch (this.type) {
@@ -60,13 +63,12 @@ function (Ash, ResourcesVO, LocaleConstants, WorldCreatorConstants) {
                 case localeTypes.tradingpartner: difficulty = 0.15; break;
                 case localeTypes.hut: difficulty = 0.35; break;
                 case localeTypes.hermit: difficulty = 0.5; break;
-                case localeTypes.caravan: difficulty = 0.4; break;
                 default: return 20;
             }
             return Math.floor((minCost + (maxCost - minCost) * difficulty) / 100) * 100;
         },
         
-        getResourceBonus: function (unlockedResources) {
+        getResourceBonus: function (unlockedResources, campOrdinal) {
             var res = new ResourcesVO();
             switch (this.type) {
             case localeTypes.factory:
@@ -77,11 +79,11 @@ function (Ash, ResourcesVO, LocaleConstants, WorldCreatorConstants) {
             case localeTypes.house:
                 res.addResource(resourceNames.food, 10);
                 res.addResource(resourceNames.water, 10);
-                res.addResource(resourceNames.medicine, 5);
+                if (campOrdinal > 2) res.addResource(resourceNames.medicine, 5);
                 break;
             case localeTypes.lab:
                 res.addResource(resourceNames.water, 5);
-                res.addResource(resourceNames.medicine, 10);
+                if (campOrdinal > 1) res.addResource(resourceNames.medicine, 10);
                 break;
             case localeTypes.grove:
                 res.addResource(resourceNames.water, 5);
@@ -113,7 +115,6 @@ function (Ash, ResourcesVO, LocaleConstants, WorldCreatorConstants) {
                 case localeTypes.camp:
                 case localeTypes.hut:
                 case localeTypes.hermit:
-                case localeTypes.caravan:
                 case localeTypes.tradingpartner:
 					return "i";
 				
@@ -125,6 +126,24 @@ function (Ash, ResourcesVO, LocaleConstants, WorldCreatorConstants) {
         getBracket: function () {
             return this.isEarly ? LocaleConstants.LOCALE_BRACKET_EARLY : LocaleConstants.LOCALE_BRACKET_LATE;
         },
+        
+        hasBlueprints: function () {
+			switch (this.type) {
+                case localeTypes.grove:
+                case localeTypes.tradingpartner:
+                    return false;
+				
+				default:
+                    return true;
+			}
+        },
+        
+        getDebugName: function () {
+            var value = this.type;
+            var key = Object.keys(localeTypes).filter(function(key) {return localeTypes[key] === value})[0];
+            return key;
+        }
+        
     });
 
     return LocaleVO;

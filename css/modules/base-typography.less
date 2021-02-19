@@ -6,6 +6,14 @@
 	line-height: 1.3em;
 }
 
+::-moz-selection {
+  background: @color-bg-contrast;
+}
+
+::selection {
+  background: @color-bg-contrast;
+}
+
 h1, h2, h3, h4, h5, h6 {
 	font-family: "Arial Narrow", Arial, sans-serif;
 	letter-spacing: 0.1pt;
@@ -39,4 +47,18 @@ a:link, a:visited {
 
 p.nomargin {
     margin: 0;
+}
+
+.ui-anim {
+    transform: scale(1.15, 1.15);
+    opacity: 0.8;
+    font-weight: bold;
+}
+
+.ui-anim-positive {
+    
+}
+
+.ui-anim-negative {
+    color: @color-global-warning !important;
 }

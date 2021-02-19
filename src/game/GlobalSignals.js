@@ -2,6 +2,9 @@ define(['ash',], function (Ash) {
 
     var GlobalSignals = {
         
+        PRIORITY_DEFAULT: 0,
+        PRIORITY_HIGH: 1,
+        
         exceptionCallback: null,
 
         // ui events
@@ -21,9 +24,14 @@ define(['ash',], function (Ash) {
         clearBubblesSignal: new Ash.Signals.Signal(),
 
         // player actions
+        actionStartingSignal: new Ash.Signals.Signal(),
         actionStartedSignal: new Ash.Signals.Signal(),
+        actionCompletedSignal: new Ash.Signals.Signal(),
         playerMovedSignal: new Ash.Signals.Signal(),
+        playerEnteredCampSignal: new Ash.Signals.Signal(),
+        sectorScavengedSignal: new Ash.Signals.Signal(),
         sectorScoutedSignal: new Ash.Signals.Signal(),
+        collectorCollectedSignal: new Ash.Signals.Signal(),
         improvementBuiltSignal: new Ash.Signals.Signal(),
         itemUsedSignal: new Ash.Signals.Signal(),
         campBuiltSignal: new Ash.Signals.Signal(),
@@ -50,7 +58,6 @@ define(['ash',], function (Ash) {
         fightUpdateSignal: new Ash.Signals.Signal(),
 
         // game events
-        worldReadySignal: new Ash.Signals.Signal(),
         gameStateReadySignal: new Ash.Signals.Signal(),
         gameStartedSignal: new Ash.Signals.Signal(),
         saveGameSignal: new Ash.Signals.Signal(),
@@ -61,7 +68,8 @@ define(['ash',], function (Ash) {
         slowUpdateSignal: new Ash.Signals.Signal(),
         changelogLoadedSignal: new Ash.Signals.Signal(),
 
-        add: function (system, signal, listener) {
+        add: function (system, signal, listener, priority) {
+            priority = priority || GlobalSignals.PRIORITY_DEFAULT;
             if (!system.signalBindings)
                 system.signalBindings = [];
             var binding = signal.add(function () {
@@ -74,7 +82,7 @@ define(['ash',], function (Ash) {
                         throw ex;
                     }
                 }
-            });
+            }, null, priority);
             system.signalBindings.push(binding);
         },
 

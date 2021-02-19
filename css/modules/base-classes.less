@@ -11,12 +11,16 @@
     display: none;
 }
 
+.nowrap {
+    white-space: nowrap;
+}
+
 .unselectable {
     -webkit-user-select: none; /* Safari */
     -moz-user-select: none; /* Firefox */
     -ms-user-select: none; /* IE10+/Edge */
     user-select: none; /* Standard */
-}    
+}
 
 .full-width {
 	width: 100%;
@@ -34,16 +38,6 @@
 
 .container-dimmed .dimmable {
     opacity: 0.5;
-}
-
-.rotate-on-hover {
-    &:hover {
-        -moz-transform: rotate(360deg);
-        -webkit-transform: rotate(360deg);
-        -o-transform: rotate(360deg);
-        -ms-transform: rotate(360deg);
-        transform: rotate(360deg);
-    }
 }
 
 span.icon {
@@ -145,4 +139,8 @@ td.bg-reset {
 tr.current {
 	background: @color-bg-element-1;
     border-color: @color-bg-element-1;
+}
+
+tr.header-mini {
+    font-size: @font-size-small;
 }

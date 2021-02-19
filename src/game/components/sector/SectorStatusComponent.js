@@ -7,10 +7,14 @@ define(['ash', 'game/constants/MovementConstants'], function (Ash, MovementConst
         scavenged: false,
         scouted: false,
         localesScouted: [],
-        glowStickSeconds: -100, // not saved
         wasteClearedDirections: [],
         debrisClearedDirections: [],
         gapBridgedDirections: [],
+        weightedNumScavenges: 0,
+        stashesFound: 0,
+        
+        glowStickSeconds: -100, // not saved
+        hazardReduction: null, // not saved
 
         constructor: function () {
             this.discoveredResources = [];
@@ -20,6 +24,11 @@ define(['ash', 'game/constants/MovementConstants'], function (Ash, MovementConst
             this.wasteClearedDirections = [];
             this.debrisClearedDirections = [];
             this.gapBridgedDirections = [];
+            this.weightedNumScavenges = 0;
+            this.stashesFound = 0;
+            
+            this.hazardReduction = {};
+            this.glowStickSeconds = -100;
         },
 
         addDiscoveredResource: function (name) {
@@ -40,9 +49,21 @@ define(['ash', 'game/constants/MovementConstants'], function (Ash, MovementConst
             }
             return scouted;
         },
+        
+        getScavengedPercent: function () {
+            return this.weightedNumScavenges / (10+this.weightedNumScavenges) * 100;
+        },
+        
+        getHazardReduction: function (hazard) {
+            if (!this.hazardReduction)
+                return 0;
+            if (!this.hazardReduction[hazard])
+                return 0;
+            return this.hazardReduction[hazard];
+        },
 
         isBlockerCleared: function (direction, blockerType) {
-            if (blockerType == MovementConstants.BLOCKER_TYPE_WASTE) {
+            if (blockerType == MovementConstants.BLOCKER_TYPE_WASTE_TOXIC || blockerType == MovementConstants.BLOCKER_TYPE_WASTE_RADIOACTIVE) {
                 return this.wasteClearedDirections && this.wasteClearedDirections.indexOf(parseInt(direction)) >= 0;
             }
             if (blockerType == MovementConstants.BLOCKER_TYPE_DEBRIS) {
@@ -57,7 +78,7 @@ define(['ash', 'game/constants/MovementConstants'], function (Ash, MovementConst
         setBlockerCleared: function (direction, blockerType) {
             if (this.isBlockerCleared(direction, blockerType))
                 return;
-            if (blockerType == MovementConstants.BLOCKER_TYPE_WASTE) {
+            if (blockerType == MovementConstants.BLOCKER_TYPE_WASTE_TOXIC || blockerType == MovementConstants.BLOCKER_TYPE_WASTE_RADIOACTIVE) {
                 this.wasteClearedDirections.push(parseInt(direction));
             }
             if (blockerType == MovementConstants.BLOCKER_TYPE_DEBRIS) {
@@ -83,11 +104,15 @@ define(['ash', 'game/constants/MovementConstants'], function (Ash, MovementConst
             if (this.localesScouted.length > 0)
                 copy.lS = this.localesScouted;
             if (this.wasteClearedDirections && this.wasteClearedDirections.length > 0)
-                copy.wd = this.wasteClearedDirections ? this.wasteClearedDirections  : [];
+                copy.wd = this.wasteClearedDirections;
             if (this.debrisClearedDirections && this.debrisClearedDirections.length > 0)
-                copy.dd = this.debrisClearedDirections ? this.debrisClearedDirections  : [];
+                copy.dd = this.debrisClearedDirections;
             if (this.gapBridgedDirections && this.gapBridgedDirections.length > 0)
-                copy.bd = this.gapBridgedDirections ? this.gapBridgedDirections  : [];
+                copy.bd = this.gapBridgedDirections;
+            if (this.weightedNumScavenges)
+                copy.sw = this.weightedNumScavenges;
+            if (this.stashesFound)
+                copy.sf = this.stashesFound;
             return Object.keys(copy).length > 0 ? copy : null;
         },
 
@@ -102,6 +127,8 @@ define(['ash', 'game/constants/MovementConstants'], function (Ash, MovementConst
             this.wasteClearedDirections = componentValues.wd ? componentValues.wd : [];
             this.debrisClearedDirections = componentValues.dd ? componentValues.dd : [];
             this.gapBridgedDirections = componentValues.bd ? componentValues.bd : [];
+            this.weightedNumScavenges = componentValues.sw ? componentValues.sw : 0;
+            this.stashesFound = componentValues.sf ? componentValues.sf : 0;
         }
 
     });

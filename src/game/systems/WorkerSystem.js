@@ -37,8 +37,7 @@ define([
 		lastMsgTimeStamp: 0,
 		msgFrequency: 1000 * 120,
 
-        constructor: function () {
-        },
+        constructor: function () { },
 
         addToEngine: function (engine) {
             this.engine = engine;
@@ -105,6 +104,16 @@ define([
 			campResources.addResource(resourceNames.fuel, fuel);
 			resourceAccComponent.addChange(resourceNames.fuel, fuel / time, "Chemists");
 			
+			// Workshop: Rubbermakers
+            var rubber = time * GameGlobals.campHelper.getRubberProductionPerSecond(camp.assignedWorkers.rubbermaker, improvementsComponent);
+			campResources.addResource(resourceNames.rubber, rubber);
+			resourceAccComponent.addChange(resourceNames.rubber, rubber / time, "Plantation workers");
+			
+			// Workshop: Rubbermakers
+            var herbs = time * GameGlobals.campHelper.getHerbsProductionPerSecond(camp.assignedWorkers.gardener, improvementsComponent);
+			campResources.addResource(resourceNames.herbs, herbs);
+			resourceAccComponent.addChange(resourceNames.herbs, herbs / time, "Gardeners");
+			
 			// Advanced: Apothecaries
 			var herbsRequired = time * GameGlobals.campHelper.getHerbsConsumptionPerSecond(camp.assignedWorkers.apothecary);
 			if (herbsRequired > 0) {
@@ -162,7 +171,7 @@ define([
 			if (!isThirsty) {
 				if (hasThirstPerk) {
 					if (!inCamp) this.log("No longer thirsty.");
-					perksComponent.removeItemsById(PerkConstants.perkIds.thirst);
+					perksComponent.removePerkById(PerkConstants.perkIds.thirst);
 				}
 			} else if (!hasThirstPerk) {
 				if (!inCamp && (GameGlobals.gameState.unlockedFeatures.resources.water)) this.log("Out of water!");
@@ -172,7 +181,7 @@ define([
 			if (!isHungry) {
 				if (hasHungerPerk) {
 					if (!inCamp) this.log("No longer hungry.");
-					perksComponent.removeItemsById(PerkConstants.perkIds.hunger);
+					perksComponent.removePerkById(PerkConstants.perkIds.hunger);
 				}
 			} else if (!hasHungerPerk) {
 				if (!inCamp && (GameGlobals.gameState.unlockedFeatures.resources.food)) this.log("Out of food!");
@@ -244,7 +253,6 @@ define([
 		},
 		
 		log: function (msg) {
-            log.i(msg, "WorkerSystem");
 			var logComponent = this.playerNodes.head.entity.get(LogMessagesComponent);
 			logComponent.addMessage(LogConstants.MSG_ID_WORKER_STATUS, msg);
 			this.lastMsgTimeStamp = new Date().getTime();

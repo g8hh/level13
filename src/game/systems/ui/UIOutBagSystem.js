@@ -1,5 +1,6 @@
 define([
     'ash',
+    'utils/UIState',
     'game/GameGlobals',
     'game/GlobalSignals',
     'game/constants/UIConstants',
@@ -7,7 +8,7 @@ define([
     'game/constants/PlayerActionConstants',
     'game/nodes/player/ItemsNode',
     'game/components/common/PositionComponent',
-], function (Ash, GameGlobals, GlobalSignals, UIConstants, ItemConstants, PlayerActionConstants, ItemsNode, PositionComponent) {
+], function (Ash, UIState, GameGlobals, GlobalSignals, UIConstants, ItemConstants, PlayerActionConstants, ItemsNode, PositionComponent) {
 
     var UIOutBagSystem = Ash.System.extend({
 
@@ -17,7 +18,6 @@ define([
         inventoryItemsAll: [],
         inventoryItemsBag: [],
 
-		bubbleNumber: -1,
         craftableItems: -1,
         lastShownCraftableItems: -1,
 		numCraftableUnlockedUnseen: -1,
@@ -149,21 +149,18 @@ define([
         updateBubble: function () {
             var isStatIncreaseAvailable = this.isStatIncreaseAvailable();
             var numImmediatelyUsable = this.getNumImmediatelyUsable();
-            var newBubbleNumber = Math.max(0, this.numCraftableUnlockedUnseen + this.numCraftableAvailableUnseen + numImmediatelyUsable);
-            if (this.isStatIncreaseShown == isStatIncreaseAvailable && this.bubbleNumber === newBubbleNumber)
-                return;
-                
-            this.bubbleNumber = newBubbleNumber;
-            this.isStatIncreaseShown = isStatIncreaseAvailable;
-
-            if (this.isStatIncreaseShown) {
-                $("#switch-bag .bubble").text("");
-                $("#switch-bag .bubble").toggleClass("bubble-increase", true);
-            } else {
-                $("#switch-bag .bubble").text(this.bubbleNumber);
-                $("#switch-bag .bubble").toggleClass("bubble-increase", false);
-            }
-            GameGlobals.uiFunctions.toggle("#switch-bag .bubble", this.bubbleNumber > 0 || this.isStatIncreaseShown);
+            var bubbleNumber = Math.max(0, this.numCraftableUnlockedUnseen + this.numCraftableAvailableUnseen + numImmediatelyUsable);
+            var state = bubbleNumber + (isStatIncreaseAvailable ? 1000 : 0);
+            UIState.refreshState(this, "bubble-num", state, function () {
+                if (isStatIncreaseAvailable) {
+                    $("#switch-bag .bubble").text("");
+                    $("#switch-bag .bubble").toggleClass("bubble-increase", true);
+                } else {
+                    $("#switch-bag .bubble").text(bubbleNumber);
+                    $("#switch-bag .bubble").toggleClass("bubble-increase", false);
+                }
+                GameGlobals.uiFunctions.toggle("#switch-bag .bubble", bubbleNumber > 0 || isStatIncreaseAvailable);
+            });
         },
 
 		updateItems: function () {
@@ -255,7 +252,7 @@ define([
 
         makeCraftingButton: function(itemDefinition) {
             var actionName = "craft_" + itemDefinition.id;
-            return "<button class='action multiline' action='" + actionName + "'>" + itemDefinition.name + "</button>";
+            return "<button class='action tabbutton multiline' action='" + actionName + "' data-tab='switch-bag'>" + itemDefinition.name + "</button>";
         },
 
         updateUseItems: function () {
@@ -272,7 +269,8 @@ define([
                         var reqsCheck = GameGlobals.playerActionsHelper.checkRequirements(actionName, false);
                         var isAvailable = GameGlobals.playerActionsHelper.checkAvailability(actionName, false);
                         var costsCheck = GameGlobals.playerActionsHelper.checkCosts(actionName);
-                        var showItem = isAvailable || (costsCheck >= 1 && reqsCheck.reason == PlayerActionConstants.UNAVAILABLE_REASON_NOT_IN_CAMP);
+                        var isVisibleDisabledReason = reqsCheck.reason == PlayerActionConstants.UNAVAILABLE_REASON_NOT_IN_CAMP || reqsCheck.reason.indexOf(PlayerActionConstants.UNAVAILABLE_REASON_BUSY) >= 0;
+                        var showItem = isAvailable || (costsCheck >= 1 && isVisibleDisabledReason);
                         if (showItem) {
                             itemDefinitionList.push(itemDefinition);
                         }
@@ -371,7 +369,7 @@ define([
 						}
                         if (showCount > 0) {
                             var options = { canEquip: canEquip, isEquipped: item.equipped, canUnequip: false, canDiscard: canDiscard };
-                            var smallSlot = UIConstants.getItemSlot(itemsComponent, item, showCount, false, false, true, options);
+                            var smallSlot = UIConstants.getItemSlot(itemsComponent, item, showCount, false, false, true, options, "switch-bag");
                             $("#bag-items").append(smallSlot);
                             this.inventoryItemsBag.push(item);
                         }
@@ -441,7 +439,7 @@ define([
             }
 
             var options = { canEquip: false, isEquipped: true, canUnequip: true };
-			$(slot).children(".item-slot-image").html(itemVO ? UIConstants.getItemDiv(itemsComponent, itemVO, null, UIConstants.getItemCallout(itemVO, false, true, options), true) : "");
+			$(slot).children(".item-slot-image").html(itemVO ? UIConstants.getItemDiv(itemsComponent, itemVO, null, UIConstants.getItemCallout(itemVO, false, true, options, "switch-bag"), true) : "");
 			$(slot).children(".item-slot-name").html(itemVO ? itemVO.name.toLowerCase() : "");
 
 			GameGlobals.uiFunctions.toggle($(slot).children(".item-slot-type-empty"), itemVO === null);
@@ -484,6 +482,7 @@ define([
 
         onInventoryChanged: function () {
             if (GameGlobals.gameState.uiStatus.isHidden) return;
+            if (GameGlobals.gameState.uiStatus.currentTab !== GameGlobals.uiFunctions.elementIDs.tabs.bag) return;
             this.updateItems();
             this.updateUseItems();
             this.updateCrafting();
@@ -503,7 +502,13 @@ define([
         isItemUnlocked: function (itemDefinition) {
             var actionName = "craft_" + itemDefinition.id;
             var reqsCheck = GameGlobals.playerActionsHelper.checkRequirements(actionName, false);
-            return reqsCheck.value >= 1 || reqsCheck.reason === PlayerActionConstants.UNAVAILABLE_REASON_BAG_FULL || reqsCheck.reason === PlayerActionConstants.UNAVAILABLE_REASON_LOCKED_RESOURCES;
+            if (reqsCheck.value >= 1)
+                return true;
+            if (reqsCheck.reason === PlayerActionConstants.UNAVAILABLE_REASON_BAG_FULL)
+                return true;
+            if (reqsCheck.reason === PlayerActionConstants.UNAVAILABLE_REASON_LOCKED_RESOURCES)
+                return false;
+            return false;
         },
 
         isObsolete: function (itemVO) {
@@ -514,9 +519,13 @@ define([
         
         isStatIncreaseAvailable: function () {
             var itemsComponent = this.itemNodes.head.items;
-			for (var i = 0; i < this.inventoryItemsBag.length; i++) {
-                var item = this.inventoryItemsBag[i];
+            var inCamp = this.itemNodes.head.entity.get(PositionComponent).inCamp;
+            var items = itemsComponent.getUnique(inCamp);
+			for (var i = 0; i < items.length; i++) {
+                var item = items[i];
+                if (item.equipped) continue;
                 if (!item.equippable) continue;
+                if (item.type == ItemConstants.itemTypes.follower) continue;
                 var comparison = itemsComponent.getEquipmentComparison(item);
                 if (comparison > 0) return true;
             }
