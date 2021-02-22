@@ -1816,6 +1816,10 @@ var cnItems = {
     'passage': '通道',
     'street': '街道',
     'square': '广场',
+    'trading post': '贸易站',
+    'library': '图书馆',
+    'clinic': '诊所',
+    'enable bridge gap': '弥合桥梁差距',
     '': '',
     '': '',
     '': '',
@@ -1827,6 +1831,18 @@ var cnItems = {
     '': '',
     '': '',
     '': '',
+    '': '',
+    '': '',
+    '': '',
+    '': '',
+    '': '',
+    '': '',
+    '': '',
+    '': '',
+    'Slightly more reliable than the shiv.': '比刀稍微可靠一点。',
+    'snail farm, items: smoke bomb': '蜗牛农场，物品:烟雾弹',
+    'staircase up, staircase down, square': '楼梯上，楼梯下，广场',
+    'The art of crafting durable items out of leather.': '用皮革制作耐用物品的艺术。',
     'passage  down (stairwell) (repaired': '向下通道（楼梯间）（已修复',
     'A general trader arrives.': '一个普通商人来了。',
     'Travel to other factions to trade for goods.': '前往其他派别进行商品交易。',
@@ -1883,7 +1899,7 @@ var cnItems = {
     'Deity:': '神：',
 
     //原样
-    '': '',
+    's': '',
     '': '',
 
 }
