@@ -1881,7 +1881,7 @@ var cnItems = {
     'fight lost': '战斗失败',
     'There is a hut here that seems worth investigating.': '这里有个小屋似乎值得调查一下。',
     'Scouted the hut.': '侦察小屋。',
-    'throughfare': '通票',
+    'throughfare': '通道',
     'There is a  here that seems worth investigating.': '这里似乎有一个值得研究的问题。',
     'Scouted the library.': '侦察图书馆。',
     'area': '区域',
