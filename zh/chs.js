@@ -2236,7 +2236,7 @@ var cnItems = {
     "[tower block]": "[塔楼]",
     "[trading post]": "[贸易站]",
     "A stranger showed up.": "一个陌生人出现了。",
-    "": "",
+    "Built a cement mill for making concrete.": "建造了一个水泥厂来生产混凝土。",
     "": "",
     "": "",
     "": "",
