@@ -313,6 +313,11 @@
             "item_res_leather": 10,
             "resource_rope": 100
         },
+		"craft_bag_3": {
+            "item_res_tape": 10,
+            "item_res_leather": 20,
+            "resource_rope": 100
+		},
         "craft_clothing_hands_1": {
             "item_res_silk": 1,
             "resource_rope": 10
@@ -505,7 +510,7 @@
             "resource_fuel": 10
         },
         "craft_light1": {
-            "resource_metal": 7
+            "resource_metal": 6
         },
         "craft_light2": {
             "item_res_bottle": 1,
@@ -1686,7 +1691,7 @@
             },
             "level": {
                 "population": [
-                    1.1,
+                    1,
                     -1
                 ]
             },
@@ -2777,7 +2782,8 @@
                 "blockerSE": false
             },
             "vision": [
-                4
+                5,
+				-1
             ]
         },
         "move_sector_south": {
@@ -2848,7 +2854,7 @@
                 ]
             },
             "vision": [
-                10,
+                8,
                 -1
             ]
         },
