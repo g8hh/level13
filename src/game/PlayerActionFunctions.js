@@ -660,9 +660,12 @@ define(['ash',
 				var level = playerPos.level;
 				var campOrdinal = GameGlobals.gameState.getCampOrdinal(level);
 				if (GameGlobals.gameState.foundTradingPartners.indexOf(campOrdinal) < 0) {
-					var partnerName = TradeConstants.getTradePartner(campOrdinal).name;
-					logMsgSuccess += "<br/>Found a new <span class='hl-functionality'>trading partner</span>. They call this place " + partnerName + ".";
-					tradingPartner = campOrdinal;
+					var partner = TradeConstants.getTradePartner(campOrdinal);
+					if (partner) {
+						var partnerName = partner.name;
+						logMsgSuccess += "<br/>Found a new <span class='hl-functionality'>trading partner</span>. They call this place " + partnerName + ".";
+						tradingPartner = campOrdinal;
+					}
 				}
 			}
 			if (localeVO.type == localeTypes.grove) {
@@ -1533,7 +1536,8 @@ define(['ash',
 			var perksComponent = this.playerStatsNodes.head.perks;
 			perksComponent.removePerksByType(PerkConstants.perkTypes.injury);
 
-			this.playerStatsNodes.head.stamina.stamina = 1000;
+			let maxStamina = PlayerStatConstants.getMaxStamina(perksComponent);
+			this.playerStatsNodes.head.stamina.stamina = maxStamina;
 			this.addLogMessage(LogConstants.MSG_ID_USE_HOSPITAL, "Healed all injuries.");
 
 			this.completeAction("use_in_hospital");
@@ -1654,7 +1658,7 @@ define(['ash',
 				case "first_aid_kit_1":
 				case "first_aid_kit_2":
 					var injuries = perksComponent.getPerksByType(PerkConstants.perkTypes.injury);
-					var minValue = reqs.perks.Injury[0];
+					var minValue = reqs.perkEffects.Injury[0];
 					var injuryToHeal = null;
 					for (let i = 0; i < injuries.length; i++) {
 						if (injuries[i].effect > minValue) {
