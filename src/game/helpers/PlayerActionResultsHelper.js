@@ -24,7 +24,9 @@ define([
 	'game/nodes/player/PlayerResourcesNode',
 	'game/nodes/tribe/TribeUpgradesNode',
 	'game/nodes/sector/CampNode',
+	'game/nodes/LastVisitedCampNode',
 	'game/nodes/NearestCampNode',
+	'game/components/common/CampComponent',
 	'game/components/common/PositionComponent',
 	'game/components/common/ResourcesComponent',
 	'game/components/common/CurrencyComponent',
@@ -64,7 +66,9 @@ define([
 	PlayerResourcesNode,
 	TribeUpgradesNode,
 	CampNode,
+	LastVisitedCampNode,
 	NearestCampNode,
+	CampComponent,
 	PositionComponent,
 	ResourcesComponent,
 	CurrencyComponent,
@@ -87,6 +91,21 @@ define([
 		playerLocationNodes: null,
 		tribeUpgradesNodes: null,
 
+		fixedRewards: {
+			"scavenge": [
+				{ resources: { metal: 1 } },
+				{ resources: { metal: 1 } },
+				{ resources: { food: 1, metal: 1 } },
+				{ },
+				{ resources: { metal: 1 }, items: { "bag_0": 1 } },
+				{ resources: { food: 1, metal: 1 } },
+				{ resources: { metal: 1 } },
+				{ resources: { metal: 1 } },
+			]
+		},
+		
+		context: "results",
+
 		constructor: function (engine) {
 			this.engine = engine;
 
@@ -95,6 +114,7 @@ define([
 			this.playerLocationNodes = engine.getNodeList(PlayerLocationNode);
 			this.tribeUpgradesNodes = engine.getNodeList(TribeUpgradesNode);
 			this.nearestCampNodes = engine.getNodeList(NearestCampNode);
+			this.lastVisitedCampNodes = engine.getNodeList(LastVisitedCampNode);
 			this.campNodes = engine.getNodeList(CampNode);
 		},
 
@@ -117,6 +137,9 @@ define([
 					var localeVO = sectorLocalesComponent.locales[localei];
 					resultVO = this.getScoutLocaleRewards(localeVO);
 					break;
+				case "investigate":
+					resultVO = this.getInvestigateRewards();
+					break;
 				case "use_spring":
 					resultVO = this.getUseSpringRewards();
 					break;
@@ -136,44 +159,82 @@ define([
 					return null;
 			}
 
-			var playerVision = this.playerStatsNodes.head.vision.value;
-			var loseInventoryProbability = PlayerActionConstants.getLoseInventoryProbability(action, playerVision);
-			if (loseInventoryProbability > Math.random()) {
-				resultVO.lostItems = this.getLostItems(action, true);
-			}
-			resultVO.gainedInjuries = this.getResultInjuries(PlayerActionConstants.getInjuryProbability(action, playerVision));
+			let playerVision = this.playerStatsNodes.head.vision.value;
+			let perksComponent = this.playerStatsNodes.head.perks;
+			let playerLuck = perksComponent.getTotalEffect(PerkConstants.perkTypes.luck);
+			let loseInventoryProbability = PlayerActionConstants.getLoseInventoryProbability(action, playerVision, playerLuck);
+			this.addLostAndBrokenItems(resultVO, action, loseInventoryProbability, true);
+			resultVO.gainedInjuries = this.getResultInjuries(PlayerActionConstants.getInjuryProbability(action, playerVision, playerLuck), action);
 			resultVO.hasCustomReward = hasCustomReward;
 			
 			return resultVO;
 		},
 
 		getScavengeRewards: function () {
-			var rewards = new ResultVO("scavenge");
-
-			var sectorFeatures = this.playerLocationNodes.head.entity.get(SectorFeaturesComponent);
-			var sectorStatus = this.playerLocationNodes.head.entity.get(SectorStatusComponent);
-			var sectorResources = sectorFeatures.resourcesScavengable;
-			var sectorIngredients = sectorFeatures.itemsScavengeable || [];
-			var itemsComponent = this.playerStatsNodes.head.entity.get(ItemsComponent);
-			var efficiency = this.getCurrentScavengeEfficiency();
+			let rewards = new ResultVO("scavenge");
 			
-			var itemOptions = { rarityKey: "scavengeRarity" };
-
-			rewards.gainedResources = this.getRewardResources(1, 1, efficiency, sectorResources);
-			rewards.gainedCurrency = this.getRewardCurrency(efficiency);
+			let sectorFeatures = this.playerLocationNodes.head.entity.get(SectorFeaturesComponent);
+			let sectorStatus = this.playerLocationNodes.head.entity.get(SectorStatusComponent);
+			let sectorResources = sectorFeatures.resourcesScavengable;
+			let sectorIngredients = sectorFeatures.itemsScavengeable || [];
+			let itemsComponent = this.playerStatsNodes.head.entity.get(ItemsComponent);
+			let efficiency = this.getCurrentScavengeEfficiency();
+			
+			let itemOptions = { rarityKey: "scavengeRarity" };
+			
+			let fixedRewards = this.getFixedRewards("scavenge");
+			let isUsingFixedRewards = false;
+			
+			if (fixedRewards != null) {
+				isUsingFixedRewards = true;
+				this.addFixedRewards(rewards, fixedRewards, sectorResources);
+			}
+			
+			if (!isUsingFixedRewards) {
+				rewards.gainedResources = this.getRewardResources(1, 1, efficiency, sectorResources);
+				rewards.gainedCurrency = this.getRewardCurrency(efficiency);
+			}
 			
 			this.addStashes(rewards, sectorFeatures.stashes, sectorStatus.stashesFound);
 			
-			if (rewards.gainedItems.length == 0) {
-				rewards.gainedItems = this.getRewardItems(0.02, 0.5, sectorIngredients, itemOptions);
-			}
+			if (!isUsingFixedRewards) {
+				if (rewards.gainedItems.length == 0) {
+					rewards.gainedItems = this.getRewardItems(0.02, 0.5, sectorIngredients, itemOptions);
+				}
 			
-			if (rewards.foundStashVO == null && rewards.gainedCurrency == 0) {
-				this.addFollowerBonuses(rewards, sectorResources, sectorIngredients, itemOptions);
+				if (rewards.foundStashVO == null && rewards.gainedCurrency == 0) {
+					this.addFollowerBonuses(rewards, sectorResources, sectorIngredients, itemOptions);
+				}
+	
+				rewards.gainedFollowers = this.getFallbackFollowers(0.1);
 			}
-			
-			rewards.gainedFollowers = this.getFallbackFollowers(0.1);
 
+			return rewards;
+		},
+
+		getInvestigateRewards: function () {
+			let rewards = new ResultVO("investigate");
+
+			let sectorFeatures = this.playerLocationNodes.head.entity.get(SectorFeaturesComponent);
+			let sectorStatus = this.playerLocationNodes.head.entity.get(SectorStatusComponent);
+			
+			let efficiency = this.getCurrentScavengeEfficiency();
+			let investigatedPercentBefore = sectorStatus.getInvestigatedPercent();
+			let weightedInvestigateAdded = Math.min(1, efficiency);
+			let investigatePercentAfter = sectorStatus.getInvestigatedPercent(weightedInvestigateAdded);
+			let isCompletion = investigatePercentAfter >= 100;
+			
+			log.i("getInvestigateRewards | isCompletion: " + isCompletion, this);
+			
+			if (isCompletion) {
+				let possibleCompletionRewards = [ "cache_insight_11", "cache_insight_21" ];
+	 			rewards.gainedItems = [ this.getSpecificRewardItem(1, possibleCompletionRewards) ];
+			} else {
+				let itemOptions = { rarityKey: "investigateRarity", allowNextCampOrdinal: isCompletion };
+	 			rewards.gainedItems = this.getRewardItems(0.25, 0, [], itemOptions);
+				rewards.gainedEvidence = 1;
+			}
+			
 			return rewards;
 		},
 
@@ -191,7 +252,7 @@ define([
 			var campOrdinal = GameGlobals.gameState.getCampOrdinal(playerPos.level);
 
 			var availableResources = this.playerLocationNodes.head.entity.get(SectorFeaturesComponent).resourcesScavengable.clone();
-			availableResources.addAll(localeVO.getResourceBonus(GameGlobals.gameState.unlockedFeatures.resources, campOrdinal));
+			availableResources.addAll(localeVO.getResourceBonus(GameGlobals.gameState.getUnlockedResources(), campOrdinal));
 			availableResources.limitAll(WorldConstants.resourcePrevalence.RARE, WorldConstants.resourcePrevalence.ABUNDANT);
 			var efficiency = this.getCurrentScavengeEfficiency();
 			var localeDifficulty = (localeVO.requirements.vision[0] + localeVO.costs.stamina / 10) / 100;
@@ -264,25 +325,25 @@ define([
 				rewards.gainedItems = this.getRewardItems(0, 1, enemyVO.droppedIngredients, {});
 				rewards.gainedReputation = 1;
 			} else {
-				rewards = this.getFadeOutResults(0.5, 1, 0.75, 0.5);
+				rewards = this.getFadeOutResults("fight", 0.5, 1, 0.75, 0.5, enemyVO);
 			}
 			return rewards;
 		},
 
-		getFadeOutResults: function (loseInventoryProbability, injuryProbability, loseAugmentationProbability, loseFollowerProbability) {
+		getFadeOutResults: function (sourceAction, loseInventoryProbability, injuryProbability, loseAugmentationProbability, loseFollowerProbability, enemyVO) {
 			log.i("get fade out results: loseInventoryProbability:" + loseInventoryProbability + ", injuryProbability:" + injuryProbability + ", loseAugmentationProbability:" + loseAugmentationProbability + ", loseFollowerProbability:" + loseFollowerProbability);
 			let resultVO = new ResultVO("despair");
 			if (Math.random() < loseInventoryProbability) {
 				resultVO.lostResources = this.playerResourcesNodes.head.resources.resources.clone();
 				resultVO.lostCurrency = this.playerResourcesNodes.head.entity.get(CurrencyComponent).currency;
-				resultVO.lostItems = this.getLostItems("despair", false);
+				this.addLostAndBrokenItems(resultVO, "despair", 1, false)
 			}
 			resultVO.lostFollowers = this.getLostFollowers(loseFollowerProbability);
 			
 			resultVO.lostPerks = this.getLostPerks(loseAugmentationProbability);
 			
 			let finalInjuryProbability = resultVO.lostPerks.length > 0 ? injuryProbability / 2 : injuryProbability;
-			resultVO.gainedInjuries = this.getResultInjuries(finalInjuryProbability);
+			resultVO.gainedInjuries = this.getResultInjuries(finalInjuryProbability, sourceAction, enemyVO);
 
 			return resultVO;
 		},
@@ -319,6 +380,14 @@ define([
 			
 			return result;
 		},
+		
+		preCollectRewards: function (rewards) {
+			if (rewards.brokenItems) {
+				for (let i = 0; i < rewards.brokenItems.length; i++) {
+					rewards.brokenItems[i].broken = true;
+				}
+			}
+		},
 
 		collectRewards: function (isTakeAll, rewards, campSector) {
 			if (rewards && rewards.action == "scavenge") {
@@ -326,8 +395,10 @@ define([
 				if (excursionComponent) {
 					if (this.isSomethingUsefulResult(rewards)) {
 						excursionComponent.numConsecutiveScavengeUseless = 0;
+						excursionComponent.numConsecutiveScavengeUselessSameLocation = 0;
 					} else {
 						excursionComponent.numConsecutiveScavengeUseless++;
+						excursionComponent.numConsecutiveScavengeUselessSameLocation++;
 					}
 				}
 			}
@@ -336,7 +407,14 @@ define([
 				return;
 			}
 			
-			var nearestCampNode = this.nearestCampNodes.head;
+			let sourceSector = this.playerLocationNodes.head.entity;
+			
+			if (rewards.foundStashVO) {
+				let sectorStatus = sourceSector.get(SectorStatusComponent);
+				sectorStatus.stashesFound++;
+			}
+			
+			let defaultRewardCampNode = this.getDefaultRewardCampNode();
 			var currentStorage = campSector ? GameGlobals.resourcesHelper.getCurrentCampStorage(campSector) : GameGlobals.resourcesHelper.getCurrentStorage();
 			var playerPos = this.playerLocationNodes.head.position;
 			let sourcePos = campSector ? campSector.get(PositionComponent) : playerPos;
@@ -352,20 +430,19 @@ define([
 			currentStorage.substractResources(rewards.discardedResources);
 			currentStorage.substractResources(rewards.lostResources);
 
-			var currencyComponent = this.playerStatsNodes.head.entity.get(CurrencyComponent);
+			let currencyComponent = this.playerStatsNodes.head.entity.get(CurrencyComponent);
 			currencyComponent.currency += rewards.gainedCurrency;
 			currencyComponent.currency -= rewards.lostCurrency;
-			if (rewards.gainedCurrency > 0)
-				GameGlobals.gameState.unlockedFeatures.currency = true;
+			if (rewards.gainedCurrency > 0) GameGlobals.playerActionFunctions.unlockFeature("currency");
 
-			var itemsComponent = this.playerStatsNodes.head.items;
+			let itemsComponent = this.playerStatsNodes.head.items;
 			if (rewards.selectedItems) {
 				for (let i = 0; i < rewards.selectedItems.length; i++) {
 					GameGlobals.playerHelper.addItem(rewards.selectedItems[i], sourcePos);
 				}
 			}
 			
-			var followersComponent = this.playerStatsNodes.head.followers;
+			let followersComponent = this.playerStatsNodes.head.followers;
 			if (rewards.gainedFollowers && rewards.gainedFollowers.length > 0) {
 				for (let i = 0; i < rewards.gainedFollowers.length; i++) {
 					let follower = rewards.gainedFollowers[i];
@@ -373,21 +450,29 @@ define([
 						followersComponent.addFollower(follower);
 						followersComponent.setFollowerInParty(follower, true);
 						GlobalSignals.followersChangedSignal.dispatch();
-					} else if (nearestCampNode) {
-						nearestCampNode.camp.pendingRecruits.push(follower);
+					} else if (defaultRewardCampNode) {
+						defaultRewardCampNode.camp.pendingRecruits.push(follower);
+					} else {
+						log.w("no place to put reward follower!")
 					}
 				}
-				GameGlobals.gameState.unlockedFeatures.followers = true;
+				GameGlobals.playerActionFunctions.unlockFeature("followers");
 			}
 
 			if (rewards.gainedBlueprintPiece) {
 				this.tribeUpgradesNodes.head.upgrades.addNewBlueprintPiece(rewards.gainedBlueprintPiece);
-				GameGlobals.gameState.unlockedFeatures.blueprints = true;
+				GameGlobals.playerActionFunctions.unlockFeature("blueprints");
 			}
 
 			if (rewards.lostItems) {
 				for (let i = 0; i < rewards.lostItems.length; i++) {
 					itemsComponent.discardItem(rewards.lostItems[i], false);
+				}
+			}
+			
+			if (rewards.brokenItems) {
+				for (let i = 0; i < rewards.brokenItems.length; i++) {
+					rewards.brokenItems[i].broken = true;
 				}
 			}
 
@@ -418,14 +503,10 @@ define([
 			}
 
 			if (rewards.gainedPopulation > 0) {
-				var campNode = this.campNodes.head;
-				if (nearestCampNode) {
-					nearestCampNode.camp.pendingPopulation += 1;
+				if (defaultRewardCampNode) {
+					defaultRewardCampNode.camp.pendingPopulation += 1;
 				} else {
-					log.w("No nearest camp found.");
-					if (campNode) {
-						campNode.camp.pendingPopulation += 1;
-					}
+					log.w("No reward camp found for reward population.");
 				}
 			}
 
@@ -434,6 +515,7 @@ define([
 			if (rewards.gainedEvidence) this.playerStatsNodes.head.evidence.value += rewards.gainedEvidence;
 			if (rewards.gainedRumours) this.playerStatsNodes.head.rumours.value += rewards.gainedRumours;
 			if (rewards.gainedFavour) this.playerStatsNodes.head.entity.get(DeityComponent).favour += rewards.gainedFavour;
+			if (rewards.gainedInsight) this.playerStatsNodes.head.insight.value += rewards.gainedInsight;
 			// if (rewards.gainedReputation) this.playerStatsNodes.head.reputation.value += rewards.gainedReputation;
 
 			GlobalSignals.inventoryChangedSignal.dispatch();
@@ -494,6 +576,14 @@ define([
 				replacements.push("#" + replacements.length + " evidence");
 				values.push(rewards.gainedEvidence);
 			}
+			
+			if (rewards.gainedInsight) {
+				msg += ", ";
+				foundSomething = true;
+				msg += "$" + replacements.length + ", ";
+				replacements.push("#" + replacements.length + " insight");
+				values.push(rewards.gainedInsight);
+			}
 
 			if (rewards.gainedRumours) {
 				msg += ", ";
@@ -528,8 +618,7 @@ define([
 			}
 
 			if (foundSomething) {
-				msg = msg.slice(0, -2);
-				msg += ".";
+				msg = TextConstants.sentencify(msg);
 			} else {
 				msg = "Didn't find anything.";
 			}
@@ -547,14 +636,16 @@ define([
 			return { msg: msg, replacements: replacements, values: values };
 		},
 
-		getRewardDiv: function (resultVO, isFight) {
-			var itemsComponent = this.playerStatsNodes.head.items;
-			var followersComponent = this.playerStatsNodes.head.followers;
-			var hasBag = itemsComponent.getCurrentBonus(ItemConstants.itemBonusTypes.bag) > 0;
-			var bagComponent = this.playerResourcesNodes.head.entity.get(BagComponent);
-			var isInitialSelectionValid = bagComponent.usedCapacity <= bagComponent.totalCapacity;
+		getRewardDiv: function (resultVO, isFight, forceShowInventoryManagement) {
+			forceShowInventoryManagement = forceShowInventoryManagement || false;
+			
+			let itemsComponent = this.playerStatsNodes.head.items;
+			let followersComponent = this.playerStatsNodes.head.followers;
+			let hasBag = itemsComponent.getCurrentBonus(ItemConstants.itemBonusTypes.bag) > 0;
+			let bagComponent = this.playerResourcesNodes.head.entity.get(BagComponent);
+			let isInitialSelectionValid = bagComponent.usedCapacity <= bagComponent.totalCapacity;
 
-			var div = "<div id='reward-div'>";
+			let div = "<div id='reward-div'>";
 			
 			if (resultVO.gainedResourcesFromFollowers.getTotal() > 0 || resultVO.gainedItemsFromFollowers.length > 0) {
 				// assuming only followers of certain type find items
@@ -603,22 +694,24 @@ define([
 					let follower = resultVO.gainedFollowers[i];
 					let followerType = FollowerConstants.getFollowerTypeForAbilityType(follower.abilityType);
 					let willJoin = this.willGainedFollowerJoinParty(follower);
+					let followerCamp = this.getDefaultRewardCampNode();
 					let pronoun = FollowerConstants.getPronoun(follower);
 					let followerTypeName = FollowerConstants.getFollowerTypeDisplayName(followerType);
 					div += "<div>"
 					div += UIConstants.getFollowerDiv(follower, false, false, true);
 					div += "<br/>";
 					div += "Met <span class='hl-functionality'>" + Text.addArticle(followerTypeName) + "</span> called " + follower.name + ". ";
+					
 					if (willJoin) {
 						div += Text.capitalize(pronoun) + " joined the party.";
-					} else if (this.nearestCampNodes.head) {
-						div += Text.capitalize(pronoun) +" will meet you at " + this.nearestCampNodes.head.camp.getName() + " on level " + this.nearestCampNodes.head.position.level + ".";
+					} else if (followerCamp) {
+						div += Text.capitalize(pronoun) +" will meet you at " + followerCamp.camp.getName() + " on level " + followerCamp.position.level + ".";
 					}
 					div += "</div>";
 				}
 			}
 
-			var gainedhtml = "";
+			let gainedhtml = "";
 			gainedhtml += "<ul class='resultlist resultlist-positive'>";
 			if (resultVO.gainedEvidence) {
 				gainedhtml += "<li>" + resultVO.gainedEvidence + " evidence</li>";
@@ -628,6 +721,9 @@ define([
 			}
 			if (resultVO.gainedFavour) {
 				gainedhtml += "<li>" + resultVO.gainedFavour + " favour</li>";
+			}
+			if (resultVO.gainedInsight) {
+				gainedhtml += "<li>" + resultVO.gainedInsight + " insight</li>";
 			}
 			if (resultVO.gainedPopulation) {
 				gainedhtml += "<li>" + resultVO.gainedPopulation + " population</li>";
@@ -640,10 +736,13 @@ define([
 			}
 
 			gainedhtml += "</ul>";
-			var hasGainedStuff = gainedhtml.indexOf("<li") > 0;
-			if (hasGainedStuff) div += gainedhtml;
+			let hasGainedStuff = gainedhtml.indexOf("<li") > 0;
+			if (hasGainedStuff || forceShowInventoryManagement) div += gainedhtml;
 
-			if (resultVO.lostResources.getTotal() > 0 || resultVO.lostItems.length > 0 || resultVO.lostCurrency > 0) {
+			let hasLostInventoryStuff = resultVO.lostResources.getTotal() > 0 || resultVO.lostItems.length > 0 || resultVO.lostCurrency > 0;
+			let hasLostSomething = resultVO.lostResources.getTotal() > 0 || resultVO.lostItems.length > 0 || resultVO.lostCurrency > 0 || resultVO.brokenItems > 0 || resultVO.lostFollowers.length > 0 || resultVO.gainedInjuries.length > 0 || resultVO.lostPerks.length > 0;
+
+			if (hasLostInventoryStuff) {
 				var lostMsg = resultVO.lostItems.length > 1 ? "Lost some items." : resultVO.lostItems.length > 0 ? "Lost an item." : ""
 				var losthtml = "<div id='resultlist-loststuff' class='infobox'>";
 				var losthtml = "<div class='warning'>" + lostMsg + "</span>";
@@ -653,8 +752,16 @@ define([
 				losthtml += "</div>";
 				div += losthtml;
 			}
+			
+			if (resultVO.brokenItems.length > 0) {
+				if (resultVO.brokenItems.length == 1) {
+					div += "<p class='warning'>Broke an item (" + ItemConstants.getItemDisplayName(resultVO.brokenItems[0]) + ").</p>";
+				} else {
+					div += "<p class='warning'>Broke some items.</p>";
+				}
+			}
 
-			if (resultVO.gainedResources.getTotal() > 0 || resultVO.gainedItems.length > 0 || !isInitialSelectionValid) {
+			if (resultVO.gainedResources.getTotal() > 0 || resultVO.gainedItems.length > 0 || !isInitialSelectionValid || forceShowInventoryManagement) {
 				var baghtml = "<div id='resultlist-inventorymanagement' class='unselectable'>";
 
 				baghtml += "<div id='resultlist-inventorymanagement-found' class='infobox inventorybox'>";
@@ -673,12 +780,13 @@ define([
 			}
 
 			hasGainedStuff = hasGainedStuff || resultVO.gainedResources.getTotal() > 0 || resultVO.gainedItems.length > 0 || resultVO.gainedFollowers.length > 0;
-			var hasLostStuff = resultVO.lostResources.getTotal() > 0 || resultVO.lostItems.length > 0 || resultVO.lostFollowers.length > 0 || resultVO.gainedInjuries.length > 0 || resultVO.lostPerks.length > 0 || resultVO.lostCurrency > 0;
 			
-			if (!hasGainedStuff && !hasLostStuff) {
+			if (!hasGainedStuff && !hasLostSomething && !forceShowInventoryManagement) {
 				if (isFight) div += "<p class='p-meta'>Nothing left behind.</p>"
 				else if (resultVO.action === "despair") div += "";
 				else if (resultVO.action === "clear_workshop") div += "";
+				else if (resultVO.action === "clear_waste_r") div += "";
+				else if (resultVO.action === "clear_waste_t") div += "";
 				else if (resultVO.hasCustomReward) div += "";
 				else div += "<p class='p-meta'>Didn't find anything useful.</p>";
 			}
@@ -705,51 +813,74 @@ define([
 			return div;
 		},
 
-		logResults: function (rewards) {
-			var logComponent = this.playerStatsNodes.head.entity.get(LogMessagesComponent);
-			var itemsComponent = this.playerStatsNodes.head.entity.get(ItemsComponent);
-
-			if (rewards) {
-				if (rewards.gainedBlueprintPiece) {
-					if (!this.tribeUpgradesNodes.head.upgrades.hasUpgrade(rewards.gainedBlueprintPiece)) {
-						var blueprintVO = this.tribeUpgradesNodes.head.upgrades.getBlueprint(rewards.gainedBlueprintPiece);
-						if (blueprintVO.currentPieces === 1) {
-							logComponent.addMessage(LogConstants.MSG_ID_FOUND_BLUEPRINT_FIRST, "Found a piece of forgotten technology.");
-						}
-					}
-				}
-
-				if (rewards.selectedItems) {
-					for (let i = 0; i < rewards.selectedItems.length; i++) {
-						var item = rewards.selectedItems[i];
-						if (itemsComponent.getCountById(item.id, true) === 1) {
-							if (item.equippable && !item.equipped) continue;
-							logComponent.addMessage(LogConstants.MSG_ID_FOUND_ITEM_FIRST, "Found a " + item.name + ".");
-						}
-					}
-				}
-					
-				if (rewards.gainedFollowers && rewards.gainedFollowers.length > 0) {
-					logComponent.addMessage(LogConstants.getUniqueID(), "Met a new follower.");
-				}
-
-				if (rewards.lostItems && rewards.lostItems.length > 0) {
-					var messageTemplate = LogConstants.getLostItemMessage(rewards);
-					logComponent.addMessage(LogConstants.MSG_ID_LOST_ITEM, messageTemplate.msg, messageTemplate.replacements, messageTemplate.values);
-				}
+		getResultMessagesBeforeSelection: function (resultVO) {
+			let messages = [];
+			
+			if (!resultVO) return messages;
+			
+			if (resultVO && resultVO.foundStashVO) {
+				messages.push({ id: LogConstants.getUniqueID(), text: TextConstants.getFoundStashMessage(resultVO.foundStashVO), addToPopup: true, addToLog: false });
+			}
+			
+			return messages;
+		},
+		
+		getResultMessagesAfterSelection: function (resultVO) {
+			let messages = [];
+			let itemsComponent = this.playerStatsNodes.head.entity.get(ItemsComponent);
+			
+			if (!resultVO) return messages;
 				
-				if (rewards.lostFollowers && rewards.lostFollowers.length > 0) {
-					logComponent.addMessage(LogConstants.MSG_ID_LOST_FOLLOWER, "Lost " + rewards.lostFollowers.length + " followers.");
-				}
-
-				if (rewards.gainedInjuries.length > 0) {
-					logComponent.addMessage(LogConstants.MSG_ID_GOT_INJURED, LogConstants.getInjuredMessage(rewards));
-				}
-
-				if (rewards.lostPerks.length > 0) {
-					logComponent.addMessage(LogConstants.MSG_ID_GOT_INJURED, LogConstants.getLostPerksMessage(rewards));
+			if (resultVO.gainedBlueprintPiece) {
+				if (!this.tribeUpgradesNodes.head.upgrades.hasUpgrade(resultVO.gainedBlueprintPiece)) {
+					let blueprintVO = this.tribeUpgradesNodes.head.upgrades.getBlueprint(resultVO.gainedBlueprintPiece);
+					if (blueprintVO.currentPieces === 1) {
+						messages.push({ id: LogConstants.MSG_ID_FOUND_BLUEPRINT_FIRST, text: "Found a piece of forgotten technology.", addToPopup: true, addToLog: true });
+					} else {
+						messages.push({ id: LogConstants.MSG_ID_FOUND_BLUEPRINT_CONSECUTIVE, text: "Found another piece of a blueprint.", addToPopup: true, addToLog: true });
+					}
 				}
 			}
+	
+			if (resultVO.selectedItems) {
+				for (let i = 0; i < resultVO.selectedItems.length; i++) {
+					var item = resultVO.selectedItems[i];
+					if (itemsComponent.getCountById(item.id, true) === 1) {
+						if (item.equippable && !item.equipped) continue;
+						messages.push({ id: LogConstants.MSG_ID_FOUND_ITEM_FIRST, text: "Found " + Text.addArticle(item.name) + ".", addToPopup: true, addToLog: true });
+					}
+				}
+			}
+				
+			if (resultVO.gainedFollowers && resultVO.gainedFollowers.length > 0) {
+				messages.push({ id: LogConstants.getUniqueID(), text: "Met a new follower.", addToPopup: true, addToLog: true });
+			}
+	
+			if (resultVO.lostItems && resultVO.lostItems.length > 0) {
+				let messageTemplate = LogConstants.getLostItemMessage(resultVO);
+				let text = TextConstants.createTextFromLogMessage(messageTemplate.msg, messageTemplate.replacements, messageTemplate.values);
+				messages.push({ id: LogConstants.MSG_ID_LOST_ITEM, text: text, addToPopup: true, addToLog: true });
+			}
+	
+			if (resultVO.brokenItems && resultVO.brokenItems.length > 0) {
+				let messageTemplate = LogConstants.getBrokeItemMessage(resultVO);
+				let text = TextConstants.createTextFromLogMessage(messageTemplate.msg, messageTemplate.replacements, messageTemplate.values);
+				messages.push({ id: LogConstants.MSG_ID_BROKE_ITEM, text: text, addToPopup: true, addToLog: true });
+			}
+				
+			if (resultVO.lostFollowers && resultVO.lostFollowers.length > 0) {
+				messages.push({ id: LogConstants.MSG_ID_LOST_FOLLOWER, text: "Lost " + resultVO.lostFollowers.length + " followers.", addToPopup: true, addToLog: true });
+			}
+
+			if (resultVO.gainedInjuries.length > 0) {
+				messages.push({ id: LogConstants.MSG_ID_GOT_INJURED, text: "Got injured.", addToPopup: true, addToLog: true });
+			}
+
+			if (resultVO.lostPerks.length > 0) {
+				messages.push({ id: LogConstants.MSG_ID_GOT_INJURED, text: LogConstants.getLostPerksMessage(resultVO), addToPopup: true, addToLog: true });
+			}
+
+			return messages;
 		},
 
 		getCurrentScavengeEfficiency: function () {
@@ -790,37 +921,34 @@ define([
 			if (Math.random() > probabilityFactor) return results;
 			if (!availableResources || !availableResources.getTotal || availableResources.getTotal() <= 0) return results;
 
-			var minRandomAmoutFactor = 1/3*2;
-			var maxRandomAmountFactor  = 1/3*4;
-
 			// select resources
-			for (var key in resourceNames) {
-				var name = resourceNames[key];
-				var availableAmount = availableResources.getResource(name);
-				if (availableAmount <= 0)
-					continue;
+			for (let key in resourceNames) {
+				let name = resourceNames[key];
+				let availableAmount = availableResources.getResource(name);
+				if (availableAmount <= 0) continue;
 					
-				var baseProbability = this.getBaseResourceFindProbability(availableAmount);
-				var finalProbability = MathUtils.clamp(baseProbability * efficiency, 0, 1);
-				if (Math.random() > finalProbability)
-					continue;
+				let baseProbability = this.getBaseResourceFindProbability(availableAmount);
+				let finalProbability = MathUtils.clamp(baseProbability * efficiency, 0, 1);
+				if (Math.random() > finalProbability) continue;
 				
-				var resMin = 1;
-				var resMax = 10;
-				var baseAmount = this.getBaseResourceFindAmount(name, availableAmount);
-				var randomAmountFactor  = MathUtils.map(Math.random(), 0, 1, minRandomAmoutFactor, maxRandomAmountFactor);
-				var resultAmount = baseAmount * efficiency * randomAmountFactor;
-				resultAmount = Math.round(resultAmount);
-				resultAmount = MathUtils.clamp(resultAmount, resMin, resMax);
+				let baseAmount = this.getBaseResourceFindAmount(name, availableAmount);
+				let resultAmount = this.getFinalResourceFindAmount(name, baseAmount, efficiency, Math.random());
+				
 				results.setResource(name, resultAmount);
 			}
 			
-			// consolation prize: if found nothing (useful) at this point, add 1 metal every few tries
+			// consolation prize: if found nothing (useful) at this point, add 1 resource every few tries
 			if (!this.isSomethingUsefulResources(results) && !GameGlobals.gameState.isAutoPlaying) {
-				var excursionComponent = this.playerResourcesNodes.head.entity.get(ExcursionComponent);
-				var metalAmount = availableResources.getResource(resourceNames.metal);
-				if (metalAmount > WorldConstants.resourcePrevalence.RARE && excursionComponent && excursionComponent.numConsecutiveScavengeUseless > 0) {
-					results.setResource(resourceNames.metal, 1);
+				let excursionComponent = this.playerResourcesNodes.head.entity.get(ExcursionComponent);
+				if (excursionComponent && excursionComponent.numConsecutiveScavengeUselessSameLocation > 0) {
+					let highestResources = availableResources.getResourcesWithHighestAmount();
+					if (highestResources.length > 0) {
+						let resourceName = highestResources[Math.floor(Math.random() * highestResources.length)];
+						let resourceAmount = availableResources.getResource(resourceName);
+						if (resourceAmount > WorldConstants.resourcePrevalence.RARE) {
+							results.setResource(resourceName, 1);
+						}
+					}
 				}
 			}
 
@@ -829,22 +957,26 @@ define([
 
 		getRewardCurrency: function (efficiency) {
 			var campCount = GameGlobals.gameState.numCamps;
+			var sectorFeatures = this.playerLocationNodes.head.entity.get(SectorFeaturesComponent);
 			
 			if (campCount < 2)
 				return 0;
 				
 			if (efficiency < 0.25)
 				return 0;
+				
+			if (sectorFeatures.campable) {
+				return 0;
+			}
 			
 			var findProbability = 0;
-			var sectorFeatures = this.playerLocationNodes.head.entity.get(SectorFeaturesComponent);
 			switch (sectorFeatures.sectorType) {
 				case SectorConstants.SECTOR_TYPE_RESIDENTIAL:
 				case SectorConstants.SECTOR_TYPE_PUBLIC:
-					findProbability = 0.0025;
+					findProbability = 0.002;
 					break;
 				case SectorConstants.SECTOR_TYPE_COMMERCIAL:
-					findProbability = 0.05;
+					findProbability = 0.03;
 					break;
 			}
 
@@ -864,6 +996,8 @@ define([
 			let currentItems = this.playerStatsNodes.head.items;
 			let hasBag = currentItems.getCurrentBonus(ItemConstants.itemBonusTypes.bag) > 0;
 			let hasCamp = GameGlobals.gameState.unlockedFeatures.camp;
+			let hasCampHere = this.playerLocationNodes.head.entity.has(CampComponent);
+			// TODO override for scout localea (sector scavenged % should not decrease efficiency for them)
 			let efficiency = this.getCurrentScavengeEfficiency();
 			
 			var playerPos = this.playerLocationNodes.head.position;
@@ -898,14 +1032,14 @@ define([
 			
 			// Ingredients
 			if (ingredientProbability > 0) {
-				var ingredientProbabilityWithEfficiency = ingredientProbability / 2 + ingredientProbability / 2 * efficiency;
-				var max = Math.floor(Math.random() * 3);
-				var amount = Math.floor(Math.random() * efficiency * max) + 1;
-				var addedIngredient = false;
+				let ingredientProbabilityWithEfficiency = ingredientProbability / 2 + ingredientProbability / 2 * efficiency;
+				let max = Math.floor(Math.random() * 3);
+				let amount = Math.floor(Math.random() * efficiency * max) + 1;
+				let addedIngredient = false;
 				
 				// . Necessity ingredient (stuff blocking the player from progressing)
 				// TODO replace with something that's not random & is better communicated in-game
-				if (hasCamp && hasDecentEfficiency) {
+				if (hasCamp && !hasCampHere && hasDecentEfficiency) {
 					var necessityIngredient = this.getNecessityIngredient(ingredientProbability);
 					if (necessityIngredient != null) {
 						for (let i = 0; i <= amount; i++) {
@@ -917,11 +1051,12 @@ define([
 
 				// - Normal ingredients
 				if (!availableIngredients || availableIngredients.length > 0) {
-					if (hasBag && hasCamp && hasDecentEfficiency && !addedIngredient && Math.random() < ingredientProbabilityWithEfficiency) {
-						var ingredient = GameGlobals.itemsHelper.getUsableIngredient(availableIngredients);
+					if (hasBag && hasCamp && !addedIngredient && Math.random() < ingredientProbabilityWithEfficiency) {
+						let ingredient = GameGlobals.itemsHelper.getUsableIngredient(availableIngredients);
 						for (let i = 0; i <= amount; i++) {
 							result.push(ingredient.clone());
 						}
+						addedIngredient = true;
 					}
 				}
 			}
@@ -946,15 +1081,16 @@ define([
 		},
 
 		// options
-		// - rarityKey: context-specific key used to determine item rarity (scavengeRarity/localeRarity/tradeRarity)
+		// - rarityKey: context-specific key used to determine item rarity (scavengeRarity/localeRarity/tradeRarity/investigateRarity)
 		// - allowNextCampOrdinal: include items that require next camp ordinal in the valid items (for high value rewards)
 		getRewardItem: function (efficiency, campOrdinal, step, options) {
 			let rarityKey = options.rarityKey || "scavengeRarity";
 			let itemsComponent = this.playerStatsNodes.head.entity.get(ItemsComponent);
+			let hasDeity = this.playerStatsNodes.head.entity.has(DeityComponent);
 			
 			// choose rarity and camp ordinal thresholds
 			let maxPossibleRarity = Math.min(campOrdinal * 4, 10);
-			let maxRarity = MathUtils.clamp(maxPossibleRarity * efficiency * Math.random(), 2, 10);
+			let maxRarity = MathUtils.clamp(maxPossibleRarity * Math.random(), 2, 10);
 			
 			let maxCampOrdinalBonus = 0;
 			if (step == WorldConstants.CAMP_STEP_END) maxCampOrdinalBonus++;
@@ -966,6 +1102,24 @@ define([
 				return itemDefinition.maximumCampOrdinal > 0 ? itemDefinition.maximumCampOrdinal : 100;
 			};
 			
+			let isUseActionBlockedByProgress = function (itemDefinition) {
+				let useActionName = "use_item_" + itemDefinition.id;
+				let useActionReqs = GameGlobals.playerActionsHelper.getReqs(useActionName);
+				if (!useActionReqs) return false;
+				if (useActionReqs.deity && !hasDeity) return true;
+				return false;
+			}
+			
+			let isPlayerInventoryTooMany = function (itemDefinition) {
+				if (itemDefinition.equippable) return false;
+				if (itemDefinition.type == ItemConstants.itemTypes.ingredient) return false;
+				if (itemDefinition.type == ItemConstants.itemTypes.exploration) return false;
+				if (itemDefinition.type == ItemConstants.itemTypes.trade) return false;
+				if (itemDefinition.type == ItemConstants.itemTypes.artefact) return false;
+				let numOwned = itemsComponent.getCountByBaseId(ItemConstants.getBaseItemId(itemDefinition.id), true);
+				return numOwned >= 5;
+			}
+			
 			// list and score possible items
 			var validItems = [];
 			var itemScores = {};
@@ -976,13 +1130,15 @@ define([
 				for (let i in itemList) {
 					let itemDefinition = itemList[i];
 					let isObsolete = GameGlobals.itemsHelper.isObsolete(itemDefinition, itemsComponent, false);
-					let rarity = itemDefinition[rarityKey];
+					let rarity = itemDefinition[rarityKey] || -1;
 					
 					if (rarity <= 0) continue;
 					if (rarity > maxRarity) continue;
 					
 					if (itemDefinition.requiredCampOrdinal > maxCampOrdinal) continue;
 					if (getMaximumCampOrdinal(itemDefinition, isObsolete) < campOrdinal) continue;
+					if (isUseActionBlockedByProgress(itemDefinition)) continue;
+					if (isPlayerInventoryTooMany(itemDefinition)) continue;
 					
 					validItems.push(itemDefinition);
 					
@@ -1026,22 +1182,42 @@ define([
 			
 			return item.clone();
 		},
+		
+		getSpecificRewardItem: function (itemProbability, possibleItemIds) {
+			if (!possibleItemIds || possibleItemIds.length === 0) {
+				log.w("No valid reward items for getSpecificRewardItem");
+				return null;
+			}
+			
+			let index = MathUtils.getWeightedRandom(0, possibleItemIds.length);
+			let itemID = possibleItemIds[index];
+			let item = ItemConstants.getItemByID(itemID);
+			return item.clone();
+		},
 
 		getNecessityItem: function (currentItems, campOrdinal) {
 			// first bag
-			if (currentItems.getCurrentBonus(ItemConstants.itemBonusTypes.bag) <= 0) {
-				var res = this.playerResourcesNodes.head.resources;
-				if (res.resources.getTotal() > 2 && GameGlobals.gameState.numCamps < 2) {
-					return ItemConstants.getBag(1).clone();
+			if (GameGlobals.gameState.numCamps < 2) {
+				let firstBag = ItemConstants.getBag(1);
+				if (currentItems.getCurrentBonus(ItemConstants.itemBonusTypes.bag) < firstBag.getBaseBonus(ItemConstants.itemBonusTypes.bag)) {
+					let res = this.playerResourcesNodes.head.resources;
+					if (res.resources.getTotal() > 2) {
+						return firstBag.clone();
+					}
 				}
 			}
 
 			// map
 			if (!GameGlobals.gameState.isAutoPlaying) {
-				var visitedSectors = GameGlobals.gameState.numVisitedSectors;
-				var numSectorsRequiredForMap = 5;
-				if (visitedSectors > numSectorsRequiredForMap && currentItems.getCountById(ItemConstants.itemDefinitions.uniqueEquipment[0].id, true) <= 0) {
-					return ItemConstants.itemDefinitions.uniqueEquipment[0].clone();
+				let visitedSectors = GameGlobals.gameState.numVisitedSectors;
+				let numSectorsRequiredForMap = 5;
+				if (visitedSectors > numSectorsRequiredForMap && currentItems.getCountById("equipment_map", true) <= 0) {
+					return ItemConstants.getItemByID("equipment_map");
+				}
+				
+				let playerPos = this.playerLocationNodes.head.position;
+				if (playerPos.level < WorldConstants.LEVEL_NUMBER_STASH_ADVANCED_MAP && currentItems.getCountById("equipment_map_2", true) <= 0) {
+					return ItemConstants.getItemByID("equipment_map_2");
 				}
 			}
 
@@ -1092,6 +1268,65 @@ define([
 			return null;
 		},
 
+		getFixedRewards: function (action) {
+			if (action == "scavenge") {
+				let numTimesScavenged = GameGlobals.gameState.stats.numTimesScavenged || 0;
+				let fixedRewardsDef = this.fixedRewards[action][numTimesScavenged];
+				return fixedRewardsDef || null;
+			}
+			return  null;
+		},
+		
+		addFixedRewards: function (rewardsVO, fixedRewards, availableResources) {
+			let efficiency = this.getCurrentScavengeEfficiency();
+			
+			log.i("applying fixed rewards", this);
+			console.log(fixedRewards);
+			
+			this.addFixedRewardsResources(rewardsVO, fixedRewards, efficiency, availableResources);
+			this.addFixedRewardsItems(rewardsVO, fixedRewards);
+		},
+		
+		addFixedRewardsResources: function (rewardsVO, fixedRewards, efficiency, availableResources) {
+			let results = new ResourcesVO();
+			for (let key in fixedRewards.resources) {
+				let name = resourceNames[key];
+				let availableAmount = availableResources.getResource(name);
+				if (availableAmount <= 0) continue;
+				
+				let randomVal = fixedRewards.resources[key];
+				let baseAmount = this.getBaseResourceFindAmount(name, availableAmount);
+				let resultAmount = this.getFinalResourceFindAmount(name, baseAmount, efficiency, randomVal);
+				
+				results.setResource(name, resultAmount);
+			}
+			
+			rewardsVO.gainedResources = results;
+		},
+		
+		addFixedRewardsItems: function (rewardsVO, fixedRewards) {
+			let efficiency = this.getCurrentScavengeEfficiency();
+			
+			var playerPos = this.playerLocationNodes.head.position;
+			var levelOrdinal = GameGlobals.gameState.getLevelOrdinal(playerPos.level);
+			var campOrdinal = GameGlobals.gameState.getCampOrdinal(playerPos.level);
+			var step = GameGlobals.levelHelper.getCampStep(playerPos);
+			
+			let result = [];
+			
+			for (let key in fixedRewards.items) {
+				let num = fixedRewards.items[key] || 1;
+				let itemVO = ItemConstants.getItemByID(key);
+				if (itemVO) {
+					for (let i = 0; i < num; i++) {
+						result.push(itemVO.clone());
+					}
+				}
+			}
+			
+			rewardsVO.gainedItems = result;
+		},
+
 		addStashes: function (rewardsVO, stashes, stashesFound) {
 			if (!stashes || stashes.length <= stashesFound) return;
 			var stashVO = stashes[stashesFound];
@@ -1116,11 +1351,11 @@ define([
 		addFollowerBonuses: function (rewards, sectorResources, sectorIngredients, itemOptions) {
 			var efficiency = this.getCurrentScavengeEfficiency();
 			
-			// follower bonuses (1.0 - 2.0)
 			let generalBonus = GameGlobals.playerHelper.getCurrentBonus(ItemConstants.itemBonusTypes.scavenge_general);
 			let suppliesBonus = GameGlobals.playerHelper.getCurrentBonus(ItemConstants.itemBonusTypes.scavenge_supplies);
 			let ingredientsBonus = GameGlobals.playerHelper.getCurrentBonus(ItemConstants.itemBonusTypes.scavenge_ingredients);
 			
+			// general (resources)
 			let bonusResourceProb = generalBonus - 1;
 			let bonusResources = this.getRewardResources(bonusResourceProb, 1, efficiency, sectorResources);
 			rewards.gainedResourcesFromFollowers = bonusResources;
@@ -1130,6 +1365,7 @@ define([
 				generalBonus = 0;
 			}
 			
+			// supplies
 			let bonusSuppliesProb = suppliesBonus - 1;
 			let sectorSupplies = new ResourcesVO();
 			sectorSupplies.setResource(resourceNames.food, sectorResources.getResource(resourceNames.food));
@@ -1138,6 +1374,7 @@ define([
 			rewards.gainedResourcesFromFollowers.addAll(bonusSupplies);
 			rewards.gainedResources.addAll(bonusSupplies);
 			
+			// ingredients
 			if (rewards.gainedItems.length == 0) {
 				let bonusItemProb = generalBonus - 1;
 				let bonusIngredientProb = generalBonus - 1 + ingredientsBonus - 1;
@@ -1158,6 +1395,7 @@ define([
 				|| result.gainedEvidence > 0
 				|| result.gainedRumours > 0
 				|| result.gainedFavour > 0
+				|| result.gainedInsight > 0
 				|| result.gainedReputation > 0
 				|| result.gainedPopulation > 0;
 		},
@@ -1190,46 +1428,54 @@ define([
 			return false;
 		},
 
-		getLostItems: function (action, loseSingleItem) {
-			var lostItems = [];
-			var playerItems = this.playerResourcesNodes.head.entity.get(ItemsComponent).getAll(false);
+		addLostAndBrokenItems: function (resultVO, action, probability, onlySingleItem) {
+			if (Math.random() > probability) return;
+			if (!GameGlobals.gameState.unlockedFeatures.camp) return;
+			
+			let lostItems = [];
+			let brokenItems = [];
+			
+			let itemsComponent = this.playerStatsNodes.head.items;
+			let playerItems = itemsComponent.getAll(false);
 
-			if (playerItems.length <= 0)
-				return lostItems;
-				
-			if (!GameGlobals.gameState.unlockedFeatures.camp)
-				return false;
+			if (playerItems.length <= 0) return;
 
 			// make list with duplicates based on probabilities
 			// ignore ingredients here, they're handled below
-			var itemList = [];
-			var numValidItems = 0;
-			var probabilitySum = 0;
+			let itemList = [];
+			let numValidItems = 0;
+			let weightSum = 0;
 			for (let i = 0; i < playerItems.length; i++) {
-				var item = playerItems[i];
+				let item = playerItems[i];
 				if (item.type == ItemConstants.itemTypes.ingredient) continue;
-				var loseProbability = this.getItemLoseProbability(action, item);
-				if (loseProbability <= 0) continue;
-				var count = Math.round(loseProbability * 10);
+				let weight = this.getItemLoseOrBreakChanceWeight(action, item);
+				if (weight <= 0) continue;
+				let count = Math.round(weight * 2);
 				for (let j = 0; j < count; j++) {
 					itemList.push(item);
 				}
-				probabilitySum += loseProbability;
+				weightSum += weight;
 				numValidItems++;
 			}
 			
 			// pick n items from the list
 			if (numValidItems > 0) {
-				var probabilityAvg = probabilitySum / numValidItems;
-				var numMaxLost = probabilityAvg * 5;
-				var numItems = loseSingleItem ? 1 : Math.ceil(Math.random() * numMaxLost);
+				let weightAvg = weightSum / numValidItems;
+				let numMaxLost = weightAvg * 2;
+				let numItems = onlySingleItem ? 1 : Math.ceil(Math.random() * numMaxLost);
 				numItems = Math.min(numValidItems, numItems);
 
 				for (let i = 0; i < numItems; i++) {
-					var itemi = Math.floor(Math.random() * itemList.length);
-					var selectedItem = itemList[itemi];
-					lostItems.push(selectedItem);
-					var optionsToRemove = [];
+					let itemi = Math.floor(Math.random() * itemList.length);
+					let selectedItem = itemList[itemi];
+					
+					if (selectedItem.repairable && !selectedItem.broken && Math.random() < 0.9) {
+						brokenItems.push(selectedItem);
+					} else {
+						lostItems.push(selectedItem);
+					}
+					
+					let optionsToRemove = [];
 					for (let j = 0; j < itemList.length; j++) {
 						if (itemList[j] == selectedItem) {
 							optionsToRemove.push(j);
@@ -1240,7 +1486,7 @@ define([
 			}
 			
 			// ingredients: lose all or nothing
-			if (!loseSingleItem) {
+			if (!onlySingleItem) {
 				for (let i = 0; i < playerItems.length; i++) {
 					var item = playerItems[i];
 					if (item.type !== ItemConstants.itemTypes.ingredient) continue;
@@ -1248,16 +1494,23 @@ define([
 				}
 			}
 			
-			return lostItems;
+			resultVO.lostItems = lostItems;
+			resultVO.brokenItems = brokenItems;
 		},
 
-		getItemLoseProbability: function (action, item) {
-			var campCount = GameGlobals.gameState.numCamps;
-			var itemLoseProbability = 1;
+		getItemLoseOrBreakChanceWeight: function (action, item) {
+			let baseItemId = ItemConstants.getBaseItemId(item.id);
+			let result = 1;
+			
+			let campCount = GameGlobals.gameState.numCamps;
 			switch (item.type) {
-				case ItemConstants.itemTypes.bag:
 				case ItemConstants.itemTypes.uniqueEquipment:
-					itemLoseProbability = 0;
+				case ItemConstants.itemTypes.ingredient:
+					result = 0;
+					break;
+				case ItemConstants.itemTypes.bag:
+				case ItemConstants.itemTypes.light:
+					result = campCount > 0 ? 2 : 0;
 					break;
 				case ItemConstants.itemTypes.clothing_over:
 				case ItemConstants.itemTypes.clothing_upper:
@@ -1265,21 +1518,26 @@ define([
 				case ItemConstants.itemTypes.clothing_head:
 				case ItemConstants.itemTypes.clothing_hands:
 				case ItemConstants.itemTypes.shoes:
-					itemLoseProbability = 0.55;
+					result = 3;
 					break;
-				case ItemConstants.itemTypes.light:
-					itemLoseProbability = campCount > 0 ? 0.55 : 0;
-					break;
-				case ItemConstants.itemTypes.ingredient:
-					itemLoseProbability = 0;
+				case ItemConstants.itemTypes.weapon:
+					result = 4;
 					break;
 				default:
-					itemLoseProbability = 0.95;
+					result = 5;
 					break;
 			}
-			if (item.equipped)
-				itemLoseProbability = itemLoseProbability / 2;
-			return itemLoseProbability;
+			
+			switch (baseItemId) {
+				case "cache_insight":
+					result = 0;
+					break;
+			}
+			
+			if (item.equipped) result = result / 2;
+			if (item.broken) result = result / 2;
+				
+			return result;
 		},
 		
 		getLostFollowers: function (loseProbability) {
@@ -1329,27 +1587,51 @@ define([
 			return result;
 		},
 
-		getResultInjuries: function (injuryProbability) {
+		getResultInjuries: function (injuryProbability, action, enemyVO) {
 			let perksComponent = this.playerStatsNodes.head.perks;
 			let result = [];
 
-			var currentEffect = perksComponent.getTotalEffect(PerkConstants.perkTypes.injury);
-			var injuries = perksComponent.getPerksByType(PerkConstants.perkTypes.injury);
+			let currentEffect = perksComponent.getTotalEffect(PerkConstants.perkTypes.injury);
+			let injuries = perksComponent.getPerksByType(PerkConstants.perkTypes.injury);
 
 			// limit possible injuries
 			if (currentEffect < 0.35 || injuries.length >= 5)
 				return result;
 
 			if (injuryProbability * currentEffect > Math.random()) {
-				var injuryi = parseInt(Math.random() * PerkConstants.perkDefinitions.injury.length);
-				var injury = PerkConstants.perkDefinitions.injury[injuryi];
+				let sectorFeatures = this.playerLocationNodes.head.entity.get(SectorFeaturesComponent);
+				let allowedTypes = this.getAllowedInjuryTypes(action, enemyVO, sectorFeatures);
+				
+				let injury = PerkConstants.getRandomInjury(allowedTypes);
 				result.push(injury.clone());
 			}
+			
+			return result;
+		},
+		
+		getAllowedInjuryTypes: function (action, enemyVO, sectorFeatures) {
+			let result = [];
+			
+			if (!enemyVO || !enemyVO.causedInjuryTypes || enemyVO.causedInjuryTypes.length == 0) {
+				result.push(PerkConstants.injuryType.BLUNT);
+				result.push(PerkConstants.injuryType.SHARP);
+				
+				if (Math.random() < 0.5) {
+					result.push(PerkConstants.injuryType.FIRE);
+				}
+				
+				if (sectorFeatures.hazards.poison > 0 || sectorFeatures.hazards.radiation > 0 || sectorFeatures.sectorType == SectorConstants.SECTOR_TYPE_INDUSTRIAL) {
+					result.push(PerkConstants.injuryType.CHEMICAL);
+				}
+			} else {
+				result = enemyVO.causedInjuryTypes;
+			}
+			
 			return result;
 		},
 
 		getResultBlueprint: function (localeVO) {
-			if (!localeVO.hasBlueprints()) return null;
+			if (!localeVO.hasBlueprints) return null;
 			
 			var playerPos = this.playerLocationNodes.head.position;
 			var campOrdinal = GameGlobals.gameState.getCampOrdinal(playerPos.level);
@@ -1490,6 +1772,19 @@ define([
 			log.w("unknown resource prevalence: " + prevalence);
 			return 0;
 		},
+		
+		getFinalResourceFindAmount: function (name, baseAmount, efficiency, random) {
+			let resMin = 1;
+			let resMax = 10;
+			let minRandomAmoutFactor = 1/3*2;
+			let maxRandomAmountFactor  = 1/3*4;
+			
+			let randomAmountFactor  = MathUtils.map(Math.random(), 0, 1, minRandomAmoutFactor, maxRandomAmountFactor);
+			let resultAmount = baseAmount * efficiency * randomAmountFactor;
+			resultAmount = Math.round(resultAmount);
+			resultAmount = MathUtils.clamp(resultAmount, resMin, resMax);
+			return resultAmount;
+		},
 
 		getAvailableResourcesForEnemy: function (enemyVO) {
 			let result = new ResourcesVO();
@@ -1498,9 +1793,17 @@ define([
 			}
 			return result;
 		},
+		
+		getDefaultRewardCampNode: function () {
+			let nearestCampNode = this.nearestCampNodes.head;
+			if (nearestCampNode) return nearestCampNode;
+			let lastVisitedCampNode = this.lastVisitedCampNodes.head;
+			if (lastVisitedCampNode) return lastVisitedCampNode;
+			return null;
+		},
 
 		willGainedFollowerJoinParty: function (follower) {
-			var followersComponent = this.playerStatsNodes.head.followers;
+			let followersComponent = this.playerStatsNodes.head.followers;
 			let followerType = FollowerConstants.getFollowerTypeForAbilityType(follower.abilityType);
 			let existingInParty = followersComponent.getFollowerInPartyByType(followerType);
 			if (existingInParty) return false;

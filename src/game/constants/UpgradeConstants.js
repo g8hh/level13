@@ -1,5 +1,5 @@
-define(['ash', 'json!game/data/UpgradeData.json', 'game/constants/PlayerActionConstants', 'game/constants/TribeConstants', 'game/constants/WorldConstants', 'game/vos/UpgradeVO'],
-function (Ash, UpgradeData, PlayerActionConstants, TribeConstants, WorldConstants, UpgradeVO) {
+define(['ash', 'json!game/data/UpgradeData.json', 'game/constants/PlayerActionConstants', 'game/constants/WorldConstants', 'game/vos/UpgradeVO'],
+function (Ash, UpgradeData, PlayerActionConstants, WorldConstants, UpgradeVO) {
 	
 	var UpgradeConstants = {
 		
@@ -9,6 +9,7 @@ function (Ash, UpgradeData, PlayerActionConstants, TribeConstants, WorldConstant
 		UPGRADE_TYPE_RUMOURS: "rumours",
 		UPGRADE_TYPE_FAVOUR: "favour",
 		UPGRADE_TYPE_EVIDENCE: "evidence",
+		UPGRADE_TYPE_INSIGHT: "insight",
 
 		upgradeDefinitions: {},
 		
@@ -29,10 +30,9 @@ function (Ash, UpgradeData, PlayerActionConstants, TribeConstants, WorldConstant
 			unlock_item_clothing_body_15: "Augmented clothing made to withstand the harshest of environments.",
 			unlock_item_clothing_over_15: "Modern armour that takes inspiration from military automatons.",
 			unlock_item_weapon_15: "Knowledge to make the deadliest weapons.",
-			unlock_building_ceiling: "Protection from sunlight.",
-			unlock_building_spaceship1: "Part of constructing a space colony.",
-			unlock_building_spaceship2: "Part of constructing a space colony.",
-			unlock_building_spaceship3: "Part of constructing a space colony.",
+			unlock_building_spaceship1: "Plans for a hull of a colony space ship that can leave this planet and travel far.",
+			unlock_building_spaceship2: "Shield for a colony space ship that can protect it from the dangers of space.",
+			unlock_building_spaceship3: "Technology required to support life on the colony ship for an extended period of time.",
 			unlock_item_bag_4: "Leather-working for making better bags.",
 			improve_building_market3: "Partially restore the Network that (according to legends) used to cover the whole City.",
 			improve_building_cementmill: "New cement mixture for stronger concrete.",
@@ -42,6 +42,7 @@ function (Ash, UpgradeData, PlayerActionConstants, TribeConstants, WorldConstant
 			improve_building_apothecary: "Rediscovered modern technology for disease prevention and treatment.",
 			unlock_item_weapon_13: "Unlocks a new class of lethal weapons.",
 			unlock_building_radio: "Build radio towers to increase your civilization's reputation.",
+			unlock_building_robots: "Build robots that can help workers do their jobs more efficiently.",
 			improve_building_hospital: "Complex procedures for fixing the human body.",
 			unlock_item_clothing_body_13: "Even better use of spider silk and recycled materials.",
 			unlock_item_weapon_12: "A powerful firearm that is particularly devastating in close range",
@@ -89,6 +90,7 @@ function (Ash, UpgradeData, PlayerActionConstants, TribeConstants, WorldConstant
 			unlock_building_lights: "Lights that defeat the darkness in the camp once and for all.",
 			unlock_item_weapon_4: "An ancient but effective weapon.",
 			improve_worker_scavenger_2: "Processing technique that allows more metal left behind by previous inhabitants to be salvaged.",
+			improve_worker_scavenger_4: "Take advantage of the most advanced materials left behind by previous civilizations",
 			unlock_building_stable: "Travel to other factions to trade for goods.",
 			unlock_building_library: "Concentrated effort to build and store knowledge.",
 			unlock_building_inn: "Sometimes travellers pass by the camp. Perhaps we can offer them a place to sleep?",
@@ -109,6 +111,7 @@ function (Ash, UpgradeData, PlayerActionConstants, TribeConstants, WorldConstant
 			unlock_action_clear_waste_r: "Allow clearing some radioactive waste in the environment.",
 			unlock_action_clear_waste_t: "Allow clearing some toxic waste in the environment.",
 			improve_building_temple2: "Perhaps the spirits would appreciate offerings of food, jewelry, bones, plants, or clothing?",
+			improve_building_temple3: "Expand temples into places where anyone can come meditate.",
 			unlock_building_greenhouse: "Grow herbs in some rare locations in the City where conditions are right.",
 			unlock_item_clothingl14: "Clothing to protect from radiactive environments.",
 			unlock_building_beacon: "Lights out in the city that make exploration less dangerous.",
@@ -132,10 +135,14 @@ function (Ash, UpgradeData, PlayerActionConstants, TribeConstants, WorldConstant
 			improve_worker_trapper_3: "Processed foods last longer and enable using ingredients otherwise too unpleasant, ultimately improving efficiency of trappers",
 			improve_worker_water_3: "Get more out of all water that is collected",
 			unlock_project_tradingpost_connector: "A massive elevator, spanning a whole level, and allowing traders bypass entire hazardous environment.",
-			improve_building_hospital_3: "Make hospital visits less traumatic and enable new implants..",
+			improve_building_hospital_3: "Make hospital visits less traumatic and enable new implants.",
 			improve_worker_chemist_3: "Further refine fuel production",
 			improve_building_radiotower: "Improve the radio station and send messages over longer distances",
+			improve_building_robots: "Improve robot factories to produce more robots.",
 			improve_worker_scientist: "Add dedicated working spaces to the libraries",
+			improve_building_house2: "Build higher tower blocks with room for more people",
+			improve_worker_chemist_4: "Improve fuel production even more",
+			improve_worker_smith_4: "Optimize tools production",
 		},
 		
 		piecesByBlueprint: {},
@@ -143,6 +150,7 @@ function (Ash, UpgradeData, PlayerActionConstants, TribeConstants, WorldConstant
 		// caches for faster world generation / page load
 		campOrdinalsByBlueprint: {},
 		minCampOrdinalsByUpgrade: {},
+		minimumCampOrdinalForUpgrade: {},
 		
 		loadData: function (data) {
 			for (upgradeID in data) {
@@ -227,6 +235,7 @@ function (Ash, UpgradeData, PlayerActionConstants, TribeConstants, WorldConstant
 		getUpgradeType: function (upgradeID) {
 			let costs = PlayerActionConstants.costs[upgradeID] || {};
 			let type = UpgradeConstants.UPGRADE_TYPE_RUMOURS;
+			if (costs.insight > 0) type = UpgradeConstants.UPGRADE_TYPE_INSIGHT;
 			if (costs.favour > 0) type = UpgradeConstants.UPGRADE_TYPE_FAVOUR;
 			else if (costs.evidence > 0) type = UpgradeConstants.UPGRADE_TYPE_EVIDENCE;
 			return type;
@@ -282,94 +291,6 @@ function (Ash, UpgradeData, PlayerActionConstants, TribeConstants, WorldConstant
 				}
 			}
 			return result;
-		},
-		
-		getMinimumCampOrdinalForUpgrade: function (upgrade, ignoreCosts) {
-			if (!upgrade) return 1;
-			
-			// TODO also cache ignoreCosts version for each upgrade
-			if (!ignoreCosts && this.getMinimumCampOrdinalForUpgrade[upgrade]) return this.getMinimumCampOrdinalForUpgrade[upgrade];
-			
-			if (!this.upgradeDefinitions[upgrade]) {
-				log.w("no such upgrade: " + upgrade);
-				this.getMinimumCampOrdinalForUpgrade[upgrade] = 99;
-				return 99;
-			}
-			
-			// required tech
-			var requiredTech = this.getRequiredTech(upgrade);
-			var requiredTechCampOrdinal = 0;
-			for (let i = 0; i < requiredTech.length; i++) {
-				requiredTechCampOrdinal = Math.max(requiredTechCampOrdinal, this.getMinimumCampOrdinalForUpgrade(requiredTech[i], ignoreCosts));
-			}
-			
-			// blueprint
-			var blueprintCampOrdinal = this.getBlueprintCampOrdinal(upgrade);
-			
-			// misc reqs
-			var reqs = PlayerActionConstants.requirements[upgrade];
-			if (reqs && reqs.deity) {
-				requiredTechCampOrdinal = Math.max(requiredTechCampOrdinal, WorldConstants.CAMP_ORDINAL_GROUND);
-			}
-			
-			// costs
-			var costCampOrdinal = 1;
-			var costs = PlayerActionConstants.costs[upgrade];
-			if (!ignoreCosts) {
-				if (!costs) {
-					log.w("upgrade has no costs: " + upgrade);
-				} else {
-					if (costs.favour) {
-						costCampOrdinal = Math.max(costCampOrdinal, WorldConstants.CAMPS_BEFORE_GROUND);
-					}
-				}
-			}
-			if (costs.favour) {
-				costCampOrdinal = WorldConstants.CAMP_ORDINAL_GROUND;
-			}
-			
-			result = Math.max(1, blueprintCampOrdinal, requiredTechCampOrdinal, costCampOrdinal);
-			if (!ignoreCosts) this.getMinimumCampOrdinalForUpgrade[upgrade] = result;
-			return result;
-		},
-	
-		getMinimumCampStepForUpgrade: function (upgrade) {
-			let result = 0;
-			var blueprintType = this.getBlueprintBracket(upgrade);
-			if (blueprintType == this.BLUEPRINT_BRACKET_EARLY)
-				result = WorldConstants.CAMP_STEP_START;
-			if (blueprintType == this.BLUEPRINT_BRACKET_LATE)
-				result = WorldConstants.CAMP_STEP_POI_2;
-				
-			var requiredTech = this.getRequiredTech(upgrade);
-			for (let i = 0; i < requiredTech.length; i++) {
-				result = Math.max(result, this.getMinimumCampStepForUpgrade(requiredTech[i]));
-			}
-			
-			let costs = PlayerActionConstants.costs[upgrade];
-			if (costs.favour) {
-				result = WorldConstants.CAMP_STEP_POI_2;
-			}
-			
-			return result;
-		},
-		
-		getMinimumCampAndStepForUpgrade: function (upgradeID, ignoreCosts) {
-			return {
-				campOrdinal: this.getMinimumCampOrdinalForUpgrade(upgradeID, ignoreCosts),
-				step: this.getMinimumCampStepForUpgrade(upgradeID)
-			};
-		},
-		
-		getExpectedCampOrdinalForUpgrade: function (upgrade) {
-			return UpgradeConstants.upgradeDefinitions[upgrade].campOrdinal || 1;
-		},
-		
-		getExpectedCampAndStepForUpgrade: function (upgradeID) {
-			return {
-				campOrdinal: this.getExpectedCampOrdinalForUpgrade(upgradeID),
-				step: this.getMinimumCampStepForUpgrade(upgradeID)
-			};
 		},
 		
 	};

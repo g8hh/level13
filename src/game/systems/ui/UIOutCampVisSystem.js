@@ -41,7 +41,7 @@ define([
 			this.playerLocationNodes = engine.getNodeList(PlayerLocationNode);
 			GlobalSignals.add(this, GlobalSignals.tabChangedSignal, this.refresh);
 			GlobalSignals.add(this, GlobalSignals.improvementBuiltSignal, this.refresh);
-			GlobalSignals.add(this, GlobalSignals.playerMovedSignal, this.refresh);
+			GlobalSignals.add(this, GlobalSignals.playerPositionChangedSignal, this.refresh);
 			GlobalSignals.add(this, GlobalSignals.windowResizedSignal, this.onResize);
 			GlobalSignals.add(this, GlobalSignals.gameStartedSignal, this.onResize);
 			GlobalSignals.add(this, GlobalSignals.gameShownSignal, this.onResize);
@@ -132,12 +132,14 @@ define([
 			var buildingCoords = [];
 			var improvements = this.playerLocationNodes.head.entity.get(SectorImprovementsComponent);
 			var all = improvements.getAll(improvementTypes.camp);
+			var sundome = improvements.getVO(improvementNames.sundome);
+			if (sundome) all.push(sundome);
 			
 			var building;
 			var buildingsToDraw = [[],[],[],[],[]];
 			for (let i = 0; i < all.length; i++) {
 				building = all[i];
-				var size = this.getBuildingSize(building);
+				let size = this.getBuildingSize(building);
 				var count = building.count;
 				var visualCount = building.getVisCount();
 				if (!this.elements.buildings[building.name]) this.elements.buildings[building.name] = [];
@@ -157,8 +159,10 @@ define([
 							$elem = $(this.getBuildingDiv(i, building, n, j, coords));
 							this.elements.layerBuildings.append($elem);
 							this.elements.buildings[building.name][n][j] = $elem;
-							$elem.mouseleave({ system: this, building: building.name }, this.onMouseLeaveBuilding);
-							$elem.mouseenter({ system: this, building: building.name }, this.onMouseEnterBuilding);
+							if (this.isHoverable(building.name)) {
+								$elem.mouseleave({ system: this, building: building.name }, this.onMouseLeaveBuilding);
+								$elem.mouseenter({ system: this, building: building.name }, this.onMouseEnterBuilding);
+							}
 						}
 						
 						buildingCoords.push({ building: building, n: n, j: j, coords: coords });
@@ -203,10 +207,12 @@ define([
 			var xright = xpx + size.x;
 			var ytop = ypx;
 			var ybottom = ypx + size.y;
+			let defaultAnglePadding = Math.PI / 6;
 			
 			// glass / see-through shape
 			var color = this.getBuildingColor(building, coords);
 			this.ctx.fillStyle = color;
+			this.ctx.strokeStyle = color;
 			this.ctx.globalAlpha = 0.5;
 			switch (building.name) {
 				case improvementNames.darkfarm:
@@ -223,8 +229,13 @@ define([
 					break;
 				case improvementNames.temple:
 					var arcr = Math.min(size.x / 2, size.y / 2);
-					var anglePadding = Math.PI / 6;
-					CanvasUtils.drawArc(this.ctx, color, middlex, middley, arcr, Math.PI - anglePadding, anglePadding);
+					CanvasUtils.drawArc(this.ctx, color, middlex, middley, arcr, Math.PI - defaultAnglePadding, defaultAnglePadding);
+					break;
+				case improvementNames.sundome:
+					let rX = this.containerWidth / 2 - size.x * 3;
+					let rY = size.y * 6;
+					this.ctx.lineWidth = 5;
+					CanvasUtils.drawEllipse(this.ctx, color, middlex, basey, rX, rY, Math.PI - defaultAnglePadding, 0 + defaultAnglePadding, true);
 					break;
 			}
 			
@@ -381,6 +392,8 @@ define([
 					this.ctx.fillRect(xleft, ypx + size.y - towerH, towerW, towerH);
 					this.ctx.fillRect(xright - towerW, ypx + size.y - towerH, towerW, towerH);
 					break;
+				case improvementNames.sundome:
+					break;
 				default:
 					this.ctx.fillRect(xpx, ypx, size.x, size.y);
 					break;
@@ -412,6 +425,7 @@ define([
 				case improvementNames.smithy:
 				case improvementNames.apothecary:
 				case improvementNames.cementmill:
+				case improvementNames.robotFactory:
 					// this.ctx.fillRect(xpx + 2, ypx + 4, size.x - 4, size.y / 3);
 					break;
 				case improvementNames.stable:
@@ -480,6 +494,9 @@ define([
 			if (building.name == improvementNames.fortification) {
 				return GameGlobals.campVisHelper.getFortificationCoords(n);
 			}
+			if (building.name === improvementNames.sundome) {
+				return GameGlobals.campVisHelper.getSundomeCoords();
+			}
 			var index = improvements.getSelectedCampBuildingSpot(building, n, j);
 			if (index < 0) {
 				index = improvements.assignSelectedCampBuildingSpot(campOrdinal, building, n, j);
@@ -509,8 +526,8 @@ define([
 			return "vis-building-" + building.getKey() + "-" + n;
 		},
 		
-		getBuildingSize: function (building) {
-			return GameGlobals.campVisHelper.getBuildingSize(building.name);
+		getBuildingSize: function (building, buildingLevel) {
+			return GameGlobals.campVisHelper.getBuildingSize(building.name, building.level);
 		},
 		
 		getBuildingZClass: function (building, coords) {
@@ -526,6 +543,7 @@ define([
 			switch (building.name) {
 				case improvementNames.campfire:
 				case improvementNames.lights:
+				case improvementNames.sundome:
 					return ColorConstants.getColor(sunlit, "campvis_building_lit_bg");
 					break;
 				default:
@@ -544,6 +562,16 @@ define([
 		
 		getYpx: function (x, z, size) {
 			return Math.round(this.containerHeight -this.floorPos - z * this.zStep - size.y - 1);
+		},
+		
+		isHoverable: function (buildingName) {
+			switch (buildingName) {
+				case improvementNames.fortification:
+				case improvementNames.sundome:
+					return false;
+				default:
+					return true;
+			}
 		},
 		
 		// TODO move to some constants?

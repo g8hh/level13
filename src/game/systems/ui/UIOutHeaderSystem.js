@@ -24,6 +24,7 @@ define([
 	'game/components/player/PlayerActionComponent',
 	'game/components/common/PositionComponent',
 	'game/components/common/CampComponent',
+	'game/components/common/MovementComponent',
 	'game/components/sector/SectorFeaturesComponent',
 	'game/components/sector/improvements/SectorImprovementsComponent',
 	'game/components/sector/ReputationComponent',
@@ -40,6 +41,7 @@ define([
 	PlayerActionComponent,
 	PositionComponent,
 	CampComponent,
+	MovementComponent,
 	SectorFeaturesComponent,
 	SectorImprovementsComponent,
 	ReputationComponent,
@@ -48,6 +50,8 @@ define([
 	UIAnimations
 ) {
 	var UIOutHeaderSystem = Ash.System.extend({
+		
+		context: "UIOutHeaderSystem",
 
 		playerStatsNodes: null,
 		deityNodes: null,
@@ -58,6 +62,9 @@ define([
 		previousShownCampResAmount: {},
 		previousStats: {},
 		previousStatsUpdates: {},
+		
+		currentThemeTransitionID: null,
+		currentThemeTransitionTargetValue: null,
 		
 		SCAVENGE_BONUS_TYPES: [
 			{ itemBonusType: ItemConstants.itemBonusTypes.scavenge_general, displayName: "general", containerID: "scavenge-bonus-general" },
@@ -71,7 +78,6 @@ define([
 			this.elements = {};
 			this.elements.body = $("body");
 			this.elements.locationHeader = $("#grid-location-header h1");
-			this.elements.date = $("#in-game-date");
 			this.elements.gameMsg = $("#game-msg")
 			this.elements.gameVersion = $("#game-version");
 			this.elements.valVision = $("#stats-vision .value");
@@ -80,6 +86,7 @@ define([
 			this.elements.valRumours = $("#stats-rumours .value");
 			this.elements.valEvidence = $("#stats-evidence .value");
 			this.elements.valFavour = $("#stats-favour .value");
+			this.elements.valInsight = $("#stats-insight .value");
 			this.elements.valScavenge = $("#stats-scavenge .value");
 			this.elements.valReputation = $("#header-camp-reputation .value");
 			this.elements.changeIndicatorVision = $("#vision-change-indicator");
@@ -91,6 +98,7 @@ define([
 			this.elements.changeIndicatorEvidence = $("#evidence-change-indicator");
 			this.elements.changeIndicatorRumours = $("#rumours-change-indicator");
 			this.elements.changeIndicatorFavour = $("#favour-change-indicator");
+			this.elements.changeIndicatorInsight = $("#insight-change-indicator");
 
 			return this;
 		},
@@ -104,8 +112,8 @@ define([
 			this.autoPlayNodes = engine.getNodeList(AutoPlayNode);
 
 			var sys = this;
-			GlobalSignals.playerMovedSignal.add(function () { sys.onPlayerMoved(); });
 			GlobalSignals.playerEnteredCampSignal.add(function () { sys.onPlayerEnteredCamp(); });
+			GlobalSignals.playerLeftCampSignal.add(function () { sys.onPlayerLeftCamp(); });
 			GlobalSignals.playerLeftCampSignal.add(function () { sys.onPlayerLeftCamp(); });
 			GlobalSignals.actionStartingSignal.add(function () { sys.onActionStarting(); });
 			GlobalSignals.actionStartedSignal.add(function () { sys.onInventoryChanged(); });
@@ -119,11 +127,19 @@ define([
 			GlobalSignals.actionCompletedSignal.add(function () { sys.onPlayerActionCompleted(); });
 			GlobalSignals.slowUpdateSignal.add(function () { sys.slowUpdate(); });
 			GlobalSignals.changelogLoadedSignal.add(function () { sys.updateGameVersion(); });
+			GlobalSignals.add(this, GlobalSignals.playerMoveStartedSignal, this.onPlayerMoveStarted);
+			GlobalSignals.add(this, GlobalSignals.playerLocationChangedSignal, this.onPlayerLocationChanged);
+			GlobalSignals.add(this, GlobalSignals.playerPositionChangedSignal, this.onPlayerPositionChanged);
+			GlobalSignals.add(this, GlobalSignals.playerMoveCompletedSignal, this.onPlayerMoveCompleted);
 			GlobalSignals.add(this, GlobalSignals.perksChangedSignal, this.onPerksChanged);
 			GlobalSignals.add(this, GlobalSignals.gameShownSignal, this.onGameShown);
+			GlobalSignals.add(this, GlobalSignals.levelTypeRevealedSignal, this.onLevelTypeRevealed);
+			GlobalSignals.add(this, GlobalSignals.improvementBuiltSignal, this.updateResourcesIfNotPending);
+			GlobalSignals.add(this, GlobalSignals.launchCompletedSignal, this.onLaunchCompleted);
 
 			this.generateStatsCallouts();
 			this.updateGameVersion();
+			this.updateVisionStatus();
 			this.refreshPerks();
 		},
 
@@ -137,6 +153,23 @@ define([
 		},
 		
 		initElements: function () {
+			// equipment stats
+			for (var bonusKey in ItemConstants.itemBonusTypes) {
+				let bonusType = ItemConstants.itemBonusTypes[bonusKey];
+				if (!this.showItemBonusTypeInEquipmentStats(bonusType)) continue;
+				
+				let bonusName = UIConstants.getItemBonusName(bonusType);
+				let icons = UIConstants.getIconOrFallback(ItemConstants.getItemBonusIcons(bonusType));
+				let div = "";
+				div += "<div id='stats-equipment-" + bonusKey + "' class='stats-indicator stats-indicator-secondary'>";
+				div += "<img class='stat-icon img-themed' src='" + icons.dark + "' data-src-sunlit='" + icons.sunlit + "' alt='" + bonusName + "'/>";
+				div += "<span class='value'/>";
+				div += "</div>";
+				
+				$("#container-equipment-stats").append(div);
+			}
+		
+			// scavenge stats
 			let $container = $("#stats-scavenge-bonus");
 			for (let i = 0; i < this.SCAVENGE_BONUS_TYPES.length; i++) {
 				let bonus = this.SCAVENGE_BONUS_TYPES[i];
@@ -146,6 +179,18 @@ define([
 				div += "</div>";
 				$container.append(div)
 			}
+			
+			// themed icons (dark/light)
+			let themedIcons = [];
+			$.each($("img.img-themed"), function () {
+				themedIcons.push({
+					$elem: $(this),
+					pathSunlit: $(this).attr("data-src-sunlit"),
+					pathDark: $(this).attr("src"),
+				});
+			});
+			
+			this.themedIcons = themedIcons;
 		},
 
 		generateStatsCallouts: function () {
@@ -154,6 +199,9 @@ define([
 			});
 			$.each($("#header-self-bar .stats-indicator"), function () {
 				$(this).wrap("<div class='info-callout-target info-callout-target-small'></div>");
+			});
+			$.each($("#header-camp-storage"), function () {
+				$(this).wrap("<div class='info-callout-target'></div>");
 			});
 			$.each($("#header-camp-reputation"), function () {
 				$(this).wrap("<div class='info-callout-target'></div>");
@@ -237,15 +285,25 @@ define([
 			this.elements.valStamina.toggleClass("warning", playerStamina <= this.staminaWarningLimit);
 			this.elements.valHealth.toggleClass("warning", playerStatsNode.stamina.health <= 25);
 			
-			var hasDeity = this.deityNodes.head != null;
-			this.updatePlayerStat("rumours", playerStatsNode.rumours, playerStatsNode.rumours.isAccumulating, playerStatsNode.rumours.value, false, this.elements.valRumours, this.elements.changeIndicatorRumours);
-			this.updatePlayerStat("evidence", playerStatsNode.evidence, GameGlobals.gameState.unlockedFeatures.evidence, playerStatsNode.evidence.value, false, this.elements.valEvidence, this.elements.changeIndicatorEvidence);
-			if (hasDeity)
-				this.updatePlayerStat("favour", this.deityNodes.head.deity, hasDeity, this.deityNodes.head.deity.favour, false, this.elements.valFavour, this.elements.changeIndicatorFavour);
-			else
-				this.updatePlayerStat("favour", null, hasDeity, 0, this.elements.valFavour, false, this.elements.changeIndicatorFavour);
+			let showEvidence = GameGlobals.gameState.unlockedFeatures.evidence;
+			let showRumours = playerStatsNode.rumours.value > 0 || playerStatsNode.rumours.isAccumulating;
+			let hasDeity = this.deityNodes.head != null;
+			let hasInsight = playerStatsNode.insight.value > 0;
+			
+			this.updatePlayerStat("rumours", playerStatsNode.rumours, showRumours, playerStatsNode.rumours.value, playerStatsNode.rumours.maxValue, false, this.elements.valRumours, this.elements.changeIndicatorRumours);
+			this.updatePlayerStat("evidence", playerStatsNode.evidence, showEvidence, playerStatsNode.evidence.value, playerStatsNode.evidence.maxValue, false, this.elements.valEvidence, this.elements.changeIndicatorEvidence);
+			if (hasDeity) {
+				this.updatePlayerStat("favour", this.deityNodes.head.deity, hasDeity, this.deityNodes.head.deity.favour, this.deityNodes.head.deity.maxFavour, false, this.elements.valFavour, this.elements.changeIndicatorFavour);
+			} else {
+				this.updatePlayerStat("favour", null, hasDeity, 0, this.elements.valFavour, 0, false, this.elements.changeIndicatorFavour);
+			}
+			if (hasInsight) {
+				this.updatePlayerStat("insight", playerStatsNode.insight, hasInsight, playerStatsNode.insight.value, playerStatsNode.insight.maxValue, false, this.elements.valInsight, this.elements.changeIndicatorInsight);
+			} else {
+				this.updatePlayerStat("insight", null, hasInsight, 0, this.elements.valInsight, 0, false, this.elements.changeIndicatorInsight);
+			}
 
-			GameGlobals.uiFunctions.toggle($("#header-tribe-container"), GameGlobals.gameState.unlockedFeatures.evidence || playerStatsNode.rumours.isAccumulating);
+			GameGlobals.uiFunctions.toggle($("#header-tribe-container"), showEvidence || showRumours || hasDeity || hasInsight);
 
 			var improvements = this.currentLocationNodes.head.entity.get(SectorImprovementsComponent);
 			var maxPopulation = CampConstants.getHousingCap(improvements);
@@ -256,27 +314,23 @@ define([
 
 				this.elements.valReputation.text(UIConstants.roundValue(reputationComponent.value, true, true) + " / " + UIConstants.roundValue(reputationComponent.targetValue, true, true));
 				this.updateChangeIndicator(this.elements.changeIndicatorReputation, reputationComponent.accumulation, true);
-				var reputationCalloutContent = "";
+				let reputationCalloutContent = "Attracts more people to the camp.<br/>";
 				for (let i in reputationComponent.targetValueSources) {
-					var source = reputationComponent.targetValueSources[i];
+					let source = reputationComponent.targetValueSources[i];
 					if (source.amount !== 0) {
-						var amount = Math.round(source.amount * 10000)/10000;
-						if (amount === 0 && source.amount > 0) {
-							amount = "< 0.0001";
-						}
-						reputationCalloutContent += source.source + ": " + amount + "<br/>";
+						reputationCalloutContent += this.getTargetValueSourceText(source);
 					}
 				}
 				this.elements.valReputation.toggleClass("warning", reputationComponent.value < reqReputationCurrent);
 				UIConstants.updateCalloutContent("#header-camp-reputation", reputationCalloutContent);
 
 				$("#header-camp-population .value").text(Math.floor(campComponent.population) + " / " + maxPopulation);
-				this.updateChangeIndicator(this.elements.changeIndicatorPopulation, campComponent.populationChangePerSec, maxPopulation > 0);
+				this.updateChangeIndicator(this.elements.changeIndicatorPopulation, campComponent.populationChangePerSecWithoutCooldown, maxPopulation > 0);
 				var populationCalloutContent = "Required reputation:<br/>";
 				populationCalloutContent += "current: " + reqReputationCurrent + "<br/>";
 				populationCalloutContent += "next: " + reqReputationNext;
 				UIConstants.updateCalloutContent("#header-camp-population", populationCalloutContent);
-				GameGlobals.uiFunctions.toggle("#header-camp-population", true);
+				GameGlobals.uiFunctions.toggle("#header-camp-population", false); // TODO if this is ok then remove the whole element
 				GameGlobals.uiFunctions.toggle("#header-camp-reputation", true);
 			} else {
 				GameGlobals.uiFunctions.toggle("#header-camp-population", false);
@@ -285,9 +339,22 @@ define([
 
 			var itemsComponent = this.playerStatsNodes.head.items;
 			
-			let showScavangeAbility = GameGlobals.gameState.unlockedFeatures.scavenge && !isInCamp;
+			let isOnLevelPage = GameGlobals.gameState.uiStatus.currentTab == GameGlobals.uiFunctions.elementIDs.tabs.out;
+			let showScavangeAbility = GameGlobals.gameState.unlockedFeatures.scavenge && !isInCamp && isOnLevelPage;
 			this.updateScavengeAbility(showScavangeAbility, isInCamp, maxVision, shownVision);
 			this.updateScavengeBonus(showScavangeAbility);
+		},
+		
+		getTargetValueSourceText: function (source) {
+			let amount = Math.round(source.amount * 10000)/10000;
+			if (amount === 0 && source.amount > 0) {
+				amount = "< 0.0001";
+			}
+			let displayValue = amount;
+			if (source.isPercentage && source.percentageValue) {
+				displayValue = (source.amount > 0 ? "+" : "") + Math.round(source.percentageValue) + "%";
+			}
+			return source.source + ": " + displayValue + "<br/>";
 		},
 		
 		updateScavengeAbility: function (showScavangeAbility, isInCamp, maxVision, shownVision, maxStamina) {
@@ -345,19 +412,21 @@ define([
 			}
 		},
 		
-		updatePlayerStat: function (stat, component, isVisible, currentValue, flipNegative, valueElement, changeIndicatorElement) {
+		updatePlayerStat: function (stat, component, isVisible, currentValue, currentLimit, flipNegative, valueElement, changeIndicatorElement) {
 			GameGlobals.uiFunctions.toggle("#stats-" + stat, isVisible);
 			if (!isVisible) return;
+			
+			let isAtLimit = currentLimit > 0 && currentValue >= currentLimit;
 			
 			let now = GameGlobals.gameState.gameTime;
 			let previousValue = this.previousStats[stat] || 0;
 			let previousUpdate = this.previousStatsUpdates[stat] || 0;
 		
 			let animate = UIAnimations.shouldAnimateChange(previousValue, currentValue, previousUpdate, now, component.accumulation);
-			UIAnimations.animateOrSetNumber(valueElement, animate, currentValue, "", flipNegative, (v) => { return Math.floor(v); });
+			UIAnimations.animateOrSetNumber(valueElement, animate, currentValue, "/" + currentLimit, flipNegative, (v) => { return Math.floor(v); });
 			
 			this.updateStatsCallout("", "stats-" + stat, component.accSources);
-			this.updateChangeIndicator(changeIndicatorElement, component.accumulation, isVisible);
+			this.updateChangeIndicator(changeIndicatorElement, component.accumulation, isVisible && !isAtLimit);
 			this.previousStats[stat] = currentValue;
 			this.previousStatsUpdates[stat] = now;
 		},
@@ -419,11 +488,10 @@ define([
 		updateItems: function (forced, inCamp) {
 			if (inCamp) return;
 
-			var itemsComponent = this.playerStatsNodes.head.items;
-
-			var items = itemsComponent.getUnique(inCamp);
+			let itemsComponent = this.playerStatsNodes.head.items;
+			let items = itemsComponent.getUnique(inCamp);
+			
 			if (forced || items.length !== this.lastItemsUpdateItemCount) {
-				$("ul#list-header-equipment").empty();
 				$("ul#list-header-items").empty();
 				for (let i = 0; i < items.length; i++) {
 					var item = items[i];
@@ -438,10 +506,9 @@ define([
 						case ItemConstants.itemTypes.shoes:
 						case ItemConstants.itemTypes.light:
 						case ItemConstants.itemTypes.weapon:
-							if (item.equipped)
-								$("ul#list-header-equipment").append("<li>" + UIConstants.getItemDiv(itemsComponent, item, null, UIConstants.getItemCallout(item, true), true) + "</li>");
 							break;
-
+							
+						case ItemConstants.itemTypes.voucher:
 						case ItemConstants.itemTypes.exploration:
 							$("ul#list-header-items").append("<li>" + UIConstants.getItemDiv(itemsComponent, item, count, UIConstants.getItemCallout(item, true)) + "</li>");
 							break;
@@ -449,7 +516,6 @@ define([
 				}
 
 				GameGlobals.uiFunctions.generateCallouts("ul#list-header-items");
-				GameGlobals.uiFunctions.generateCallouts("ul#list-header-equipment");
 
 				this.lastItemsUpdateItemCount = items.length;
 			}
@@ -488,7 +554,7 @@ define([
 				liClass += " item item-equipped";
 				let li =
 					"<li class='" + liClass + "' id='perk-header-" + perk.id + "'>" +
-					"<div class='info-callout-target info-callout-target-small' description='" + desc + "'>" +
+					"<div class='info-callout-target info-callout-target-side' description='" + desc + "'>" +
 					"<img src='" + url + "' alt='" + perk.name + "'/>" +
 					"</div></li>";
 				$li = $(li);
@@ -513,8 +579,16 @@ define([
 			
 			let statuses = [];
 			
-			if (GameGlobals.playerHelper.getCurrentBonus(ItemConstants.itemBonusTypes.hazard_prediction) > 0) {
+			if (GameGlobals.playerHelper.getCurrentBonus(ItemConstants.itemBonusTypes.detect_hazards) > 0) {
 				statuses.push({ name: "Hazard foresight", icon: "img/status-hazard-prediction.png", isNegative: false });
+			}
+			
+			if (GameGlobals.playerHelper.getCurrentBonus(ItemConstants.itemBonusTypes.detect_supplies) > 0) {
+				statuses.push({ name: "Supplies detection", icon: "img/status-supplies-prediction.png", isNegative: false });
+			}
+			
+			if (GameGlobals.playerHelper.getCurrentBonus(ItemConstants.itemBonusTypes.detect_ingredients) > 0) {
+				statuses.push({ name: "Ingredients detection", icon: "img/status-ingredients-prediction.png", isNegative: false });
 			}
 			
 			for (let i = 0; i < statuses.length; i++) {
@@ -524,7 +598,7 @@ define([
 				liClass += " item item-equipped";
 				var li =
 					"<li class='" + liClass + "'>" +
-					"<div class='info-callout-target info-callout-target-small' description='" + status.name + "'>" +
+					"<div class='info-callout-target info-callout-target-side' description='" + status.name + "'>" +
 					"<img src='" + status.icon + "' alt='" + status.name + "'/>" +
 					"</div></li>";
 				$("ul#list-items-statuses").append(li);
@@ -582,16 +656,21 @@ define([
 			GameGlobals.uiFunctions.toggle("#header-bag-storage", !inCamp && GameGlobals.gameState.unlockedFeatures.bag);
 			GameGlobals.uiFunctions.toggle("#header-bag-currency", !inCamp && currencyComponent.currency > 0);
 			GameGlobals.uiFunctions.toggle("#bag-resources", !inCamp);
-			$("#header-camp-container").toggleClass("hidden", !inCamp && !GameGlobals.gameState.unlockedFeatures.bag && itemsComponent.getAll().length == 0 && showResources.getTotal() === 0);
+			
+			$("#grid-main-header").toggleClass("hidden", !GameGlobals.gameState.unlockedFeatures.bag && itemsComponent.getAll().length == 0 && showResources.getTotal() === 0);
 
 			$("#header-camp-currency .value").text(currencyComponent ? currencyComponent.currency : "??");
 			$("#header-bag-currency .value").text(currencyComponent ? currencyComponent.currency : "??");
+			
+			UIConstants.updateCalloutContent("#header-camp-storage", "Amount of each resource that can be stored");
+			$("#header-camp-storage .label").text(showStorageName);
+			$("#header-camp-storage .value").text(storageCap);
 
 			for (let key in resourceNames) {
 				let name = resourceNames[key];
 				let currentAmount = showResources.getResource(name);
 				let currentAccumulation = showResourceAcc.resourceChange.getResource(name);
-				let resourceUnlocked = GameGlobals.gameState.unlockedFeatures.resources[name] === true || currentAmount > 0;
+				let resourceUnlocked = GameGlobals.gameState.unlockedFeatures["resource_" + name] === true || currentAmount > 0;
 				inventoryUnlocked = inventoryUnlocked || resourceUnlocked;
 				if (inCamp) {
 					let isVisible = resourceUnlocked && !(currentAmount <= 0 && currentAccumulation <= 0 && this.canHideResource(name));
@@ -612,8 +691,6 @@ define([
 					if (showResourceAcc) {
 						UIConstants.updateResourceIndicatorCallout("#resources-" + name, showResourceAcc.getSources(name));
 					}
-					$("#header-camp-storage .label").text(showStorageName);
-					$("#header-camp-storage .value").text(storageCap);
 					this.previousShownCampResAmount[name] = currentAmount;
 				} else {
 					var isSupplies = name === resourceNames.food || name === resourceNames.water;
@@ -630,9 +707,10 @@ define([
 						!changedInOut
 					);
 
-					var bagComponent = this.playerStatsNodes.head.entity.get(BagComponent);
+					let bagComponent = this.playerStatsNodes.head.entity.get(BagComponent);
+					let bagCapacityDisplayValue = UIConstants.getBagCapacityDisplayValue(bagComponent, true);
 					$("#header-bag-storage .value").text(Math.floor(bagComponent.usedCapacity * 10) / 10);
-					$("#header-bag-storage .value-total").text(UIConstants.getBagCapacityDisplayValue(bagComponent));
+					UIAnimations.animateOrSetNumber($("#header-bag-storage .value-total"), true, bagCapacityDisplayValue);
 				}
 			}
 			
@@ -663,17 +741,23 @@ define([
 
 		updateItemStats: function (inCamp) {
 			if (!this.currentLocationNodes.head) return;
-			var itemsComponent = this.playerStatsNodes.head.items;
-			var followersComponent = this.playerStatsNodes.head.followers;
-			var playerStamina = this.playerStatsNodes.head.stamina;
-			var visibleStats = 0;
+			
+			let itemsComponent = this.playerStatsNodes.head.items;
+			let followersComponent = this.playerStatsNodes.head.followers;
+			let playerStamina = this.playerStatsNodes.head.stamina;
+			let visibleStats = 0;
+			
 			for (var bonusKey in ItemConstants.itemBonusTypes) {
-				var bonusType = ItemConstants.itemBonusTypes[bonusKey];
-				var bonus = GameGlobals.playerHelper.getCurrentBonus(bonusType);
-				var value = bonus;
-				var detail = GameGlobals.playerHelper.getCurrentBonusDesc(bonusType);
-				var isVisible = true;
-				var flipNegative = false;
+				let bonusType = ItemConstants.itemBonusTypes[bonusKey];
+				if (!this.showItemBonusTypeInEquipmentStats(bonusType)) continue;
+				let bonusName = UIConstants.getItemBonusName(bonusType);
+				let bonus = GameGlobals.playerHelper.getCurrentBonus(bonusType);
+				let value = bonus;
+				
+				let detail = GameGlobals.playerHelper.getCurrentBonusDesc(bonusType);
+				let isVisible = true;
+				let flipNegative = false;
+				
 				switch (bonusType) {
 					case ItemConstants.itemBonusTypes.fight_att:
 						value = FightConstants.getPlayerAtt(playerStamina, itemsComponent, followersComponent);
@@ -708,31 +792,27 @@ define([
 						value = Math.round(value * 10) / 10;
 						flipNegative = true;
 						break;
-						
-					case ItemConstants.itemBonusTypes.scavenge_general:
-					case ItemConstants.itemBonusTypes.scavenge_supplies:
-					case ItemConstants.itemBonusTypes.scavenge_ingredients:
-					case ItemConstants.itemBonusTypes.hazard_prediction:
-					case ItemConstants.itemBonusTypes.light:
-					case ItemConstants.itemBonusTypes.bag:
-						isVisible = false;
-						break;
 
 					default:
 						isVisible = true;
 						break;
 				}
 				
-				// TODO don't hide if animating to a hidden value (for example scavange cost when deselecting follower that gives a bonus)
-				UIAnimations.animateNumber($("#stats-equipment-" + bonusKey + " .value"), value, "", flipNegative, (v) => { return UIConstants.roundValue(v, true, true); });
-				GameGlobals.uiFunctions.toggle("#stats-equipment-" + bonusKey, isVisible && value > 0);
-				UIConstants.updateCalloutContent("#stats-equipment-" + bonusKey, detail);
+				let indicatorID = "stats-equipment-" + bonusKey;
+				let isElementVisible = isVisible && value;
+				let wasElementVisible = GameGlobals.uiFunctions.isElementToggled("#" + indicatorID);
+				let animating = UIAnimations.animateNumber($("#" + indicatorID + " .value"), value, "", flipNegative, (v) => { return UIConstants.roundValue(v, true, true); });
+				if (animating) {
+					UIAnimations.animateIcon($("#" + indicatorID + " img"));
+				}
+				let toggleDelay = wasElementVisible && animating ? UIAnimations.DEFAULT_ANIM_DURATION + 300 : 0;
+				GameGlobals.uiFunctions.toggle("#" + indicatorID, isElementVisible > 0, null, toggleDelay);
+				UIConstants.updateCalloutContent("#" + indicatorID, bonusName + "<hr/>" + detail);
 
-				if (isVisible && value > 0)
-					visibleStats++;
+				if (isVisible && value > 0) visibleStats++;
 			}
 
-			GameGlobals.uiFunctions.toggle("#header-self-bar > hr", visibleStats > 1)
+			GameGlobals.uiFunctions.toggle("#header-self-bar > hr", visibleStats > 0);
 		},
 
 		updateGameMsg: function () {
@@ -757,42 +837,52 @@ define([
 		},
 
 		updateNotifications: function (inCamp) {
-			var isBusy = false;
-			if (inCamp) {
-				var busyComponent = this.playerStatsNodes.head.entity.get(PlayerActionComponent);
-				isBusy = this.playerStatsNodes.head.entity.has(PlayerActionComponent) && busyComponent.isBusy();
-				if (isBusy) {
-					$("#notification-player-bar").data("progress-percent", busyComponent.getBusyPercentage());
-					$("#notification-player-bar .progress-label").text(busyComponent.getBusyDescription());
-				}
+			let busyComponent = this.playerStatsNodes.head.entity.get(PlayerActionComponent);
+			let isBusy = this.playerStatsNodes.head.entity.has(PlayerActionComponent) && busyComponent.isBusy();
+			if (isBusy) {
+				$("#notification-player-bar").data("progress-percent", busyComponent.getBusyPercentage());
+				$("#notification-player-bar .progress-label").text(busyComponent.getBusyDescription());
 			}
-			GameGlobals.uiFunctions.toggle("#notification-player", inCamp && isBusy);
+			GameGlobals.uiFunctions.toggle("#notification-player", isBusy);
 		},
 
 		updateLocation: function () {
 			if (!this.currentLocationNodes.head) return;
-			var playerPosition = this.playerStatsNodes.head.entity.get(PositionComponent);
-			var inCamp = playerPosition.inCamp;
+			let playerPosition = this.playerStatsNodes.head.entity.get(PositionComponent);
+			let inCamp = playerPosition.inCamp;
 
 			this.elements.body.toggleClass("location-inside", inCamp);
 			this.elements.body.toggleClass("location-outside", !inCamp);
 
-			var featuresComponent = this.currentLocationNodes.head.entity.get(SectorFeaturesComponent);
-			var sunlit = featuresComponent.sunlit;
-			var icon = this.getLevelIcon(inCamp, this.currentLocationNodes.head.entity);
-			if ($("#level-icon").attr("src") !== icon.src)
-				$("#level-icon").attr("src", icon.src);
-			$("#level-icon").attr("alt", icon.desc);
-			$("#level-icon").attr("title", icon.desc);
+			let featuresComponent = this.currentLocationNodes.head.entity.get(SectorFeaturesComponent);
+			let sunlit = featuresComponent.sunlit;
 
-			let itemsComponent = this.playerStatsNodes.head.entity.get(ItemsComponent);
-			let hasMap = itemsComponent.getCountById(ItemConstants.itemDefinitions.uniqueEquipment[0].id, true) > 0;
+			let hasMap = GameGlobals.playerHelper.hasItem("equipment_map");
 			let positionText = "??";
 			if (hasMap) {
 				let showLevel = GameGlobals.gameState.unlockedFeatures.levels;
 				positionText = this.currentLocationNodes.head.entity.get(PositionComponent).getPosition().getInGameFormat(showLevel, true);
 			}
 			$("#out-position-indicator").text("Position: " + positionText);
+			
+			this.updateLevelIcon();
+		},
+		
+		updateLevelIcon: function (animate) {
+			if (!this.currentLocationNodes.head) return;
+			let playerPosition = this.playerStatsNodes.head.entity.get(PositionComponent);
+			let inCamp = playerPosition.inCamp;
+			
+			let icon = this.getLevelIcon(inCamp, this.currentLocationNodes.head.entity);
+			if ($("#level-icon").attr("src") !== icon.src)
+				$("#level-icon").attr("src", icon.src);
+			$("#level-icon").attr("alt", icon.desc);
+			
+			UIConstants.updateCalloutContent("#level-icon", icon.desc);
+			
+			if (animate) {
+				UIAnimations.animateIcon($("#level-icon"), UIAnimations.LONG_ANIM_DURATION);
+			}
 		},
 
 		updateTabVisibility: function () {
@@ -800,7 +890,6 @@ define([
 			var isInCamp = playerPosition.inCamp;
 			GameGlobals.uiFunctions.slideToggleIf("#main-header-camp", null, isInCamp, 250, 50);
 			GameGlobals.uiFunctions.slideToggleIf("#main-header-bag", null, !isInCamp, 250, 50);
-			GameGlobals.uiFunctions.slideToggleIf("#main-header-equipment", null, !isInCamp, 250, 50);
 			GameGlobals.uiFunctions.slideToggleIf("#main-header-items", null, !isInCamp, 250, 50);
 			GameGlobals.gameState.uiStatus.isInCamp = isInCamp;
 		},
@@ -818,34 +907,125 @@ define([
 			var headerText = isInCamp && campComponent ? campComponent.getName() + " (level " + playerPosition.level + ")" : "level " + playerPosition.level;
 			this.elements.locationHeader.text(headerText);
 
-			var showCalendar = this.tribeNodes.head.upgrades.hasUpgrade(GameGlobals.upgradeEffectsHelper.getUpgradeIdForUIEffect(UpgradeConstants.upgradeUIEffects.calendar));
-			GameGlobals.uiFunctions.toggle(this.elements.date, showCalendar);
 			GameGlobals.uiFunctions.toggle("#grid-tab-header", GameGlobals.gameState.uiStatus.currentTab !== GameGlobals.uiFunctions.elementIDs.tabs.out || isInCamp);
-
-			this.elements.date.text(UIConstants.getInGameDate(GameGlobals.gameState.gameTime));
 		},
 
 		updateVisionStatus: function () {
-			if (!this.currentLocationNodes.head) return;
+			this.updateTheme();
+			this.updateVisionLevel();
+		},
+		
+		updateTheme: function () {
+			let sunlit = false;
 			
-			// update sunlit/dark
-			var featuresComponent = this.currentLocationNodes.head.entity.get(SectorFeaturesComponent);
-			var sunlit = featuresComponent.sunlit;
+			if (this.currentLocationNodes.head) {
+				let featuresComponent = this.currentLocationNodes.head.entity.get(SectorFeaturesComponent);
+				sunlit = featuresComponent.sunlit;
+			}
+			
+			if (GameGlobals.gameState.isFinished || GameGlobals.gameState.isLaunchCompleted) {
+				sunlit = false;
+			}
+			
+			if (this.playerStatsNodes.head && this.playerStatsNodes.head.entity.has(MovementComponent)) {
+				let movementComponent = this.playerStatsNodes.head.entity.get(MovementComponent);
+				let movementSector = GameGlobals.levelHelper.getSectorByPosition(movementComponent.level, movementComponent.sectorX, movementComponent.sectorY);
+				if (movementSector) {
+					let movementSectorFeaturesComponent = movementSector.get(SectorFeaturesComponent);
+					sunlit = movementSectorFeaturesComponent.sunlit;
+				}
+			}
+			
 			if (GameGlobals.gameState.uiStatus.forceSunlit) sunlit = true;
 			if (GameGlobals.gameState.uiStatus.forceDark) sunlit = false;
-			this.elements.body.toggleClass("sunlit", sunlit);
-			this.elements.body.toggleClass("dark", !sunlit);
 			
-			// update elements affected by vision
-			var visionFactor = this.playerStatsNodes.head.vision.value;
+			this.updateThemeTo(sunlit);
+		},
+		
+		updateThemeTo: function (sunlit) {
+			let wasSunlit = this.elements.body.hasClass("sunlit");
+			if (sunlit == wasSunlit) {
+				return;
+			}
+			
+			log.w("[ui] update theme to: " + (sunlit ? "sunlit" : "dark"));
+			this.transitionTheme(wasSunlit, sunlit);
+		},
+		
+		updateThemedIcons: function () {
+			let sunlit = this.elements.body.hasClass("sunlit");
+			for (let i = 0; i < this.themedIcons.length; i++) {
+				let icon = this.themedIcons[i];
+				let path = sunlit ? icon.pathSunlit : icon.pathDark;
+				if (path) {
+					icon.$elem.attr("src", path);
+				} else {
+					log.w("no path defined for themed icon " + icon.$elem.attr("id"));
+				}
+			}
+		},
+		
+		updateVisionLevel: function () {
+			let visionValue = 0;
+			if (this.playerStatsNodes.head) {
+				visionValue = this.playerStatsNodes.head.vision.value;
+			}
+			
+			let visionFactor = visionValue;
 			visionFactor = Math.max(0, visionFactor);
 			visionFactor = Math.min(100, visionFactor);
-			var visionStep = Math.round(visionFactor / 10);
+			
+			let visionStep = Math.round(visionFactor / 10);
+			
 			UIState.refreshState(this, "vision-step", visionStep, function () {
 				for (let i = 0; i <= 10; i++) {
 					 this.elements.body.toggleClass("vision-step-" + i, i == visionStep);
 				}
 			});
+		},
+		
+		transitionTheme: function (oldValue, newValue) {
+			if (oldValue == newValue) return;
+			if (this.currentThemeTransitionTargetValue != null && this.currentThemeTransitionTargetValue === newValue) {
+				return;
+			}
+			
+			log.w("transitionTheme " + oldValue + " -> " + newValue + " | " + this.currentThemeTransitionID);
+			
+			if (this.currentThemeTransitionID) {
+				clearTimeout(this.currentThemeTransitionID);
+			}
+			
+			this.currentThemeTransitionTargetValue = newValue;
+			
+			$("body").toggleClass("theme-transition", true);
+			
+			let sys = this;
+			let fadeOutDuration = UIConstants.THEME_TRANSITION_DURATION * 0.4;
+			let transitionDuration = UIConstants.THEME_TRANSITION_DURATION * 0.2;
+			let fadeInDuration = UIConstants.THEME_TRANSITION_DURATION * 0.4;
+			
+			$("#theme-transition-overlay").css("display", "block");
+			$("#theme-transition-overlay").stop(true).animate({ opacity: 1 }, fadeOutDuration).delay(transitionDuration).animate({ opacity: 0 }, fadeInDuration);
+			
+			this.currentThemeTransitionID = setTimeout(function () {
+				sys.elements.body.toggleClass("sunlit", newValue);
+				sys.elements.body.toggleClass("dark", !newValue);
+				
+				sys.updateVisionStatus();
+				sys.updateThemedIcons();
+				sys.updateResources(); // resource fill progress bar color
+				
+				GlobalSignals.themeToggledSignal.dispatch();
+				
+				sys.currentThemeTransitionID = setTimeout(function () {
+					$("body").toggleClass("theme-transition", false);
+					$("#theme-transition-overlay").css("display", "none");
+					sys.currentThemeTransitionID = null;
+					sys.currentThemeTransitionTargetValue = null;
+				}, transitionDuration + fadeOutDuration);
+			}, fadeOutDuration);
+		
 		},
 		
 		isResting: function () {
@@ -855,17 +1035,21 @@ define([
 		
 		getLevelIcon: function (inCamp, sector) {
 			let result = { src: "", desc: "" };
-			var position = sector.get(PositionComponent);
-			var featuresComponent = sector.get(SectorFeaturesComponent);
-			var levelEntity = GameGlobals.levelHelper.getLevelEntityForPosition(position.level);
-			var levelComponent = levelEntity.get(LevelComponent);
-			var sunlit = featuresComponent.sunlit;
-			var path = "img/";
-			var base = "";
-			var desc = "";
+			let position = sector.get(PositionComponent);
+			
+			let levelEntity = GameGlobals.levelHelper.getLevelEntityForPosition(position.level);
+			let levelComponent = levelEntity.get(LevelComponent);
+			
+			let path = "img/";
+			let base = "";
+			let desc = "";
+			
 			if (inCamp) {
 				base = levelComponent.populationFactor < 1 ? "ui-camp-outpost" : "ui-camp-default";
 				desc = levelComponent.populationFactor < 1 ? "in camp | outpost" : "in camp | regular";
+			} else if (!GameGlobals.levelHelper.isLevelTypeRevealed(position.level)) {
+				base = "ui-level-unknown";
+				desc = "outside | unknown level";
 			} else {
 				var surfaceLevel = GameGlobals.gameState.getSurfaceLevel();
 				var groundLevel = GameGlobals.gameState.getGroundLevel();
@@ -895,7 +1079,10 @@ define([
 					desc = "outside | regular level";
 				}
 			}
-			var suffix = (sunlit ? "" : "-dark");
+			
+			let featuresComponent = sector.get(SectorFeaturesComponent);
+			let sunlit = featuresComponent.sunlit;
+			let suffix = (sunlit ? "" : "-dark");
 			result.src = path + base + suffix + ".png";
 			result.desc = desc;
 			return result;
@@ -909,11 +1096,23 @@ define([
 			return GameGlobals.resourcesHelper.getCurrentStorageAccumulation(false);
 		},
 		
+		showItemBonusTypeInEquipmentStats: function (bonusType) {
+			if (bonusType == ItemConstants.itemBonusTypes.bag) return false;
+			if (bonusType == ItemConstants.itemBonusTypes.fight_speed) return false;
+			if (bonusType == ItemConstants.itemBonusTypes.detect_ingredients) return false;
+			if (bonusType == ItemConstants.itemBonusTypes.detect_supplies) return false;
+			if (bonusType == ItemConstants.itemBonusTypes.detect_hazards) return false;
+			if (bonusType == ItemConstants.itemBonusTypes.scavenge_general) return false;
+			if (bonusType == ItemConstants.itemBonusTypes.scavenge_ingredients) return false;
+			if (bonusType == ItemConstants.itemBonusTypes.scavenge_supplies) return false;
+			return true;
+		},
+		
 		onActionStarting: function (action) {
 			this.completeResourceAnimations();
 		},
 
-		onPlayerMoved: function () {
+		onPlayerPositionChanged: function () {
 			if (GameGlobals.gameState.uiStatus.isHidden) return;
 			this.updateTabVisibility();
 			this.updateStaminaWarningLimit();
@@ -921,6 +1120,19 @@ define([
 			this.updateHeaderTexts();
 			this.updateResourcesIfNotPending();
 			this.updatePlayerStats();
+		},
+		
+		onPlayerMoveCompleted: function () {
+			this.updatePlayerStats();
+			this.updateLocation();
+		},
+		
+		onPlayerLocationChanged: function () {
+			this.updateLocation();
+		},
+		
+		onPlayerMoveStarted: function () {
+			this.updateTheme();
 		},
 		
 		onPlayerEnteredCamp: function () {
@@ -948,6 +1160,7 @@ define([
 			if (GameGlobals.gameState.uiStatus.isHidden) return;
 			this.updateResourcesIfNotPending();
 			this.updatePlayerStats();
+			this.updateItems(true);
 		},
 		
 		onEquipmentChanged: function () {
@@ -979,10 +1192,23 @@ define([
 			if (GameGlobals.gameState.uiStatus.isHidden) return;
 			this.updateVisionStatus();
 			this.updateHeaderTexts();
+			this.updatePlayerStats();
 		},
 		
 		onPerksChanged: function () {
 			this.refreshPerks();
+		},
+		
+		onLevelTypeRevealed: function (level) {
+			let playerPosition = this.playerStatsNodes.head.entity.get(PositionComponent);
+			if (playerPosition.level == level) {
+				this.updateLevelIcon(true);
+			}
+		},
+		
+		onLaunchCompleted: function () {
+			log.i("onLaunchCompleted", this);
+			this.updateTheme();
 		},
 		
 		onGameShown: function () {

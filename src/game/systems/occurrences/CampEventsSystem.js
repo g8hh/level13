@@ -10,6 +10,7 @@ define([
 	'game/constants/LogConstants',
 	'game/constants/OccurrenceConstants',
 	'game/constants/TradeConstants',
+	'game/constants/TribeConstants',
 	'game/constants/TextConstants',
 	'game/constants/UIConstants',
 	'game/constants/WorldConstants',
@@ -28,7 +29,7 @@ define([
 	'game/vos/RaidVO',
 	'text/Text'
 ], function (
-	Ash, GameGlobals, GlobalSignals, GameConstants, CampConstants, FollowerConstants, ItemConstants, LogConstants, OccurrenceConstants, TradeConstants, TextConstants, UIConstants, WorldConstants,
+	Ash, GameGlobals, GlobalSignals, GameConstants, CampConstants, FollowerConstants, ItemConstants, LogConstants, OccurrenceConstants, TradeConstants, TribeConstants, TextConstants, UIConstants, WorldConstants,
 	PlayerResourcesNode, CampNode, TribeUpgradesNode,
 	CampComponent, PositionComponent, LogMessagesComponent, ItemsComponent,
 	RecruitComponent, TraderComponent, RaidComponent, CampEventTimersComponent,
@@ -100,8 +101,15 @@ define([
 		
 		updatePendingEvents: function (campNode, campTimers) {
 			if (campNode.camp.pendingRecruits.length > 0) {
-				if (!this.isScheduled(campNode, OccurrenceConstants.campOccurrenceTypes.recruit)) {
-					campTimers.scheduleNext(OccurrenceConstants.campOccurrenceTypes.recruit, 0);
+				let eventType = OccurrenceConstants.campOccurrenceTypes.recruit;
+				if (!this.isScheduled(campNode, eventType)) {
+					campTimers.scheduleNext(eventType, 0);
+				} else {
+					let fastTrackTimeToNext = this.getFastTrackTimeToNext(campNode, eventType);
+					let currentTimeToNext = campTimers.getEventStartTimeLeft(eventType);
+					if (fastTrackTimeToNext < currentTimeToNext) {
+						this.fastTrackEvent(eventType);
+					}
 				}
 			}
 		},
@@ -151,7 +159,13 @@ define([
 		},
 
 		isCampValidForEvent: function (campNode, event) {
+			if (GameGlobals.endingHelper.isReadyForLaunch()) false;
+			if (GameGlobals.gameState.isLaunched) return false;
 			if (GameGlobals.gameState.isAutoPlaying) return false;
+			
+			let milestoneIndex = GameGlobals.milestoneEffectsHelper.getMilestoneIndexForOccurrence(event);
+			if (GameGlobals.gameState.numUnlockedMilestones < milestoneIndex) return;
+			
 			var population = campNode.camp.population;
 			var improvements = campNode.entity.get(SectorImprovementsComponent);
 			switch (event) {
@@ -180,8 +194,10 @@ define([
 			
 			switch (event) {
 				case OccurrenceConstants.campOccurrenceTypes.trader:
-				case OccurrenceConstants.campOccurrenceTypes.recruit:
 					return improvements.getCount(improvementType) + improvements.getLevel(improvementType);
+					
+				case OccurrenceConstants.campOccurrenceTypes.recruit:
+					return improvements.getCount(improvementType) + improvements.getLevel(improvementType) + campNode.camp.pendingRecruits.length * 100;
 
 				case OccurrenceConstants.campOccurrenceTypes.raid:
 					return this.getRaidDanger(campNode.entity);
@@ -270,15 +286,26 @@ define([
 						logMsg = "Raid over.";
 						if (lostResources.getTotal() > 0) {
 							var lostResTxt = TextConstants.getLogResourceText(lostResources);
-							logMsg += " We lost " + lostResTxt.msg;
-							awayLogMsg += " We lost " + lostResTxt.msg;
+							logMsg += " We lost " + lostResTxt.msg + ".";
+							awayLogMsg += " We lost " + lostResTxt.msg + ".";
 							replacements = replacements.concat(lostResTxt.replacements);
 							values = values.concat(lostResTxt.values);
 						} else {
 							logMsg += " There was nothing left to steal.";
 							awayLogMsg += " There was nothing left to steal.";
 						}
+						
+						if (raidComponent.defendersLost > 0) {
+							logMsg += " " + raidComponent.defendersLost + " defenders were killed.";
+							awayLogMsg += " " + raidComponent.defendersLost + " defenders were killed.";
+						}
 					}
+					
+					if (raidComponent.damagedBuilding != null) {
+						logMsg += " A building was damaged.";
+						awayLogMsg += " A building was damaged.";
+					}
+					
 					campNode.entity.remove(RaidComponent);
 					campNode.camp.lastRaid = raidVO;
 					break;
@@ -309,20 +336,22 @@ define([
 					var isHardLevel = false;
 					var neededIngredients = GameGlobals.itemsHelper.getNeededIngredients(numCamps, WorldConstants.CAMP_STEP_END, isHardLevel, itemsComponent, false);
 					var neededIngredient = neededIngredients.length > 0 ? neededIngredients[0] : null;
-					var caravan = GameGlobals.campHelper.getRandomIncomingCaravan(numCamps, GameGlobals.gameState.level, GameGlobals.gameState.unlockedFeatures.resources, neededIngredient);
+					let traderLevel = GameGlobals.campHelper.getEventUpgradeLevel(OccurrenceConstants.campOccurrenceTypes.trader);
+					var caravan = GameGlobals.campHelper.getRandomIncomingCaravan(numCamps, GameGlobals.gameState.level, traderLevel, GameGlobals.gameState.getUnlockedResources(), neededIngredient);
 					campNode.entity.add(new TraderComponent(caravan));
 					logMsg = Text.capitalize(Text.addArticle(caravan.name)) + " arrives. ";
 					break;
 					
 				case OccurrenceConstants.campOccurrenceTypes.recruit:
 					let hasPendingFollower = campNode.camp.pendingRecruits.length > 0;
+					let forcedType = Math.random() < 0.2 ? FollowerConstants.abilityType.ATTACK : null;
 					let follower = hasPendingFollower ?
 						campNode.camp.pendingRecruits.shift() :
-						FollowerConstants.getNewRandomFollower(FollowerConstants.followerSource.EVENT, GameGlobals.gameState.numCamps, campPos.level);
+						FollowerConstants.getNewRandomFollower(FollowerConstants.followerSource.EVENT, GameGlobals.gameState.numCamps, campPos.level, forcedType);
 					let isFoundAsReward = hasPendingFollower && follower.source != FollowerConstants.followerSource.EVENT;
 					campNode.entity.add(new RecruitComponent(follower, isFoundAsReward));
 					logMsg = hasPendingFollower ? "Follower met when exploring is waiting at the inn." : "A visitor arrives at the Inn. ";
-					GameGlobals.gameState.unlockedFeatures.followers = true;
+					GameGlobals.playerActionFunctions.unlockFeature("followers");
 					if (hasPendingFollower) {
 						duration = OccurrenceConstants.EVENT_DURATION_INFINITE;
 					}
@@ -370,11 +399,13 @@ define([
 			
 			switch (event) {
 				case OccurrenceConstants.campOccurrenceTypes.recruit:
-					let campOrdinal = GameGlobals.campHelper.getCurrentCampOrdinal();
-					let campStep = GameGlobals.campHelper.getCurrentCampStep();
-					let abilityType = FollowerConstants.abilityType.ATTACK;
-					let follower = FollowerConstants.getNewRandomFollower(FollowerConstants.followerSource.EVENT, GameGlobals.gameState.numCamps, campNode.position.level, abilityType);
-					campNode.camp.pendingRecruits.push(follower);
+					if (campNode.camp.pendingRecruits.length == 0) {
+						let campOrdinal = GameGlobals.campHelper.getCurrentCampOrdinal();
+						let campStep = GameGlobals.campHelper.getCurrentCampStep();
+						let abilityType = FollowerConstants.abilityType.ATTACK;
+						let follower = FollowerConstants.getNewRandomFollower(FollowerConstants.followerSource.EVENT, GameGlobals.gameState.numCamps, campNode.position.level, abilityType);
+						campNode.camp.pendingRecruits.push(follower);
+					}
 					break;
 			}
 			
@@ -389,58 +420,110 @@ define([
 			raidComponent.victory = raidRoll > danger;
 			log.i("end raid: danger: " + danger + ", raidRoll: " + UIConstants.roundValue(raidRoll) + " -> victory: " + raidComponent.victory);
 
-			// raiders won, deduct resources
-			if (!raidComponent.victory) {
-				let storageMax = GameGlobals.resourcesHelper.getCurrentCampStorage(sectorEntity).storageCapacity;
-				let storageResources = GameGlobals.resourcesHelper.getCurrentCampStorage(sectorEntity).resources;
-				let storageProduction = GameGlobals.resourcesHelper.getCurrentStorageAccumulation(false).resourceChange;
-				let campResources = GameGlobals.resourcesHelper.getCampStorage(sectorEntity).resources;
-				let campProduction = GameGlobals.resourcesHelper.getCampStorageAccumulation(sectorEntity).resourceChange;
+			// raiders won, deduct resources etc
+			if (raidComponent.victory) {
+				this.addRaidDamagedBuildings(sectorEntity, 0.25, [ improvementNames.fortification ]);
+			} else {
+				this.addRaidResourcesLost(sectorEntity);
+				this.addRaidKilledDefenders(sectorEntity, 0.5);
+				this.addRaidDamagedBuildings(sectorEntity, 0.5, null);
+			}
+		},
+		
+		addRaidResourcesLost: function (sectorEntity) {
+			let raidComponent = sectorEntity.get(RaidComponent);
+			let storageMax = GameGlobals.resourcesHelper.getCurrentCampStorage(sectorEntity).storageCapacity;
+			let storageResources = GameGlobals.resourcesHelper.getCurrentCampStorage(sectorEntity).resources;
+			let storageProduction = GameGlobals.resourcesHelper.getCurrentStorageAccumulation(false).resourceChange;
+			let campResources = GameGlobals.resourcesHelper.getCampStorage(sectorEntity).resources;
+			let campProduction = GameGlobals.resourcesHelper.getCampStorageAccumulation(sectorEntity).resourceChange;
 
-				// select resources (names)
-				let resourceCandidates = [];
-				for (var key in resourceNames) {
-					let name = resourceNames[key];
-					let storageAmount = storageResources.getResource(name);
-					if (storageAmount > 0) {
-						let campProductionAmount = campProduction.getResource(name)
-						let campProductionFactor = campProductionAmount > 0 ? campProductionAmount / storageProduction.getResource(name) : 0;
-						let score = 0;
-						score += storageAmount / storageMax * 10;
-						score += campProductionFactor * 100;
-						if (name == resourceNames.metal) score -= 10;
-						if (name == resourceNames.rope) score -= 1;
-						if (name == resourceNames.concrete) score -= 1;
-						resourceCandidates.push({ name: name, score: score, campProductionFactor: campProductionFactor });
-					}
-				}
-				resourceCandidates = resourceCandidates.sort(function (a, b) { return b.score - a.score });
-				let maxSelectedResources = Math.min(resourceCandidates.length, 1 + Math.floor(Math.random() * 3));
-				if (maxSelectedResources <= 0) return;
-				let selectedResources = resourceCandidates.slice(0, maxSelectedResources);
-
-				// select amounts
-				let globalAmountFactor = 1 / (GameGlobals.resourcesHelper.getNumCampsInTradeNetwork(sectorEntity) || 1);
-				for (let i in selectedResources) {
-					let name = selectedResources[i].name;
-					let campProductionFactor = Math.min(0.5, selectedResources[i].campProductionFactor);
-					
-					let storageAmount = storageResources.getResource(name);
-					let maxLostAmount = Math.min(storageAmount, storageMax / 2, 3000);
-					
-					let randomFactor = 0.75 + Math.random() * 0.25;
-					let campShareFactor = Math.max(globalAmountFactor, campProductionFactor);
-					
-					let lostAmountRaw = maxLostAmount * campShareFactor * randomFactor;
-					let rounding = lostAmountRaw > 1000 ? 100 : lostAmountRaw > 100 ? 10 : 5;
-					let lostAmount = Math.floor(lostAmountRaw / rounding) * rounding;
-					
-					if (lostAmount >= 5) {
-						storageResources.setResource(name, storageAmount - lostAmount);
-						raidComponent.resourcesLost.addResource(name, lostAmount);
-					}
+			// select resources (names)
+			let resourceCandidates = [];
+			for (var key in resourceNames) {
+				let name = resourceNames[key];
+				let storageAmount = storageResources.getResource(name);
+				if (storageAmount > 0) {
+					let campProductionAmount = campProduction.getResource(name)
+					let campProductionFactor = campProductionAmount > 0 ? campProductionAmount / storageProduction.getResource(name) : 0;
+					let score = 0;
+					score += storageAmount / storageMax * 10;
+					score += campProductionFactor * 100;
+					if (name == resourceNames.metal) score -= 10;
+					if (name == resourceNames.rope) score -= 1;
+					if (name == resourceNames.concrete) score -= 1;
+					resourceCandidates.push({ name: name, score: score, campProductionFactor: campProductionFactor });
 				}
 			}
+			resourceCandidates = resourceCandidates.sort(function (a, b) { return b.score - a.score });
+			let maxSelectedResources = Math.min(resourceCandidates.length, 1 + Math.floor(Math.random() * 3));
+			if (maxSelectedResources <= 0) return;
+			let selectedResources = resourceCandidates.slice(0, maxSelectedResources);
+
+			// select amounts
+			let globalAmountFactor = 1 / (GameGlobals.resourcesHelper.getNumCampsInTradeNetwork(sectorEntity) || 1);
+			for (let i in selectedResources) {
+				let name = selectedResources[i].name;
+				let campProductionFactor = Math.min(0.5, selectedResources[i].campProductionFactor);
+				
+				let storageAmount = storageResources.getResource(name);
+				let maxLostAmount = Math.min(storageAmount, storageMax / 2, 3000);
+				
+				let randomFactor = 0.75 + Math.random() * 0.25;
+				let campShareFactor = Math.max(globalAmountFactor, campProductionFactor);
+				
+				let lostAmountRaw = maxLostAmount * campShareFactor * randomFactor;
+				let rounding = lostAmountRaw > 1000 ? 100 : lostAmountRaw > 100 ? 10 : 5;
+				let lostAmount = Math.floor(lostAmountRaw / rounding) * rounding;
+				
+				if (lostAmount >= 5) {
+					storageResources.setResource(name, storageAmount - lostAmount);
+					raidComponent.resourcesLost.addResource(name, lostAmount);
+				}
+			}
+		},
+		
+		addRaidKilledDefenders: function (sectorEntity, probability) {
+			let raidComponent = sectorEntity.get(RaidComponent);
+			let campComponent = sectorEntity.get(CampComponent);
+			let numSoldiers = campComponent.assignedWorkers.soldier;
+			if (numSoldiers > 0 && Math.random() < probability) {
+				let maxKilled = Math.ceil(numSoldiers / 3);
+				let numKilled = Math.ceil(Math.random() * maxKilled);
+				campComponent.assignedWorkers.soldier -= numKilled;
+				campComponent.population -= numKilled;
+				GlobalSignals.workersAssignedSignal.dispatch(sectorEntity);
+				raidComponent.defendersLost = numKilled;
+			}
+		},
+		
+		addRaidDamagedBuildings: function (sectorEntity, probability, allowedTypes) {
+			if (Math.random() > probability) return;
+			
+			// TODO add more building types here (and implement their effects)
+			let allAllowedTypes = [
+				improvementNames.fortification,
+				improvementNames.darkfarm,
+				improvementNames.apothecary,
+				improvementNames.smithy,
+				improvementNames.cementmill,
+				improvementNames.robotFactory,
+			];
+			allowedTypes = allowedTypes || allAllowedTypes;
+			
+			let typeIndex = Math.floor(Math.random() * allowedTypes.length);
+			let selectedType = allowedTypes[typeIndex];
+			
+			let improvements = sectorEntity.get(SectorImprovementsComponent);
+			let vo = improvements.getVO(selectedType);
+			
+			vo.numDamaged = vo.numDamaged || 0;
+			if (vo.numDamaged >= vo.count) return;
+			
+			vo.numDamaged++;
+			
+			let raidComponent = sectorEntity.get(RaidComponent);
+			raidComponent.damagedBuilding = selectedType;
 		},
 		
 		onGameStarted: function () {
@@ -506,7 +589,7 @@ define([
 		getTimeToNext: function (campNode, event) {
 			let isNew = this.isNew(event);
 			let numCamps = GameGlobals.gameState.numCamps;
-			let upgradeLevel = this.getEventUpgradeLevel(event);
+			let upgradeLevel = GameGlobals.campHelper.getEventUpgradeLevel(event);
 			let reputationComponent = campNode.reputation;
 			return OccurrenceConstants.getTimeToNext(event, isNew, upgradeLevel, reputationComponent.value, numCamps);
 		},
@@ -524,17 +607,6 @@ define([
 					return isCurrentCamp ? dt * 2 : dt;
 			}
 			return dt;
-		},
-
-		getEventUpgradeLevel: function (event) {
-			var upgradeLevel = 1;
-			var eventUpgrades = GameGlobals.upgradeEffectsHelper.getImprovingUpgradeIdsForOccurrence(event);
-			var eventUpgrade;
-			for (let i in eventUpgrades) {
-				eventUpgrade = eventUpgrades[i];
-				if (this.tribeUpgradesNodes.head.upgrades.hasUpgrade(eventUpgrade)) upgradeLevel++;
-			}
-			return upgradeLevel;
 		},
 		
 		getEventSkipProbability: function (campNode, event) {

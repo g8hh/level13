@@ -14,6 +14,7 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 		gainedEvidence: 0,
 		gainedRumours: 0,
 		gainedFavour: 0,
+		gainedInsight: 0,
 		gainedReputation: 0,
 		gainedPopulation: 0,
 		
@@ -21,6 +22,7 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 		lostResources: null,
 		lostCurrency: null,
 		lostItems: [],
+		brokenItems: [],
 		lostFollowers: [],
 		lostPerks: [],
 		gainedInjuries: [],
@@ -48,12 +50,14 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 			this.gainedEvidence = 0;
 			this.gainedRumours = 0;
 			this.gainedFavour = 0;
+			this.gainedInsight = 0;
 			this.gainedReputation = 0;
 			this.gainedPopulation = 0;
 			
 			this.lostResources = new ResourcesVO();
 			this.lostCurrency = 0;
 			this.lostItems = [];
+			this.brokenItems = [];
 			this.lostFollowers = [];
 			this.lostPerks = [];
 			this.gainedInjuries = [];
@@ -70,6 +74,20 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 			return this.gainedResources.getTotal() > 0 || this.gainedItems.length > 0;
 		},
 		
+		getUnselectedAndDiscardedItems: function () {
+			let result = [];
+			for (let i = 0; i < this.discardedItems.length; i++) {
+				result.push(this.discardedItems[i]);
+			}
+			for (let i = 0; i < this.gainedItems.length; i++) {
+				let item = this.gainedItems[i];
+				if (this.selectedItems.indexOf(item) < 0) {
+					result.push(item);
+				}
+			}
+			return result;
+		},
+		
 		isEmpty: function () {
 			return this.gainedResources.getTotal() == 0
 				&& this.gainedCurrency == 0
@@ -78,6 +96,7 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 				&& this.gainedItems.length == 0
 				&& this.gainedFollowers.length == 0
 				&& this.lostItems.length == 0
+				&& this.brokenItems.length == 0
 				&& this.lostFollowers.length == 0
 				&& this.lostPerks.length == 0
 				&& this.gainedInjuries.length == 0
@@ -86,7 +105,10 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 				&& this.gainedEvidence == 0
 				&& this.gainedRumours == 0
 				&& this.gainedFavour == 0
-				&& this.gainedReputation == 0;
+				&& this.gainedInsight == 0
+				&& this.gainedReputation == 0
+				&& this.discardedItems.length == 0
+				&& this.discardedResources.getTotal() == 0;
 		},
 		
 		clone: function () {
@@ -98,6 +120,7 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 			result.gainedItems = this.gainedItems.concat();
 			result.gainedFollowers = this.gainedFollowers.concat();
 			result.lostItems = this.lostItems.concat();
+			result.brokenItems = this.brokenItems.concat();
 			result.lostFollowers = this.lostFollowers.concat();
 			result.lostPerks = this.lostPerks.concat();
 			result.gainedInjuries = this.gainedInjuries.concat();
@@ -106,6 +129,7 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 			result.gainedEvidence = this.gainedEvidence;
 			result.gainedRumours = this.gainedRumours;
 			result.gainedFavour = this.gainedFavour;
+			result.gainedInsight = this.gainedInsight;
 			result.gainedReputation = this.gainedReputation;
 			return result;
 		},

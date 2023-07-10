@@ -15,6 +15,7 @@ define([
 	'game/components/common/ResourceAccumulationComponent',
 	'game/components/player/DeityComponent',
 	'game/components/type/LevelComponent',
+	'game/components/sector/SectorFeaturesComponent',
 	'game/components/sector/improvements/SectorImprovementsComponent',
 	'game/components/sector/events/RecruitComponent',
 	'game/components/sector/events/TraderComponent',
@@ -23,7 +24,7 @@ define([
 ], function (
 	Ash, GameGlobals, GlobalSignals, UIConstants, CampConstants, OccurrenceConstants, WorldConstants,
 	CampNode, PlayerPositionNode, PlayerStatsNode, TribeUpgradesNode,
-	PositionComponent, ResourcesComponent, ResourceAccumulationComponent, DeityComponent, LevelComponent, SectorImprovementsComponent, RecruitComponent, TraderComponent, RaidComponent, OutgoingCaravansComponent
+	PositionComponent, ResourcesComponent, ResourceAccumulationComponent, DeityComponent, LevelComponent, SectorFeaturesComponent, SectorImprovementsComponent, RecruitComponent, TraderComponent, RaidComponent, OutgoingCaravansComponent
 ) {
 	var UIOutTribeSystem = Ash.System.extend({
 
@@ -43,9 +44,14 @@ define([
 			EVENT_RECRUIT: "event_recruit",
 			POP_UNASSIGNED: "population-unassigned",
 			POP_DECREASING: "population-decreasing",
+			SUNLIT: "sunlit",
 			POP_INCREASING: "population-increasing",
+			BUILDING_DAMAGED: "building-damaged",
 			EVENT_OUTGOING_CARAVAN: "outoing-caravan",
 			STATUS_NON_REACHABLE_BY_TRADERS: "not-reachable-by-traders",
+			POP_NO_GARDENERS: "no-gardeners",
+			POP_NO_CHEMISTS: "no-chemists",
+			POP_NO_RUBBERMAKERS: "no-rubbermakers",
 		},
 
 		constructor: function () {
@@ -94,15 +100,6 @@ define([
 			this.updateNodes(isActive);
 		},
 
-		updateNodes: function (isActive) {
-			this.alerts = {};
-			this.notifications = {};
-			this.campsWithAlert = 0;
-			for (let i = 0; i < this.sortedCampNodes.length; i++) {
-				this.updateNode(this.sortedCampNodes[i], isActive);
-			}
-		},
-
 		refresh: function () {
 			$("#tab-header h2").text("Tribe");
 			this.updateNodes(true);
@@ -111,14 +108,22 @@ define([
 			GameGlobals.uiFunctions.toggle(".camp-overview-lvl14", GameGlobals.gameState.numCamps > 8);
 			$(".camp-overview-lvl14 hr").toggleClass("warning", GameGlobals.levelHelper.getLevelBuiltOutImprovementsCount(14, improvementNames.tradepost_connector) <= 0);
 		},
+		
+		updateNodes: function (isActive) {
+			this.alerts = {};
+			this.notifications = {};
+			this.campsWithAlert = 0;
+			
+			GameGlobals.uiFunctions.toggle($("#camp-overview tr.camp-overview-camp"), false);
+			
+			for (let i = 0; i < this.sortedCampNodes.length; i++) {
+				this.updateNode(this.sortedCampNodes[i], isActive);
+			}
+		},
 
 		updateBubble: function () {
-			if (this.campsWithAlert === this.bubbleNumber)
-				return;
-			this.updateMessages();
+			GameGlobals.uiFunctions.updateBubble("#switch-world .bubble", this.bubbleNumber, this.campsWithAlert);
 			this.bubbleNumber = this.campsWithAlert;
-			$("#switch-world .bubble").text(this.bubbleNumber)
-			GameGlobals.uiFunctions.toggle("#switch-world .bubble", this.bubbleNumber > 0);
 		},
 
 		updateMessages: function () {
@@ -178,6 +183,8 @@ define([
 		updateCampNotifications: function (node) {
 			var camp = node.camp;
 			var level = node.entity.get(PositionComponent).level;
+			
+			let featuresComponent = node.entity.get(SectorFeaturesComponent);
 			var caravansComponent = node.entity.get(OutgoingCaravansComponent);
 			var playerPosComponent = this.playerPosNodes.head.position;
 			var isPlayerInCampLevel = level === playerPosComponent.level;
@@ -191,6 +198,9 @@ define([
 			var secondsSinceLastRaid = camp.lastRaid ? Math.floor((new Date() - camp.lastRaid.timestamp) / 1000) : 0;
 			var hasRecentRaid = camp.lastRaid && !camp.lastRaid.wasVictory && camp.lastRaid.isValid() && secondsSinceLastRaid < 60 * 60;
 			var unAssignedPopulation = camp.getFreePopulation();
+			
+			var improvements = node.entity.get(SectorImprovementsComponent);
+			let hasDamagedBuildings = improvements.hasDamagedBuildings();
 			
 			var numCaravans = caravansComponent.outgoingCaravans.length;
 
@@ -213,15 +223,31 @@ define([
 					this.alerts[level].push(this.campNotificationTypes.POP_UNASSIGNED);
 					this.notifications[level].push(this.campNotificationTypes.POP_UNASSIGNED);
 				}
-				if (camp.populationChangePerSec < 0) {
+				if (hasDamagedBuildings) {
+					this.alerts[level].push(this.campNotificationTypes.BUILDING_DAMAGED);
+					this.notifications[level].push(this.campNotificationTypes.BUILDING_DAMAGED);
+				}
+				if (camp.populationChangePerSecWithoutCooldown < 0) {
 					this.alerts[level].push(this.campNotificationTypes.POP_DECREASING);
 					this.notifications[level].push(this.campNotificationTypes.POP_DECREASING);
 				}
-				if (camp.populationChangePerSec > 0) {
+				if (featuresComponent.sunlit && improvements.getCount(improvementNames.sundome) <= 0) {
+					this.notifications[level].push(this.campNotificationTypes.SUNLIT);
+				}
+				if (camp.populationChangePerSecWithoutCooldown > 0) {
 					this.notifications[level].push(this.campNotificationTypes.POP_INCREASING);
 				}
 				if (numCaravans > 0) {
 					this.notifications[level].push(this.campNotificationTypes.EVENT_OUTGOING_CARAVAN);
+				}
+				if (GameGlobals.campHelper.getMaxWorkers(node.entity, "gardener") > 0 && camp.assignedWorkers.gardener < 1) {
+					this.notifications[level].push(this.campNotificationTypes.POP_NO_GARDENERS);
+				}
+				else if (GameGlobals.campHelper.getMaxWorkers(node.entity, "rubbermaker") > 0 && camp.assignedWorkers.rubbermaker < 1) {
+					this.notifications[level].push(this.campNotificationTypes.POP_NO_RUBBERMAKERS);
+				}
+				else if (GameGlobals.campHelper.getMaxWorkers(node.entity, "chemist") > 0 && camp.assignedWorkers.chemist < 1) {
+					this.notifications[level].push(this.campNotificationTypes.POP_NO_CHEMISTS);
 				}
 			}
 			
@@ -237,17 +263,19 @@ define([
 			rowHTML += "<td class='camp-overview-level'><div class='camp-overview-level-container lvl13-box-1'></div></td>";
 			rowHTML += "<td class='camp-overview-name'></td>";
 			rowHTML += "<td class='camp-overview-population list-amount nowrap'><span class='value'></span><span class='change-indicator'></span></td>";
+			rowHTML += "<td class='camp-overview-robots list-amount nowrap'><span class='value'></span><span class='change-indicator'></span></td>";
 			rowHTML += "<td class='camp-overview-reputation list-amount nowrap'><span class='value'></span><span class='change-indicator'></span></td>";
 			rowHTML += "<td class='camp-overview-raid list-amount'><span class='value'></span></span></td>";
 			rowHTML += "<td class='camp-overview-storage list-amount'></td>";
 			rowHTML += "<td class='camp-overview-production'>";
-			for(var key in resourceNames) {
-				var name = resourceNames[key];
-				rowHTML += UIConstants.createResourceIndicator(name, false, rowID + "-" + name, false, true) + " ";
+			for(let key in resourceNames) {
+				let name = resourceNames[key];
+				if (name == resourceNames.robots) continue;
+				rowHTML += UIConstants.createResourceIndicator(name, false, rowID + "-" + name, false, true, false) + " ";
 			}
 			rowHTML += "</td>";
 			
-			rowHTML += "<td class='camp-overview-stats'>";
+			rowHTML += "<td class='camp-overview-stats nowrap'>";
 			rowHTML += "<span class='camp-overview-stats-evidence info-callout-target info-callout-target-small'>";
 			rowHTML += "<span class='icon'><img src='img/stat-evidence.png' alt='evidence'/></span><span class='change-indicator'></span> ";
 			rowHTML += "</span> ";
@@ -269,7 +297,6 @@ define([
 			});
 			
 			var row = $("#camp-overview tr#" + rowID);
-			GameGlobals.uiFunctions.toggle(row, false);
 		},
 		
 		createLevel14Row: function () {
@@ -287,6 +314,8 @@ define([
 			var unAssignedPopulation = camp.getFreePopulation();
 			var improvements = node.entity.get(SectorImprovementsComponent);
 			var levelComponent = GameGlobals.levelHelper.getLevelEntityForSector(node.entity).get(LevelComponent);
+			var resources = node.entity.get(ResourcesComponent);
+			var resourceAcc = node.entity.get(ResourceAccumulationComponent);
 
 			$("#camp-overview tr#" + rowID).toggleClass("current", isPlayerInCampLevel);
 			GameGlobals.uiFunctions.toggle("#camp-overview tr#" + rowID + " .camp-overview-btn button", !isPlayerInCampLevel);
@@ -307,8 +336,18 @@ define([
 			
 			var maxPopulation = CampConstants.getHousingCap(improvements);
 			$("#camp-overview tr#" + rowID + " .camp-overview-population .value").text(Math.floor(camp.population) + "/" + maxPopulation + (unAssignedPopulation > 0 ? " (" + unAssignedPopulation + ")" : ""));
-			$("#camp-overview tr#" + rowID + " .camp-overview-population .value").toggleClass("warning", camp.populationChangePerSec < 0);
-			this.updateChangeIndicator($("#camp-overview tr#" + rowID + " .camp-overview-population .change-indicator"), camp.populationChangePerSec);
+			$("#camp-overview tr#" + rowID + " .camp-overview-population .value").toggleClass("warning", camp.populationChangePerSecWithoutCooldown < 0);
+			this.updateChangeIndicator($("#camp-overview tr#" + rowID + " .camp-overview-population .change-indicator"), camp.populationChangePerSecWithoutCooldown);
+			
+			let showRobots = GameGlobals.gameState.unlockedFeatures.resource_robots || false;
+			if (showRobots) {
+				let robots = resources.resources.robots || 0;
+				let maxRobots = GameGlobals.campHelper.getRobotStorageCapacity(node.entity);
+				let robotsAccumulationRaw = resourceAcc.getChange(resourceNames.robots);
+				let robotsAccumulation = robots <= maxRobots || robotsAccumulationRaw < 0 ? robotsAccumulationRaw : 0;
+				$("#camp-overview tr#" + rowID + " .camp-overview-robots .value").text(maxRobots > 0 ? Math.floor(robots) + "/" + maxRobots : "-");
+				this.updateChangeIndicator($("#camp-overview tr#" + rowID + " .camp-overview-robots .change-indicator"), robotsAccumulation, false, robots <= 0);
+			}
 
 			var reputationComponent = node.reputation;
 			let reputationValue = UIConstants.roundValue(reputationComponent.value, true, true);
@@ -323,7 +362,6 @@ define([
 			$("#camp-overview tr#" + rowID + " .camp-overview-raid .value").text(UIConstants.roundValue(raidDanger * 100) + "%");
 			$("#camp-overview tr#" + rowID + " .camp-overview-raid .value").toggleClass("warning", raidWarning);
 			
-			var resources = node.entity.get(ResourcesComponent);
 			var hasTradePost = improvements.getCount(improvementNames.tradepost) > 0;
 			var storageText = resources.storageCapacity;
 			if (!hasTradePost) {
@@ -336,8 +374,9 @@ define([
 			// TODO updateResourceIndicatorCallout is a performance bottleneck
 			var resources = node.entity.get(ResourcesComponent);
 			var resourceAcc = node.entity.get(ResourceAccumulationComponent);
-			for (var key in resourceNames) {
-				var name = resourceNames[key];
+			for (let key in resourceNames) {
+				let name = resourceNames[key];
+				if (name == resourceNames.robots) continue;
 				var amount = Math.floor(resources.resources[name]);
 				var change = resourceAcc.resourceChange.getResource(name);
 				var storage = GameGlobals.resourcesHelper.getCurrentCampStorage(node.entity);
@@ -354,7 +393,7 @@ define([
 					Math.abs(change) > 0.001,
 					false
 				);
-				UIConstants.updateResourceIndicatorCallout("#" + rowID+"-"+name, resourceAcc.getSources(name));
+				UIConstants.updateResourceIndicatorCallout("#" + rowID + "-" + name, resourceAcc.getSources(name));
 			}
 		},
 		
@@ -387,6 +426,7 @@ define([
 				case this.campNotificationTypes.EVENT_RECRUIT: return "visitor";
 				case this.campNotificationTypes.POP_UNASSIGNED: return "unassigned workers";
 				case this.campNotificationTypes.POP_DECREASING: return "population decreasing";
+				case this.campNotificationTypes.BUILDING_DAMAGED: return "damaged building";
 				case this.campNotificationTypes.EVENT_OUTGOING_CARAVAN: return "outgoing caravan";
 				default: return "";
 			}
@@ -412,14 +452,19 @@ define([
 					
 					let duration = caravan.returnDuration * 1000;
 					let timeLeft = (caravan.returnTimeStamp - new Date().getTime()) / 1000;
-					let caravanTimeS = timeLeft < 30 ? "very soon" : UIConstants.getTimeToNum(timeLeft);
+					let caravanTimeS = timeLeft < 30 ? "very soon" : timeLeft < 60 ? "less than a minute" : UIConstants.getTimeToNum(timeLeft);
 					
 				 	return "Outgoing caravan on level " + level + " (expected to return in " + caravanTimeS + ").";
 					
 				case this.campNotificationTypes.EVENT_RECRUIT: return "There is a visitor currently on level " + level + ".";
 				case this.campNotificationTypes.POP_UNASSIGNED: return "Unassigned workers on level " + level + ".";
 				case this.campNotificationTypes.POP_DECREASING: return "Population is decreasing on level " + level + "!";
+				case this.campNotificationTypes.SUNLIT: return "Camp on level " + level + " is exposed to direct sunlight.";
 				case this.campNotificationTypes.POP_INCREASING: return "Population is increasing on level " + level + ".";
+				case this.campNotificationTypes.POP_NO_GARDENERS: return "Level " + level + " camp has access to a Greenhouse but no Gardeners working in it.";
+				case this.campNotificationTypes.POP_NO_RUBBERMAKERS: return "Level " + level + " camp has access to a plantation but no Rubbermakers working in it.";
+				case this.campNotificationTypes.POP_NO_CHEMISTS: return "Level " + level + " camp has access to a Refinery but no Chemists working in it.";
+				case this.campNotificationTypes.BUILDING_DAMAGED: return "Damaged building(s) on level " + level + ".";
 				case this.campNotificationTypes.STATUS_NON_REACHABLE_BY_TRADERS: return "Camp on level " + level + " can't trade resources with other camps.";
 				default: return null;
 			}
@@ -428,20 +473,26 @@ define([
 		// smaller number -> higher prio
 		getNotificationPriority: function (notificationType) {
 			switch (notificationType) {
+				case this.campNotificationTypes.POP_DECREASING: return 1;
 				case this.campNotificationTypes.EVENT_RAID_ONGOING: return 2;
 				case this.campNotificationTypes.EVENT_RAID_RECENT: return 2;
 				case this.campNotificationTypes.EVENT_TRADER: return 3;
 				case this.campNotificationTypes.EVENT_RECRUIT: return 3;
-				case this.campNotificationTypes.POP_UNASSIGNED: return 2;
-				case this.campNotificationTypes.POP_DECREASING: return 1;
-				case this.campNotificationTypes.POP_INCREASING: return 6;
-				case this.campNotificationTypes.EVENT_OUTGOING_CARAVAN: return 4;
-				case this.campNotificationTypes.STATUS_NON_REACHABLE_BY_TRADERS: return 5;
-				default: return 5;
+				case this.campNotificationTypes.BUILDING_DAMAGED: return 4;
+				case this.campNotificationTypes.POP_UNASSIGNED: return 5;
+				case this.campNotificationTypes.SUNLIT: return 6;
+				case this.campNotificationTypes.EVENT_OUTGOING_CARAVAN: return 7;
+				case this.campNotificationTypes.STATUS_NON_REACHABLE_BY_TRADERS: return 8;
+				case this.campNotificationTypes.POP_NO_GARDENERS: return 9;
+				case this.campNotificationTypes.POP_NO_RUBBERMAKERS: return 10;
+				case this.campNotificationTypes.POP_NO_CHEMISTS: return 11;
+				case this.campNotificationTypes.POP_INCREASING: return 12;
+				default: return 13;
 			}
 		},
 
-		updateChangeIndicator: function (indicator, accumulation, showWarning) {
+		updateChangeIndicator: function (indicator, accumulation, showWarning, hideCompletely) {
+			GameGlobals.uiFunctions.toggle(indicator, !hideCompletely);
 			indicator.toggleClass("indicator-increase", accumulation > 0);
 			indicator.toggleClass("indicator-even", accumulation === 0);
 			indicator.toggleClass("indicator-decrease", !showWarning && accumulation < 0);
@@ -473,9 +524,10 @@ define([
 		},
 		
 		onCampBuilt: function () {
+			if (GameGlobals.gameState.uiStatus.isHidden) return;
 			this.sortCampNodes();
 			this.refresh();
-		}
+		},
 
 	});
 

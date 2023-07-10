@@ -1,5 +1,5 @@
-define(['ash', 'game/vos/EnemyVO'],
-function (Ash, EnemyVO) {
+define(['ash', 'game/vos/EnemyVO', 'game/constants/PerkConstants'],
+function (Ash, EnemyVO, PerkConstants) {
 
 	var EnemyConstants = {
 		
@@ -71,7 +71,7 @@ function (Ash, EnemyVO) {
 				verbsDefeated: ["driven away"],
 			},
 			robot: {
-				nouns: ["aggressive bots"],
+				nouns: ["aggressive bot"],
 				groupNouns: ["mob", "gang", "group", "swarm", "cell"],
 				verbsActive: ["patrolled by", "controlled by", "guarded by", "occupied by"],
 				verbsDefeated: ["disabled", "cleared", "destroyed"],
@@ -127,6 +127,18 @@ function (Ash, EnemyVO) {
 				droppedResources: [ "metal" ],
 				droppedIngredients: [ "res_bands", "res_bottle", "res_glowbug", "res_hairpin", "res_tape" ],
 			},
+		},
+		
+		enemyInjuries: {
+			bandit: [ PerkConstants.injuryType.SHARP, PerkConstants.injuryType.BLUNT ],
+			big_animal: [ PerkConstants.injuryType.SHARP, PerkConstants.injuryType.BLUNT ],
+			bird: [ PerkConstants.injuryType.SHARP ],
+			flora: [ PerkConstants.injuryType.BLUNT ],
+			fungi: [ PerkConstants.injuryType.BLUNT ],
+			humanoid: [ PerkConstants.injuryType.SHARP, PerkConstants.injuryType.BLUNT ],
+			robot: [ PerkConstants.injuryType.SHARP, PerkConstants.injuryType.BLUNT ],
+			small_animal: [ PerkConstants.injuryType.SHARP ],
+			structure: [ PerkConstants.injuryType.BLUNT ],
 		},
 		
 		// saved for convenience & startup speed

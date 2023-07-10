@@ -26,23 +26,29 @@ define([
 			this.campNodes = engine.getNodeList(CampNode);
 			this.tribeUpgradesNodes = engine.getNodeList(TribeUpgradesNode);
 			this.itemNodes = engine.getNodeList(ItemsNode);
+			
+			GlobalSignals.add(this, GlobalSignals.gameStartedSignal, this.onGameStarted);
 		},
 
 		removeFromEngine: function (engine) {
 			this.campNodes = null;
 			this.engine = null;
+			
+			GlobalSignals.removeAll(this);
 		},
 
 		update: function (time) {
-			var numCamps = 0;
+			this.updateUnlockedFeaturesDynamic();
+		},
+		
+		updateUnlockedFeaturesDynamic: function () {
+			let numCamps = 0;
 			
 			// Global improvements
-			for (var node = this.campNodes.head; node; node = node.next) {
-				var improvementsComponent = node.entity.get(SectorImprovementsComponent);
+			for (let node = this.campNodes.head; node; node = node.next) {
+				let improvementsComponent = node.entity.get(SectorImprovementsComponent);
 				if (improvementsComponent.getCount(improvementNames.campfire) > 0) {
-					if (!GameGlobals.gameState.unlockedFeatures.upgrades)
-						GlobalSignals.featureUnlockedSignal.dispatch();
-					GameGlobals.gameState.unlockedFeatures.upgrades = true;
+					GameGlobals.playerActionFunctions.unlockFeature("upgrades");
 				}
 				if (improvementsComponent.getCount(improvementNames.home) < 1) {
 					improvementsComponent.add(improvementNames.home);
@@ -57,10 +63,23 @@ define([
 			
 			if (!GameGlobals.gameState.unlockedFeatures.projects) {
 				// TODO check with upgrade effects (has unlocked any upgrade that unlocks projects)
-				GameGlobals.gameState.unlockedFeatures.projects = this.tribeUpgradesNodes.head.upgrades.hasUpgrade("unlock_building_passage_staircase");
-				if (GameGlobals.gameState.unlockedFeatures.projects)
-					GlobalSignals.featureUnlockedSignal.dispatch();
+				if (this.tribeUpgradesNodes.head.upgrades.hasUpgrade("unlock_building_passage_staircase")) {
+					GameGlobals.playerActionFunctions.unlockFeature("projects");
+				}
 			}
+		},
+		
+		updateUnlockedFeaturesSanityChecks: function () {
+			let upgradeID = GameGlobals.upgradeEffectsHelper.getUpgradeIdForAction("investigate");
+			if (upgradeID) {
+				if (!GameGlobals.tribeHelper.hasUpgrade(upgradeID)) {
+					GameGlobals.playerActionFunctions.lockFeature("investigate")
+				}
+			}
+		},
+		
+		onGameStarted: function () {
+			this.updateUnlockedFeaturesSanityChecks();
 		}
 		
 	});

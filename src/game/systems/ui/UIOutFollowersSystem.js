@@ -1,5 +1,6 @@
 define([
 	'ash',
+	'utils/UIState',
 	'game/GameGlobals',
 	'game/GlobalSignals',
 	'game/constants/UIConstants',
@@ -9,13 +10,11 @@ define([
 	'game/components/sector/events/RecruitComponent',
 	'game/nodes/PlayerLocationNode',
 	'game/nodes/player/PlayerStatsNode',
-], function (Ash, GameGlobals, GlobalSignals, UIConstants, ItemConstants, FightConstants, FollowerConstants, RecruitComponent, PlayerLocationNode, PlayerStatsNode) {
+], function (Ash, UIState, GameGlobals, GlobalSignals, UIConstants, ItemConstants, FightConstants, FollowerConstants, RecruitComponent, PlayerLocationNode, PlayerStatsNode) {
 	var UIOutFollowersSystem = Ash.System.extend({
 		
 		playerLocationNodes: null,
 		playerStatsNodes: null,
-		
-		bubbleNumber: -1,
 		
 		followerSlotElementsByType: {},
 
@@ -92,12 +91,20 @@ define([
 		
 		updateBubble: function () {
 			let inCamp = GameGlobals.playerHelper.isInCamp();
-			var newBubbleNumber = inCamp ? this.getNumRecruits() : 0;
-			if (this.bubbleNumber === newBubbleNumber)
-				return;
-			this.bubbleNumber = newBubbleNumber;
-			$("#switch-followers .bubble").text(this.bubbleNumber);
-			GameGlobals.uiFunctions.toggle("#switch-followers .bubble", this.bubbleNumber > 0);
+			let bubbleNumber = inCamp ? this.getNumRecruits() : 0;
+			let isStatIncreaseAvailable = this.getIsStatIncreaseAvailable();
+			
+			let state = bubbleNumber + (isStatIncreaseAvailable ? 1000 : 0);
+			UIState.refreshState(this, "bubble-num", state, function () {
+				if (isStatIncreaseAvailable) {
+					$("#switch-followers .bubble").text("");
+					$("#switch-followers .bubble").toggleClass("bubble-increase", true);
+				} else {
+					$("#switch-followers .bubble").text(bubbleNumber);
+					$("#switch-followers .bubble").toggleClass("bubble-increase", false);
+				}
+				GameGlobals.uiFunctions.toggle("#switch-followers .bubble", bubbleNumber > 0 || isStatIncreaseAvailable);
+			});
 		},
 		
 		refreshRecruits: function () {
@@ -106,17 +113,21 @@ define([
 			let $table = $("#recruits-container table");
 			$table.empty();
 			
-			var recruitComponent = this.playerLocationNodes.head.entity.get(RecruitComponent);
+			let recruitComponent = this.playerLocationNodes.head.entity.get(RecruitComponent);
 			GameGlobals.uiFunctions.toggle($("#recruits-empty-message"), recruitComponent == null);
 			if (recruitComponent && recruitComponent.follower) {
 				let follower = recruitComponent.follower;
 				let followerType = FollowerConstants.getFollowerTypeForAbilityType(follower.abilityType);
+				let recruitAction = "recruit_follower_" + follower.id;
+				let costs = GameGlobals.playerActionsHelper.getCosts(recruitAction);
+				
 				let tr = "<tr>";
-				tr += "<td class='maxwidth'>" + FollowerConstants.getFollowerTypeDisplayName(followerType) + " " + follower.name + "</td>";
-				tr += "<td>" + UIConstants.getFollowerDiv(follower, false, false, false) + "</td>";
-				tr += "<td>" + (recruitComponent.isFoundAsReward ? this.getFoundRecruitIcon() : "") + "</td>";
-				tr += "<td><button class='action recruit-select' action='recruit_follower_" + follower.id + "'>Recruit</button></td>";
-				tr += "<td><button class='action recruit-dismiss btn-secondary' action='dismiss_recruit_" + follower.id + "'>Dismiss</button></td>";
+				tr += "<td>" + FollowerConstants.getFollowerTypeDisplayName(followerType) + " " + follower.name + "</td>";
+				tr += "<td class='list-ordinal'>" + UIConstants.getCostsSpans(recruitAction, costs) + "</td>";
+				tr += "<td class='minwidth'>" + UIConstants.getFollowerDiv(follower, false, false, false) + "</td>";
+				tr += "<td class='list-ordinal'>" + (recruitComponent.isFoundAsReward ? this.getFoundRecruitIcon() : "") + "</td>";
+				tr += "<td class='minwidth'><button class='action recruit-select' action='" + recruitAction + "'>Recruit</button></td>";
+				tr += "<td class='minwidth'><button class='action recruit-dismiss btn-secondary' action='dismiss_recruit_" + follower.id + "'>Dismiss</button></td>";
 				tr += "</tr>";
 				$table.append(tr);
 			}
@@ -227,6 +238,24 @@ define([
 			var recruitComponent = this.playerLocationNodes.head.entity.get(RecruitComponent);
 			if (recruitComponent) return 1;
 			return 0;
+		},
+		
+		getIsStatIncreaseAvailable: function () {
+			let inCamp = GameGlobals.playerHelper.isInCamp();
+			if (!inCamp) return false;
+			
+			let followersComponent = this.playerStatsNodes.head.followers;
+			let followers = followersComponent.getAll();
+			
+			for (let i = 0; i < followers.length; i++) {
+				let follower = followers[i];
+				if (follower.inParty) continue;
+				
+				let comparison = followersComponent.getFollowerComparison(follower);
+				if (comparison > 0) return true;
+			}
+			
+			return false;
 		},
 		
 		highlightFollowerType: function (followerType) {

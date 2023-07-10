@@ -16,41 +16,14 @@ define(['ash', 'worldcreator/WorldCreatorHelper'], function (Ash, WorldCreatorHe
 			this.numExceptions = 0;
 			this.numCamps = 0;
 			this.numVisitedSectors = 0;
+			this.numUnlockedMilestones = 0;
+			this.isLaunchStarted = false;
+			this.isLaunched = false;
+			this.isLaunchCompleted = false;
 			this.isFinished = false;
 			this.playedVersions = [];
 
-			this.unlockedFeatures = {
-				scavenge: false,
-				scout: false,
-				vision: false,
-				camp: false,
-				fight: false,
-				followers: false,
-				investigate: false,
-				bag: false,
-				upgrades: false,
-				projects: false,
-				blueprints: false,
-				resources: {
-					food: false,
-					water: false,
-					metal: false,
-					rope: false,
-					herbs: false,
-					fuel: false,
-					rubber: false,
-					medicine: false,
-					tools: false,
-					concrete: false,
-				},
-				sectors: false,
-				levels: false,
-				trade: false,
-				followers: false,
-				favour: false,
-				evidence: false,
-				currency: false,
-			};
+			this.unlockedFeatures = {};
 
 			this.uiStatus = {
 				mouseDown: false,
@@ -58,15 +31,27 @@ define(['ash', 'worldcreator/WorldCreatorHelper'], function (Ash, WorldCreatorHe
 				mapVisited: false,
 				isHidden: false,
 				isBlocked: false,
+				isTransitioning: false,
+				isInitialized: false,
 				isInCamp: false,
 				hiddenProjects: [],
 				leaveCampRes: {},
 				leaveCampItems: {},
+				lastSelection: {},
 			};
 			
 			this.settings = {
 				
 			};
+			
+			this.stats = {
+				numTimesScavenged: 0,
+				numTimesScouted: 0,
+				numTimesDespaired: 0,
+			};
+
+			this.completedTutorials = {}; // id -> timestamp
+			this.completedTutorialGroups = {}; // id -> timestamp
 
 			this.uiBagStatus = {
 				itemsOwnedSeen: [],
@@ -76,6 +61,7 @@ define(['ash', 'worldcreator/WorldCreatorHelper'], function (Ash, WorldCreatorHe
 			},
 
 			this.foundTradingPartners = []; // camp ordinals
+			this.foundLuxuryResources = [];
 
 			this.actionCooldownEndTimestamps = {};
 			this.actionDurationEndTimestamps = {};
@@ -85,14 +71,30 @@ define(['ash', 'worldcreator/WorldCreatorHelper'], function (Ash, WorldCreatorHe
 		},
 
 		syncData: function () {
-			// remove duplicates from foundTradingPartners
-			var partners = this.foundTradingPartners;
+			// remove duplicates / old values
+						
+			let partners = this.foundTradingPartners;
 			this.foundTradingPartners = [];
-			for (var campOrdinal = 1; campOrdinal < 15; campOrdinal++) {
+			for (let campOrdinal = 1; campOrdinal < 15; campOrdinal++) {
 				if (partners.indexOf(campOrdinal) >= 0) {
 					this.foundTradingPartners.push(campOrdinal);
 				}
 			}
+			
+			if (!this.uiStatus.lastSelection) this.uiStatus.lastSelection = {};
+		},
+		
+		isFeatureUnlocked: function (featureID) {
+			return this.unlockedFeatures[featureID] || false;
+		},
+		
+		getUnlockedResources: function () {
+			let result = {};
+			for (let key in resourceNames) {
+				let name = resourceNames[key];
+				result[name] = this.unlockedFeatures["resource_" + name] || false;
+			}
+			return result;
 		},
 
 		passTime: function (seconds) {
@@ -172,8 +174,9 @@ define(['ash', 'worldcreator/WorldCreatorHelper'], function (Ash, WorldCreatorHe
 
 		setActionCooldown: function (action, key, cooldown) {
 			this.pruneActionCooldowns();
-			var actionKey = action;
+			let actionKey = action;
 			if (key.length > 0) actionKey += "-" + key;
+			log.i("setActionCooldown: [" + action + "] [" + key + "] [" + actionKey + "] [" + cooldown + "]");
 			this.actionCooldownEndTimestamps[actionKey] = new Date().getTime() + cooldown * 1000;
 		},
 
@@ -189,7 +192,7 @@ define(['ash', 'worldcreator/WorldCreatorHelper'], function (Ash, WorldCreatorHe
 						log.w("fix action cooldown: " + diff + " -> " + max);
 						this.actionCooldownEndTimestamps[actionKey] = now + max;
 					}
-					return timestamp - now;
+					return (timestamp - now) / 1000;
 				}
 			}
 			return 0;
@@ -214,18 +217,19 @@ define(['ash', 'worldcreator/WorldCreatorHelper'], function (Ash, WorldCreatorHe
 		},
 
 		getActionDuration: function (action, key, max) {
-			var actionKey = action;
+			let actionKey = action;
 			if (key.length > 0) actionKey += "-" + key;
-			var timestamp = this.actionDurationEndTimestamps[actionKey];
+			let timestamp = this.actionDurationEndTimestamps[actionKey];
+			let maxMillis = max * 1000;
 			if (timestamp) {
-				var now = new Date().getTime();
-				var diff = timestamp - now;
+				let now = new Date().getTime();
+				let diff = timestamp - now;
 				if (diff > 0) {
-					if (max && diff > max) {
-						log.w("fix action duration: " + diff + " -> " + max);
-						this.actionDurationEndTimestamps[actionKey] = now + max;
+					if (max && diff > maxMillis) {
+						log.w("fix action duration: " + diff + " -> " + maxMillis);
+						this.actionDurationEndTimestamps[actionKey] = now + maxMillis;
 					}
-					return timestamp - now;
+					return (timestamp - now) / 1000;
 				}
 			}
 			return 0;

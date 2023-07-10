@@ -33,8 +33,8 @@ define(
 		resourcesCollectable: null,
 		itemsScavengeable: [],
 		
-		constructor: function (level, criticalPaths, zone, buildingDensity, wear, damage, sectorType, sunlit, ground, hazards,
-							   campable, notCampableReason, resourcesScavengable, resourcesCollectable, itemsScavengeable, hasSpring, hasTradeConnectorSpot, stashes, waymarks) {
+		constructor: function (level, criticalPaths, zone, buildingDensity, wear, damage, sectorType, sunlit, ground, surface, hazards,
+							   campable, notCampableReason, resourcesScavengable, resourcesCollectable, itemsScavengeable, hasSpring, hasTradeConnectorSpot, isInvestigatable, stashes, waymarks) {
 			this.level = level;
 			this.criticalPaths = criticalPaths;
 			this.zone = zone;
@@ -44,6 +44,7 @@ define(
 			this.sectorType = sectorType;
 			this.sunlit = sunlit;
 			this.ground = ground;
+			this.surface = surface;
 			this.hazards = hazards;
 			this.campable = campable;
 			this.notCampableReason = notCampableReason;
@@ -52,6 +53,7 @@ define(
 			this.itemsScavengeable = itemsScavengeable || [];
 			this.hasSpring = hasSpring;
 			this.hasTradeConnectorSpot = hasTradeConnectorSpot;
+			this.isInvestigatable = isInvestigatable;
 			this.stashes = stashes || [];
 			this.waymarks = waymarks || [];
 		},

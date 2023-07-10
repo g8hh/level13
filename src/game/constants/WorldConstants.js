@@ -14,7 +14,6 @@ define(['ash'], function (Ash) {
 		CAMP_ORDINAL_GROUND: 8,
 		CAMP_ORDINAL_FUEL_2: 12,
 		CAMP_ORDINAL_RUBBER_2: 14,
-		CAMP_ORDINAL_LIMIT: 14,
 		
 		CAMP_STAGE_EARLY: "e",
 		CAMP_STAGE_LATE: "l",
@@ -33,6 +32,11 @@ define(['ash'], function (Ash) {
 		ZONE_EXTRA_CAMPABLE: "z_extra_c",
 		ZONE_EXTRA_UNCAMPABLE: "z_extra_u",
 		ZONE_POI_TEMP: "z_poi_temp",
+		
+		LEVEL_NUMBER_STASH_ADVANCED_MAP: 11,
+		
+		NUM_INVESTIGATE_SECTORS_TOTAL: 15,
+		NUM_INVESTIGATE_SECTORS_SURFACE: 10,
 		
 		resourcePrevalence: {
 			RARE: 1,		// only for rare resources
@@ -107,6 +111,13 @@ define(['ash'], function (Ash) {
 					return true;
 			}
 			return false;
+		},
+		
+		getNumInvestigateSectors: function (level, topLevel) {
+			if (level == topLevel) return WorldConstants.NUM_INVESTIGATE_SECTORS_SURFACE;
+			if (level == topLevel - 1) return WorldConstants.NUM_INVESTIGATE_SECTORS_TOTAL - WorldConstants.NUM_INVESTIGATE_SECTORS_SURFACE;
+			
+			return 0;
 		},
 		
 		getCampAndStep: function (campOrdinal, step, offset) {

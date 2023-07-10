@@ -18,6 +18,8 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 		spaceship3: "Colony Life Support",
 		greenhouse: "Greenhouse",
 		tradepost_connector: "Great Elevator",
+		sundome: "Sun Dome",
+		luxuryOutpost: "Resource outpost",
 		
 		home: "Tent",
 		house: "Hut",
@@ -32,6 +34,7 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 		apothecary: "Apothecary",
 		smithy: "Smithy",
 		cementmill: "Cement mill",
+		robotFactory: "Robot factory",
 		library: "Library",
 		shrine: "Shrine",
 		temple: "Temple",
@@ -43,7 +46,6 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 		aqueduct: "Aqueduct",
 		researchcenter: "Research center",
 		lights: "Lights",
-		ceiling: "Ceiling",
 		square: "Square",
 		garden: "Moss garden",
 	};
@@ -59,6 +61,7 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 			this.name = name;
 			this.count = 0;
 			this.level = 1;
+			this.numDamaged = 0;
 			
 			this.initStorage();
 		},
@@ -117,11 +120,12 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 		}
 	});
 	
-	// TODO make ImprovementConstants
+	// TODO move to ImprovementConstants
 	
 	getImprovementType = function (name) {
 		if (!name) return null;
 		switch (name) {
+			case improvementNames.camp:
 			case improvementNames.collector_food:
 			case improvementNames.collector_water:
 			case improvementNames.greenhouse:
@@ -136,6 +140,8 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 			case improvementNames.passageDownHole:
 			case improvementNames.beacon:
 			case improvementNames.tradepost_connector:
+			case improvementNames.sundome:
+			case improvementNames.luxuryOutpost:
 				return improvementTypes.level;
 
 			default:
@@ -170,6 +176,7 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 				return 1;
 			case improvementNames.campfire:
 			case improvementNames.hospital:
+			case improvementNames.sundome:
 				return 2;
 			case improvementNames.temple:
 				return 3;

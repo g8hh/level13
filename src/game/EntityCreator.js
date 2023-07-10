@@ -11,6 +11,7 @@ define([
 	'game/components/sector/ReputationComponent',
 	'game/components/player/RumoursComponent',
 	'game/components/player/EvidenceComponent',
+	'game/components/player/InsightComponent',
 	'game/components/player/DeityComponent',
 	'game/components/player/FollowersComponent',
 	'game/components/player/ItemsComponent',
@@ -47,7 +48,8 @@ define([
 	'game/components/sector/LastVisitedCampComponent',
 	'game/components/common/CampComponent',
 	'game/components/tribe/UpgradesComponent',
-	'game/components/level/LevelPassagesComponent'
+	'game/components/level/LevelPassagesComponent',
+	'game/components/level/LevelStatusComponent'
 ], function (
 	Ash,
 	LogConstants,
@@ -61,6 +63,7 @@ define([
 	ReputationComponent,
 	RumoursComponent,
 	EvidenceComponent,
+	InsightComponent,
 	DeityComponent,
 	FollowersComponent,
 	ItemsComponent,
@@ -97,7 +100,8 @@ define([
 	LastVisitedCampComponent,
 	CampComponent,
 	UpgradesComponent,
-	LevelPassagesComponent
+	LevelPassagesComponent,
+	LevelStatusComponent
 ) {
 	var EntityCreator = Ash.Class.extend({
 
@@ -125,6 +129,7 @@ define([
 				.add(new ResourceAccumulationComponent(saveKey))
 				.add(new RumoursComponent())
 				.add(new EvidenceComponent())
+				.add(new InsightComponent())
 				.add(new PositionComponent(13, 0, 0, false))
 				.add(new LogMessagesComponent())
 				.add(new PlayerActionComponent())
@@ -139,6 +144,7 @@ define([
 					PositionComponent,
 					RumoursComponent,
 					EvidenceComponent,
+					InsightComponent,
 					LogMessagesComponent,
 					PlayerActionComponent,
 					ExcursionComponent,
@@ -154,7 +160,8 @@ define([
 				.add(new LevelComponent(pos, levelVO.isCampable, levelVO.isHard, levelVO.notCampableReason, levelVO.populationFactor, levelVO.raidDangerFactor, levelVO.minX, levelVO.maxX, levelVO.minY, levelVO.maxY))
 				.add(new PositionComponent(pos))
 				.add(new LevelPassagesComponent())
-				.add(new SaveComponent(saveKey, [CampComponent, VisitedComponent]));
+				.add(new LevelStatusComponent())
+				.add(new SaveComponent(saveKey, [CampComponent, VisitedComponent,LevelStatusComponent]));
 			this.engine.addEntity(level);
 			return level;
 		},
@@ -184,6 +191,7 @@ define([
 					sectorFeatures.sectorType,
 					sectorFeatures.sunlit,
 					sectorFeatures.ground,
+					sectorFeatures.surface,
 					sectorFeatures.hazards,
 					sectorFeatures.isCamp,
 					sectorFeatures.notCampableReason,
@@ -192,6 +200,7 @@ define([
 					sectorFeatures.itemsScavengeable,
 					sectorFeatures.hasSpring,
 					sectorFeatures.hasTradeConnectorSpot,
+					sectorFeatures.isInvestigatable,
 					sectorFeatures.stashes,
 					sectorFeatures.waymarks
 				))

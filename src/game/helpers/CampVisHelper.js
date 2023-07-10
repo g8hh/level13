@@ -59,7 +59,11 @@ function (Ash) {
 		},
 		
 		getFortificationCoords: function (n) {
-			return { x: 0, z: 4};
+			return { x: 0, z: 4 };
+		},
+		
+		getSundomeCoords: function () {
+			return { x: 0, z: 0 };
 		},
 		
 		getSpotIndex: function (x, z) {
@@ -73,7 +77,8 @@ function (Ash) {
 			return -1;
 		},
 		
-		getBuildingSize: function (buildingType) {
+		getBuildingSize: function (buildingType, buildingLevel) {
+			buildingLevel = buildingLevel || 1;
 			var s = this.defaultBuildingSize;
 			switch (buildingType) {
 				case improvementNames.darkfarm:
@@ -85,7 +90,7 @@ function (Ash) {
 				case improvementNames.hospital:
 					return { x: s * 1.25, y: s * 1.25 };
 				case improvementNames.house2:
-					return { x: s, y: s * 3.25 };
+					return { x: s * 1.25, y: s * (2 + buildingLevel * 2) };
 				case improvementNames.inn:
 					return { x: s, y: s * 1.25 };
 				case improvementNames.library:
@@ -181,6 +186,7 @@ function (Ash) {
 				case improvementNames.darkfarm:
 				case improvementNames.storage:
 				case improvementNames.cementmill:
+				case improvementNames.robotFactory:
 				case improvementNames.generator:
 					if (xdist < 6) return false;
 					break;

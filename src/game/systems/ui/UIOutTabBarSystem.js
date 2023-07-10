@@ -48,8 +48,10 @@ define([
 			GlobalSignals.add(this, GlobalSignals.featureUnlockedSignal, this.updateTabVisibility);
 			GlobalSignals.add(this, GlobalSignals.inventoryChangedSignal, this.updateTabVisibility);
 			GlobalSignals.add(this, GlobalSignals.upgradeUnlockedSignal, this.updateTabVisibility);
-			GlobalSignals.add(this, GlobalSignals.playerMovedSignal, this.updateTabVisibility);
+			GlobalSignals.add(this, GlobalSignals.playerPositionChangedSignal, this.updateTabVisibility);
 			GlobalSignals.add(this, GlobalSignals.popupClosedSignal, this.updateTabVisibility);
+			GlobalSignals.add(this, GlobalSignals.playerEnteredCampSignal, this.updateTabVisibility);
+			GlobalSignals.add(this, GlobalSignals.playerLeftCampSignal, this.updateTabVisibility);
 			GlobalSignals.add(this, GlobalSignals.populationChangedSignal, this.updateTabNames);
 			
 			this.updateTabVisibility();
@@ -77,17 +79,19 @@ define([
 		updateTabVisibility: function () {
 			if (GameGlobals.gameState.uiStatus.isHidden) return;
 			if (!this.playerStatsNodes.head) return;
-			var levelCamp = this.nearestCampNodes.head;
-			var currentCamp = levelCamp ? levelCamp.entity : null;
-			var isInCamp = this.playerStatsNodes.head && this.playerStatsNodes.head.entity.get(PositionComponent).inCamp;
-			var hasMap = this.playerStatsNodes.head.entity.get(ItemsComponent).getCountById(ItemConstants.itemDefinitions.uniqueEquipment[0].id, true) > 0;
-			var hasProjects = GameGlobals.gameState.unlockedFeatures.projects;
-			var hasTradingPost = currentCamp && currentCamp.get(SectorImprovementsComponent).getCount(improvementNames.tradepost) > 0;
+			
+			let levelCamp = this.nearestCampNodes.head;
+			let currentCamp = levelCamp ? levelCamp.entity : null;
+			let isInCamp = this.playerStatsNodes.head && this.playerStatsNodes.head.entity.get(PositionComponent).inCamp;
+			let hasMap = GameGlobals.playerHelper.hasItem("equipment_map");
+			let hasProjects = GameGlobals.gameState.unlockedFeatures.projects;
+			let hasTradingPost = currentCamp && currentCamp.get(SectorImprovementsComponent).getCount(improvementNames.tradepost) > 0;
+			let hasHomes = currentCamp && currentCamp.get(SectorImprovementsComponent).getCount(improvementNames.house) > 0;
 
 			GameGlobals.uiFunctions.tabToggleIf("#switch-tabs #switch-in", null, isInCamp, 200, 0);
 			GameGlobals.uiFunctions.tabToggleIf("#switch-tabs #switch-upgrades", null, isInCamp && GameGlobals.gameState.unlockedFeatures.upgrades, 100, 0);
-			GameGlobals.uiFunctions.tabToggleIf("#switch-tabs #switch-blueprints", null, GameGlobals.gameState.unlockedFeatures.blueprints, 100, 0);
 			GameGlobals.uiFunctions.tabToggleIf("#switch-tabs #switch-world", null, isInCamp && GameGlobals.gameState.numCamps > 1, 100, 0);
+			GameGlobals.uiFunctions.tabToggleIf("#switch-tabs #switch-milestones", null, isInCamp && GameGlobals.gameState.unlockedFeatures.milestones, 100, 0);
 			GameGlobals.uiFunctions.tabToggleIf("#switch-tabs #switch-bag", null, GameGlobals.gameState.unlockedFeatures.bag, 100, 0);
 			GameGlobals.uiFunctions.tabToggleIf("#switch-tabs #switch-followers", null, GameGlobals.gameState.unlockedFeatures.followers, 100, 0);
 			GameGlobals.uiFunctions.tabToggleIf("#switch-tabs #switch-out", null, !isInCamp, 100, 0);

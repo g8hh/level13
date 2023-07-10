@@ -55,8 +55,8 @@ define([
 				Object.assign(def, template);
 				Object.assign(def, data);
 				
-				let enemyType = def.enemyType;
-				let textDef = EnemyConstants.enemyTexts[enemyType] || {};
+				let enemyClass = def.enemyType;
+				let textDef = EnemyConstants.enemyTexts[enemyClass] || {};
 				def.nouns = (def.nouns || []).concat(textDef.nouns);
 				def.groupNouns = (def.groupNouns || []).concat(textDef.groupNouns);
 				def.verbsActive = (def.verbsActive || []).concat(textDef.verbsActive);
@@ -66,9 +66,12 @@ define([
 					log.w("enemy missing text: " + enemyID);
 				}
 				
-				let lootDef = EnemyConstants.enemyLoot[enemyType] || {};
+				let lootDef = EnemyConstants.enemyLoot[enemyClass] || {};
 				def.droppedResources = (def.droppedResources || []).concat(lootDef.droppedResources);
 				def.droppedIngredients = (def.droppedIngredients || []).concat(lootDef.droppedIngredients);
+				
+				let causedInjuryTypes = EnemyConstants.enemyInjuries[enemyClass];
+				def.causedInjuryTypes = (def.causedInjuryTypes || []).concat(causedInjuryTypes);
 				
 				let type = def.environment || template.environment;
 				let enemyVO = this.createEnemy(
@@ -79,15 +82,19 @@ define([
 					def.campOrdinal || 0, def.difficulty || 5,
 					def.attackRatio || 0.5, def.shieldRatio || 0, def.healthFactor || 1, def.shieldFactor || 1, def.size || 1, def.speed || 1,
 					def.rarity || 1,
-					def.droppedResources, def.droppedIngredients
+					def.droppedResources, def.droppedIngredients, def.causedInjuryTypes
 				);
+				
+				enemyVO.enemyClass = enemyClass;
+				enemyVO.requiredTags = def.requiredTags || [];
+				
 				if (!EnemyConstants.enemyDefinitions[type]) EnemyConstants.enemyDefinitions[type] = [];
 			 	EnemyConstants.enemyDefinitions[type].push(enemyVO.cloneWithIV(50));
 			}
 		},
 
 		// Enemy definitions (speed: around 1, rarity: 0-100)
-		createEnemy: function (id, name, type, nouns, groupN, activeV, defeatedV, campOrdinal, normalizedDifficulty, attRatio, shieldRatio, healthFactor, shieldFactor, size, speed, rarity, droppedResources, droppedIngredients) {
+		createEnemy: function (id, name, type, nouns, groupN, activeV, defeatedV, campOrdinal, normalizedDifficulty, attRatio, shieldRatio, healthFactor, shieldFactor, size, speed, rarity, droppedResources, droppedIngredients, causedInjuryTypes) {
 			// normalizedDifficulty (1-10) -> camp step and difficulty within camp step
 			normalizedDifficulty = MathUtils.clamp(normalizedDifficulty, 1, 10);
 			let step = 0;
@@ -154,7 +161,7 @@ define([
 			
 			// log.i("goal strength: " + strength + " | actual strength: " + FightConstants.getStrength(att, def, speed));
 
-			return new EnemyVO(id, name, type, nouns, groupN, activeV, defeatedV, size, att, def, hp, shield, speed, rarity, droppedResources, droppedIngredients);
+			return new EnemyVO(id, name, type, nouns, groupN, activeV, defeatedV, size, att, def, hp, shield, speed, rarity, droppedResources, droppedIngredients, causedInjuryTypes);
 		},
 		
 		getStatBase: function (campOrdinal, step, difficultyFactor, statfunc) {
@@ -250,12 +257,10 @@ define([
 		// get enemies by type (string) and difficulty (campOrdinal and step)
 		// by default will also include enemies of one difficulty lower, if restrictDifficulty, then not
 		// will return at least one enemy; if no matching enemy exists, one with lower difficulty is returned
-		getEnemies: function (type, difficulty, restrictDifficulty) {
+		getEnemies: function (type, difficulty, restrictDifficulty, tags) {
 			var enemies = [];
 			if (difficulty <= 0) return enemies;
 
-			var enemy;
-			var enemyDifficulty;
 			var enemyList = [];
 			if (type) {
 				enemyList = EnemyConstants.enemyDefinitions[type];
@@ -265,9 +270,22 @@ define([
 				}
 			}
 			
+			let isMatchingTags = function (enemy) {
+				if (enemy.requiredTags.length > 0) {
+					if (tags.length < enemy.requiredTags.length) return false;
+					for (let j = 0; j < enemy.requiredTags.length; j++) {
+						if (tags.indexOf(enemy.requiredTags[j]) < 0) {
+							return false;
+						}
+					}
+				}
+				return true;
+			}
+			
 			for (let i = 0; i < enemyList.length; i++) {
-				enemy = enemyList[i];
-				enemyDifficulty = Math.max(EnemyConstants.enemyDifficulties[enemy.id], 1);
+				let enemy = enemyList[i];
+				if (!isMatchingTags(enemy)) continue;
+				let enemyDifficulty = Math.max(EnemyConstants.enemyDifficulties[enemy.id], 1);
 				if (enemyDifficulty === difficulty)
 					enemies.push(enemy);
 				if (enemyDifficulty === difficulty - 1 && difficulty > 1 && !restrictDifficulty)
@@ -275,7 +293,7 @@ define([
 			}
 
 			if (enemies.length <= 0) {
-				return this.getEnemies(type, difficulty - 1, restrictDifficulty);
+				return this.getEnemies(type, difficulty - 1, restrictDifficulty, tags);
 			}
 
 			return enemies;
@@ -343,8 +361,8 @@ define([
 		getTypicalStamina: function (campOrdinal, step, isHardLevel) {
 			var healthyPerkFactor = 1;
 			
-			let campAndStepPerk1 = UpgradeConstants.getExpectedCampAndStepForUpgrade("improve_building_hospital",);
-			let campAndStepPerk2 = UpgradeConstants.getExpectedCampAndStepForUpgrade("improve_building_hospital_3");
+			let campAndStepPerk1 = GameGlobals.upgradeEffectsHelper.getExpectedCampAndStepForUpgrade("improve_building_hospital",);
+			let campAndStepPerk2 = GameGlobals.upgradeEffectsHelper.getExpectedCampAndStepForUpgrade("improve_building_hospital_3");
 
 			if (WorldConstants.isHigherOrEqualCampOrdinalAndStep(campOrdinal, step, campAndStepPerk2.campOrdinal, campAndStepPerk2.step)) {
 				healthyPerkFactor = PerkConstants.getPerk(PerkConstants.perkIds.healthBonus3).effect;

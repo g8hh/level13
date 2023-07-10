@@ -2,16 +2,18 @@
 define([
 	'ash',
 	'game/GameGlobals',
+	'game/constants/CampConstants',
 	'game/constants/ImprovementConstants',
+	'game/constants/ItemConstants',
 	'game/constants/UpgradeConstants',
 	'game/constants/PlayerActionConstants',
+	'game/constants/WorldConstants',
 	'game/constants/OccurrenceConstants',
+	'game/constants/TextConstants',
 	'game/vos/ImprovementVO',
-], function (Ash, GameGlobals, ImprovementConstants, UpgradeConstants, PlayerActionConstants, OccurrenceConstants, ImprovementVO) {
+], function (Ash, GameGlobals, CampConstants, ImprovementConstants, ItemConstants, UpgradeConstants, PlayerActionConstants, WorldConstants, OccurrenceConstants, TextConstants, ImprovementVO) {
 	
 	var UpgradeEffectsHelper = Ash.Class.extend({
-		
-		constructor: function () {},
 		
 		improvementsByOccurrence: {},
 		
@@ -20,11 +22,102 @@ define([
 			this.improvementsByOccurrence[OccurrenceConstants.campOccurrenceTypes.recruit] = improvementNames.inn;
 		},
 		
+		getEffectDescription: function (upgradeID, showMultiline) {
+			let effects = "";
+			
+			let addGroup = function (title, items, getItemDisplayName) {
+				if (items.length == 0) return
+				if  (title && title.length > 0) effects += title + ": ";
+				if (showMultiline) effects += "<br/>";
+				for (let i = 0; i < items.length; i++) {
+					if (i > 0) effects += ", ";
+					effects += getItemDisplayName(items[i]).toLowerCase();
+				}
+				if (showMultiline) effects += "<br/>";
+				else effects += ", ";
+			}
+			
+			let unlockedBuildings = GameGlobals.upgradeEffectsHelper.getUnlockedBuildings(upgradeID);
+			addGroup("unlocked camp buildings", unlockedBuildings, this.getImprovementDisplayName);
+			
+			let unlockedProjects = GameGlobals.upgradeEffectsHelper.getUnlockedProjects(upgradeID);
+			addGroup("unlocked building projects", unlockedProjects, this.getImprovementDisplayName);
+			
+			let unlockedOtherImprovements = GameGlobals.upgradeEffectsHelper.getUnlockedImprovements(upgradeID);
+			unlockedOtherImprovements = unlockedOtherImprovements.filter(improvementName => unlockedBuildings.indexOf(improvementName) < 0 && unlockedProjects.indexOf(improvementName) < 0);
+			addGroup("unlocked other buildings", unlockedOtherImprovements, this.getImprovementDisplayName);
+
+			let improvedBuildings = GameGlobals.upgradeEffectsHelper.getImprovedBuildings(upgradeID);
+			addGroup("improved buildings", improvedBuildings, this.getImprovementDisplayName);
+
+			let unlockedWorkers = GameGlobals.upgradeEffectsHelper.getUnlockedWorkers(upgradeID);
+			addGroup("unlocked workers", unlockedWorkers, CampConstants.getWorkerDisplayName);
+
+			let improvedWorkers = GameGlobals.upgradeEffectsHelper.getImprovedWorkers(upgradeID);
+			addGroup("improved workers", improvedWorkers, CampConstants.getWorkerDisplayName);
+
+			let unlockedItems = GameGlobals.upgradeEffectsHelper.getUnlockedItems(upgradeID);
+			addGroup("unlocked items", unlockedItems, ItemConstants.getItemDisplayName);
+			
+			let unlockedOccurrences = GameGlobals.upgradeEffectsHelper.getUnlockedOccurrences(upgradeID);
+			addGroup("new events", unlockedOccurrences, (e) => e);
+
+			let improvedOccurrences = GameGlobals.upgradeEffectsHelper.getImprovedOccurrences(upgradeID);
+			addGroup("", improvedOccurrences, (e) => "improved " + e);
+
+			let unlockedActions = GameGlobals.upgradeEffectsHelper.getUnlockedGeneralActions(upgradeID);
+			addGroup("new actions", unlockedActions, (action) => {
+				let baseActionID = GameGlobals.playerActionsHelper.getBaseActionID(action)
+				return TextConstants.getActionName(baseActionID);
+			});
+
+			if (effects.length > 0 && effects.endsWith(", ")) effects = effects.slice(0, -2);
+			if (effects.length > 0 && effects.endsWith("<br/>")) effects = effects.slice(0, -5);
+			
+			effects = effects.toLowerCase();
+			
+			return effects;
+		},
+		
+		getEffectHints: function (upgradeID) {
+			let result = "";
+			let unlockedActions = this.getUnlockedActions(upgradeID);
+			let unlockedProjects = GameGlobals.upgradeEffectsHelper.getUnlockedProjects(upgradeID);
+			
+			if (unlockedActions.indexOf("clear_waste_t") >= 0) {
+				result += "Workers cannot clear toxic waste. You must go to the sector yourself. ";
+			}
+			
+			if (unlockedActions.indexOf("investigate") >= 0) {
+				result += "Investigation is now available on certain sectors. Use the map to find them. ";
+			}
+			
+			if (unlockedProjects.indexOf(improvementNames.greenhouse) >= 0) {
+				result += "Greenhouses can only be built at certain locations with good conditions. If you've found those locations they will appear in the projects tab. ";
+			}
+			
+			return result;
+		},
+		
+		getImprovementDisplayName: function (improvementName) {
+			// TODO determine what improvement level to use (average? current camp?)
+			return ImprovementConstants.getImprovementDisplayName(improvementName);
+		},
+		
 		getUnlockedBuildings: function (upgradeID) {
-			// TODO separate in and out improvements
+			return this.getUnlockedImprovements(upgradeID, improvementTypes.camp);
+		},
+		
+		getUnlockedProjects: function (upgradeID) {
+			return this.getUnlockedImprovements(upgradeID).filter(improvementName => ImprovementConstants.isProject(improvementName));
+		},
+		
+		getUnlockedImprovements: function (upgradeID, improvementType) {
 			let actions = this.getUnlockedActions(upgradeID, function (action) {
 				let improvementName = GameGlobals.playerActionsHelper.getImprovementNameForAction(action, true);
-				return improvementName;
+				if (!improvementName) return false;
+				let type = getImprovementType(improvementName);
+				return !improvementType || improvementType == type;
 			});
 			return actions.map(action => GameGlobals.playerActionsHelper.getImprovementNameForAction(action, true));
 		},
@@ -61,13 +154,13 @@ define([
 		},
 		
 		getUnlockedOccurrences: function (upgradeID) {
-			var unlockedBuildings = this.getUnlockedBuildings(upgradeID);
+			var unlockedImprovements = this.getUnlockedImprovements(upgradeID);
 			var occurrences = [];
-			if(unlockedBuildings.length > 0) {
+			if (unlockedImprovements.length > 0) {
 				var occurrenceBuilding;
 				var unlockedBuilding;
-				for (let i = 0; i < unlockedBuildings.length; i++) {
-					unlockedBuilding = unlockedBuildings[i];
+				for (let i = 0; i < unlockedImprovements.length; i++) {
+					unlockedBuilding = unlockedImprovements[i];
 					for (var occurrence in this.improvementsByOccurrence) {
 						occurrenceBuilding = this.improvementsByOccurrence[occurrence];
 						if (occurrenceBuilding === unlockedBuilding) {
@@ -142,9 +235,9 @@ define([
 		getUnlockedGeneralActions: function (upgradeID) {
 			return this.getUnlockedActions(upgradeID, function (action) {
 				let baseActionID = GameGlobals.playerActionsHelper.getBaseActionID(action);
-				if (action == "build_out_greenhouse") return true;
-				if (action == "build_out_tradepost_connector") return true;
-				if (UpgradeConstants.upgradeDefinitions[action]) return false;
+				// if (action == "build_out_greenhouse") return true;
+				if (action == "build_out_tradepost_connector") return false;
+				if (GameGlobals.playerActionsHelper.isUnlockUpgradeAction(action)) return false;
 				if (baseActionID.indexOf("build_") >= 0) return false;
 				if (baseActionID.indexOf("craft") >= 0) return false;
 				if (baseActionID.indexOf("use_in_") >= 0) return false;
@@ -155,10 +248,10 @@ define([
 		getUnlockedActions: function (upgradeID, filter) {
 			// TODO performance
 			let result = [];
-			var reqsDefinition;
+			let reqsDefinition;
 			for (var action in PlayerActionConstants.requirements) {
 				reqsDefinition = PlayerActionConstants.requirements[action];
-				if (reqsDefinition.upgrades && filter(action)) {
+				if (reqsDefinition.upgrades && (!filter || filter(action))) {
 					for (var requiredUpgradeId in reqsDefinition.upgrades) {
 						if (requiredUpgradeId === upgradeID) {
 							result.push(action);
@@ -194,6 +287,14 @@ define([
 			return UpgradeConstants.improvingUpgradesByEvent[occurrence];
 		},
 		
+		getUpgradeIdForAction: function (action) {
+			var reqs = PlayerActionConstants.requirements[action];
+			if (reqs && reqs.upgrades) {
+				return Object.keys(reqs.upgrades)[0];
+			}
+			return null;
+		},
+		
 		getBuildingUpgradeLevel: function (building, upgradesComponent) {
 			var upgradeLevel = 1;
 			var buildingUpgrades = this.getUpgradeIdsForImprovement(building);
@@ -214,7 +315,7 @@ define([
 			var buildingUpgrade;
 			for (let i in buildingUpgrades) {
 				buildingUpgrade = buildingUpgrades[i];
-				var requiredTechCampOrdinal = UpgradeConstants.getExpectedCampOrdinalForUpgrade(buildingUpgrade);
+				var requiredTechCampOrdinal = this.getExpectedCampOrdinalForUpgrade(buildingUpgrade);
 				if (requiredTechCampOrdinal <= campOrdinal) upgradeLevel++;
 			}
 			return upgradeLevel;
@@ -244,14 +345,14 @@ define([
 		},
 
 		getUpgradeToUnlockBuilding: function (improvementName) {
-			let action = GameGlobals.playerActionsHelper.getActionNameForImprovement(improvementName);
+			let action = PlayerActionConstants.getActionNameForImprovement(improvementName);
 			let reqsDefinition = PlayerActionConstants.requirements[action];
 			let result = null;
 			let resultCampOrdinal = 1;
 			
 			if (reqsDefinition && reqsDefinition.upgrades) {
 				for (var requiredUpgradeId in reqsDefinition.upgrades) {
-					var upgradeCampOrdinal = UpgradeConstants.getMinimumCampOrdinalForUpgrade(requiredUpgradeId);
+					var upgradeCampOrdinal = GameGlobals.upgradeEffectsHelper.getMinimumCampOrdinalForUpgrade(requiredUpgradeId);
 					if (!result || upgradeCampOrdinal > resultCampOrdinal) {
 						result = requiredUpgradeId;
 						resultCampOrdinal = upgradeCampOrdinal;
@@ -262,12 +363,115 @@ define([
 			return result;
 		},
 
+		getMinimumCampOrdinalForUpgrade: function (upgrade, ignoreCosts, milestone) {
+			if (!upgrade) return 1;
+			
+			let cacheKey = upgrade + "__" + (ignoreCosts ? "i" : "c") + "__" + (milestone ? milestone.index : "A");
+			
+			// TODO also cache ignoreCosts version for each upgrade
+			if (UpgradeConstants.minimumCampOrdinalForUpgrade[cacheKey]) return UpgradeConstants.minimumCampOrdinalForUpgrade[cacheKey];
+			
+			if (!UpgradeConstants.upgradeDefinitions[upgrade]) {
+				log.w("no such upgrade: " + upgrade);
+				UpgradeConstants.minimumCampOrdinalForUpgrade[cacheKey] = 99;
+				return 99;
+			}
+			
+			// required tech
+			var requiredTech = UpgradeConstants.getRequiredTech(upgrade);
+			var requiredTechCampOrdinal = 0;
+			for (let i = 0; i < requiredTech.length; i++) {
+				requiredTechCampOrdinal = Math.max(requiredTechCampOrdinal, this.getMinimumCampOrdinalForUpgrade(requiredTech[i], ignoreCosts, milestone));
+			}
+			
+			// blueprint
+			let blueprintCampOrdinal = UpgradeConstants.getBlueprintCampOrdinal(upgrade);
+			
+			// misc reqs
+			var reqs = PlayerActionConstants.requirements[upgrade];
+			if (reqs && reqs.deity) {
+				requiredTechCampOrdinal = Math.max(requiredTechCampOrdinal, WorldConstants.CAMP_ORDINAL_GROUND);
+			}
+			if (reqs && reqs.milestone) {
+				if (milestone) {
+					// break infinite recursion if milestone is given
+					if (milestone.index < reqs.milestone) {
+						requiredTechCampOrdinal = 99;
+					}
+				} else {
+					let milestoneCampOrdinal = GameGlobals.milestoneEffectsHelper.getMinimumCampOrdinalForMilestone(reqs.milestone);
+					requiredTechCampOrdinal = Math.max(requiredTechCampOrdinal, milestoneCampOrdinal);
+				}
+			}
+			
+			// costs
+			var costCampOrdinal = 1;
+			var costs = PlayerActionConstants.costs[upgrade];
+			if (!ignoreCosts) {
+				if (!costs) {
+					log.w("upgrade has no costs: " + upgrade);
+				} else {
+					if (costs.favour) {
+						costCampOrdinal = Math.max(costCampOrdinal, WorldConstants.CAMPS_BEFORE_GROUND);
+					}
+				}
+			}
+			if (costs.favour) {
+				costCampOrdinal = WorldConstants.CAMP_ORDINAL_GROUND;
+			}
+			
+			result = Math.max(1, blueprintCampOrdinal, requiredTechCampOrdinal, costCampOrdinal);
+			
+			UpgradeConstants.minimumCampOrdinalForUpgrade[cacheKey] = result;
+			
+			return result;
+		},
+	
+		getMinimumCampStepForUpgrade: function (upgrade) {
+			let result = 0;
+			var blueprintType = UpgradeConstants.getBlueprintBracket(upgrade);
+			if (blueprintType == UpgradeConstants.BLUEPRINT_BRACKET_EARLY)
+				result = WorldConstants.CAMP_STEP_START;
+			if (blueprintType == UpgradeConstants.BLUEPRINT_BRACKET_LATE)
+				result = WorldConstants.CAMP_STEP_POI_2;
+				
+			var requiredTech = UpgradeConstants.getRequiredTech(upgrade);
+			for (let i = 0; i < requiredTech.length; i++) {
+				result = Math.max(result, this.getMinimumCampStepForUpgrade(requiredTech[i]));
+			}
+			
+			let costs = PlayerActionConstants.costs[upgrade];
+			if (costs && costs.favour) {
+				result = WorldConstants.CAMP_STEP_POI_2;
+			}
+			
+			return result;
+		},
+		
+		getMinimumCampAndStepForUpgrade: function (upgradeID, ignoreCosts) {
+			return {
+				campOrdinal: this.getMinimumCampOrdinalForUpgrade(upgradeID, ignoreCosts),
+				step: this.getMinimumCampStepForUpgrade(upgradeID)
+			};
+		},
+		
+		getExpectedCampOrdinalForUpgrade: function (upgrade) {
+			return UpgradeConstants.upgradeDefinitions[upgrade].campOrdinal || 1;
+		},
+		
+		getExpectedCampAndStepForUpgrade: function (upgradeID) {
+			return {
+				campOrdinal: this.getExpectedCampOrdinalForUpgrade(upgradeID),
+				step: this.getMinimumCampStepForUpgrade(upgradeID)
+			};
+		},
+
 		getCampOrdinalToUnlockBuilding: function (improvementName) {
 			// TODO extend with checking for required buildings' requirements
 			// TODO extend for checking required resources
 			let result = 1;
 			let requiredUpgradeId = this.getUpgradeToUnlockBuilding(improvementName);
-			result = Math.max(result, UpgradeConstants.getMinimumCampOrdinalForUpgrade(requiredUpgradeId))
+			result = Math.max(result, GameGlobals.upgradeEffectsHelper.getMinimumCampOrdinalForUpgrade(requiredUpgradeId))
 			switch (improvementName) {
 				case improvementNames.temple: return 8;
 				case improvementNames.shrine: return 8;

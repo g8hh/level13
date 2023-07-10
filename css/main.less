@@ -7,8 +7,13 @@
 
 // GLOBAL SETTINGS
 
-@font-size-small: 85%;
-@font-size-tiny: 75%;
+@font-size-default: 1em;
+@font-size-small: 0.85rem;
+@font-size-tiny: 0.75rem;
+@line-height-default: 1.35em;
+@line-height-condensed: 1.2em;
+
+@duration-theme-transition: 1s;
 
 // GLOBAL COLOURS
 
@@ -22,7 +27,6 @@ body.dark {
 	background: @color-bg-page;
 	color: @color-text-default;
 	.color-theme(dark);
-	.vision-steps-themed(10);
 }
 
 body.sunlit {
@@ -30,10 +34,6 @@ body.sunlit {
 	background: @color-bg-page;
 	color: @color-text-default;
 	.color-theme(sunlit);
-	.vision-steps-themed(10);
-	#vision-overlay {
-		display: none;
-	}
 }
 
 .color-theme(@theme) {
@@ -49,20 +49,4 @@ body.sunlit {
 	@import "modules/loader";
 	@import "modules/scrollbar";
 	@import "modules/vis";
-}
-
-.vision-steps-themed(@counter) when (@counter >= 0) {
-	.vision-steps-themed(@counter - 1);
-	&.vision-step-@{counter} {
-		@overlay-cover: min(70% + @counter * 3, 99%);
-		@overlay-opacity: max(80% - @counter * 0.5, 0);
-		
-		#vision-overlay {
-		    background: -moz-radial-gradient(circle at 50% 50%, fade(@color-bg-page, 0%) 0%, fade(@color-bg-page, 0%) 50%, fade(@color-bg-page, @overlay-opacity) @overlay-cover, @color-bg-page 100%);
-		    background: -webkit-radial-gradient(circle at 50% 50%, fade(@color-bg-page, 0%) 0%, fade(@color-bg-page, 0%) 50%, fade(@color-bg-page, @overlay-opacity) @overlay-cover, @color-bg-page 100%);
-		    background: -o-radial-gradient(circle at 50% 50%, fade(@color-bg-page, 0%) 0%, fade(@color-bg-page, 0%) 50%, fade(@color-bg-page, @overlay-opacity) @overlay-cover, @color-bg-page 100%);
-		    background: -ms-radial-gradient(circle at 50% 50%, fade(@color-bg-page, 0%) 0%, fade(@color-bg-page, 0%) 50%, fade(@color-bg-page, @overlay-opacity) @overlay-cover, @color-bg-page 100%);
-		    background: radial-gradient(circle at 50% 50%, fade(@color-bg-page, 0%) 0%, fade(@color-bg-page, 0%) 50%, fade(@color-bg-page, @overlay-opacity) @overlay-cover, @color-bg-page 100%);
-		}
-	}
 }

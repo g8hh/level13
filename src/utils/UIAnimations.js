@@ -5,6 +5,9 @@ define([
 ) {
 	var UIAnimations = {
 		
+		DEFAULT_ANIM_DURATION: 600,
+		LONG_ANIM_DURATION: 1500,
+		
 		debugAnimations: false,
 		animData: {},
 		
@@ -33,11 +36,12 @@ define([
 		},
 		
 		animateNumber: function ($elem, targetValue, suffix, flipNegative, roundingFunc) {
+			roundingFunc = roundingFunc || ((num) => num);
 			let animType = "number-anim";
 			let roundedTargetValue = UIAnimations.parseRawNumber(roundingFunc(targetValue));
 			let currentTargetValue = parseFloat(UIAnimations.getCurrentTarget($elem, animType));
 			if (currentTargetValue === roundedTargetValue) {
-				return;
+				return false;
 			}
 			let currentAnimId = UIAnimations.getCurrentId($elem, animType);
 			if (currentAnimId) {
@@ -46,16 +50,16 @@ define([
 			let isValueSet = $elem.attr("data-value-set");
 			if (!isValueSet) {
 				UIAnimations.setNumber($elem, targetValue, roundingFunc, suffix);
-				return;
+				return false;
 			}
 			
 			let startValue = parseFloat($elem.text()) || 0;
 			let diff = roundedTargetValue - startValue;
 			if (diff === 0) {
-				return;
+				return false;
 			}
 			
-			let defaultDuration = 600;
+			let defaultDuration = this.DEFAULT_ANIM_DURATION;
 			let maxValueSteps = 10;
 			let numValueSteps = Math.ceil(Math.abs(diff));
 			numValueSteps = Math.min(numValueSteps, maxValueSteps);
@@ -84,7 +88,7 @@ define([
 				roundingFunc: roundingFunc,
 				suffix: suffix,
 			};
-			let animId = UIAnimations.startAnimation($elem, animType, isNegative, targetValue, stepDuration, data, function () {
+			let animId = UIAnimations.startNumberAnimation($elem, animType, isNegative, targetValue, stepDuration, data, function () {
 				step++;
 				let currentValue = startValue + step * stepValue;
 				if (step == numValueSteps) {
@@ -94,8 +98,10 @@ define([
 					UIAnimations.setNumber($elem, currentValue, roundingFuncStep, suffix);
 				}
 			});
+			
+			return true;
 		},
-		
+				
 		animateNumberEnd: function ($elem) {
 			let animType = "number-anim";
 			let animId = UIAnimations.getCurrentId($elem, animType);
@@ -113,6 +119,19 @@ define([
 			$elem.attr("data-value-set", true);
 		},
 		
+		animateIcon: function ($elem, duration) {
+			let animType = "icon-anim";
+			duration = duration || this.DEFAULT_ANIM_DURATION;
+			
+			this.setupAnimationData($elem, animType, false);
+			
+			let animId = setTimeout(function () {
+				UIAnimations.clearAnimation($elem, animType, animId);
+			}, duration);
+			
+			$elem.attr("data-" + animType + "-id", animId);
+		},
+		
 		getCurrentTarget: function ($elem, animType) {
 			return $elem.attr("data-" + animType + "-target")
 		},
@@ -121,16 +140,12 @@ define([
 			return $elem.attr("data-" + animType + "-id");
 		},
 		
-		startAnimation: function ($elem, animType, isNegative, targetValue, stepDuration, data, fn) {
-			$elem.attr("data-" + animType + "-target", targetValue);
-			$elem.attr("data-ui-animation", true);
-			$elem.toggleClass("ui-anim", true);
-			if (isNegative)
-				$elem.toggleClass("ui-anim-negative", true);
-			else
-				$elem.toggleClass("ui-anim-positive", true);
+		startNumberAnimation: function ($elem, animType, isNegative, targetValue, stepDuration, data, fn) {
+			this.setupAnimationData($elem, animType, isNegative, targetValue);
 			let animId = setInterval(function () { fn(); }, stepDuration);
+			
 			$elem.attr("data-" + animType + "-id", animId);
+			
 			data = data || {};
 			data.animType = animType;
 			data.stepDuration = stepDuration;
@@ -138,6 +153,16 @@ define([
 			UIAnimations.animData[animId] = data;
 			if (UIAnimations.debugAnimations) log.i("[anim] " + animId + " start " + targetValue);
 			return animId;
+		},
+		
+		setupAnimationData: function ($elem, animType, isNegative, targetValue) {
+			if (targetValue || targetValue === 0) $elem.attr("data-" + animType + "-target", targetValue);
+			$elem.attr("data-ui-animation", true);
+			$elem.toggleClass("ui-anim", true);
+			if (isNegative)
+				$elem.toggleClass("ui-anim-negative", true);
+			else
+				$elem.toggleClass("ui-anim-positive", true);
 		},
 		
 		endAnimation: function ($elem, animType, animId, duration) {

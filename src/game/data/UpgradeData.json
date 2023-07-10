@@ -13,7 +13,7 @@
         "name": "Antibiotics"
     },
     "improve_building_barracks_3": {
-        "campOrdinal": "14",
+        "campOrdinal": "13",
         "effects": {
             "improvesBuildings": "barracks",
             "improvesWorker": "soldier"
@@ -72,7 +72,7 @@
     },
     "improve_building_hospital": {
         "blueprintCampOrdinal": 11,
-        "blueprintIsCampless": false,
+        "blueprintIsCampless": true,
         "blueprintIsEarly": false,
         "blueprintPieces": 3,
         "campOrdinal": "11",
@@ -83,16 +83,24 @@
         "name": "Surgery"
     },
     "improve_building_hospital_3": {
-        "blueprintCampOrdinal": 14,
+        "blueprintCampOrdinal": 13,
         "blueprintIsCampless": true,
         "blueprintIsEarly": false,
         "blueprintPieces": 3,
-        "campOrdinal": "14",
+        "campOrdinal": "13",
         "effects": {
             "improvesBuildings": "hospital"
         },
         "id": "improve_building_hospital_3",
         "name": "Anesthesia"
+    },
+    "improve_building_house2": {
+        "campOrdinal": "12",
+        "effects": {
+            "improvesBuildings": "house2"
+        },
+        "id": "improve_building_house2",
+        "name": "Improved Tower Blocks"
     },
     "improve_building_inn": {
         "campOrdinal": "9",
@@ -104,7 +112,7 @@
     },
     "improve_building_library": {
         "blueprintCampOrdinal": 5,
-        "blueprintIsCampless": true,
+        "blueprintIsCampless": false,
         "blueprintIsEarly": false,
         "blueprintPieces": 2,
         "campOrdinal": "5",
@@ -166,6 +174,19 @@
         "id": "improve_building_radiotower",
         "name": "Shortwave Radio"
     },
+    "improve_building_robots": {
+        "blueprintCampOrdinal": 15,
+        "blueprintIsCampless": true,
+        "blueprintIsEarly": true,
+        "blueprintPieces": 2,
+        "campOrdinal": "15",
+        "effects": {
+            "improvesBuildings": "robotFactory",
+            "improvesWorker": "robotmaker"
+        },
+        "id": "improve_building_robots",
+        "name": "Improved Robot Factory"
+    },
     "improve_building_shrine": {
         "campOrdinal": "12",
         "effects": {
@@ -214,6 +235,14 @@
         "id": "improve_building_temple2",
         "name": "Offerings"
     },
+    "improve_building_temple3": {
+        "campOrdinal": "14",
+        "effects": {
+            "improvesBuildings": "temple"
+        },
+        "id": "improve_building_temple3",
+        "name": "Temple Gardens"
+    },
     "improve_worker_chemist_2": {
         "campOrdinal": "6",
         "effects": {
@@ -233,6 +262,14 @@
         },
         "id": "improve_worker_chemist_3",
         "name": "Advanced Chemistry"
+    },
+    "improve_worker_chemist_4": {
+        "campOrdinal": "15",
+        "effects": {
+            "improvesWorker": "chemist"
+        },
+        "id": "improve_worker_chemist_4",
+        "name": "Advanced Chemistry II"
     },
     "improve_worker_cleric_2": {
         "campOrdinal": "9",
@@ -302,6 +339,14 @@
         "id": "improve_worker_scavenger_3",
         "name": "Metal Purification"
     },
+    "improve_worker_scavenger_4": {
+        "campOrdinal": "14",
+        "effects": {
+            "improvesWorker": "scavenger"
+        },
+        "id": "improve_worker_scavenger_4",
+        "name": "Exotic Metals"
+    },
     "improve_worker_scientist": {
         "campOrdinal": "15",
         "effects": {
@@ -326,6 +371,14 @@
         },
         "id": "improve_worker_smith_3",
         "name": "Modularity"
+    },
+    "improve_worker_smith_4": {
+        "campOrdinal": "15",
+        "effects": {
+            "improvesWorker": "toolsmith"
+        },
+        "id": "improve_worker_smith_4",
+        "name": "Modularity II"
     },
     "improve_worker_trapper_2": {
         "blueprintCampOrdinal": 9,
@@ -356,7 +409,7 @@
         "name": "Water purification"
     },
     "improve_worker_water_3": {
-        "campOrdinal": "13",
+        "campOrdinal": "12",
         "effects": {
             "improvesWorker": "water"
         },
@@ -425,16 +478,6 @@
         "id": "unlock_building_bridge",
         "name": "Bridge-building"
     },
-    "unlock_building_ceiling": {
-        "blueprintCampOrdinal": 15,
-        "blueprintIsCampless": false,
-        "blueprintIsEarly": true,
-        "blueprintPieces": 3,
-        "campOrdinal": "15",
-        "effects": {},
-        "id": "unlock_building_ceiling",
-        "name": "UV Protection"
-    },
     "unlock_building_cementmill": {
         "blueprintCampOrdinal": 6,
         "blueprintIsCampless": false,
@@ -455,7 +498,7 @@
         "campOrdinal": "2",
         "effects": {},
         "id": "unlock_building_darkfarm",
-        "name": "Urban Heliculture"
+        "name": "Urban Heliciculture"
     },
     "unlock_building_fortifications": {
         "blueprintCampOrdinal": 3,
@@ -491,7 +534,7 @@
     },
     "unlock_building_greenhouse": {
         "blueprintCampOrdinal": 8,
-        "blueprintIsCampless": false,
+        "blueprintIsCampless": true,
         "blueprintIsEarly": false,
         "blueprintPieces": 3,
         "campOrdinal": "8",
@@ -609,6 +652,16 @@
         "id": "unlock_building_researchcenter",
         "name": "Research Center"
     },
+    "unlock_building_robots": {
+        "blueprintCampOrdinal": 14,
+        "blueprintIsCampless": true,
+        "blueprintIsEarly": false,
+        "blueprintPieces": 5,
+        "campOrdinal": "14",
+        "effects": {},
+        "id": "unlock_building_robots",
+        "name": "Worker Robots"
+    },
     "unlock_building_smithy": {
         "blueprintCampOrdinal": 7,
         "blueprintIsCampless": false,
@@ -622,30 +675,18 @@
         "name": "Metal Working"
     },
     "unlock_building_spaceship1": {
-        "blueprintCampOrdinal": 15,
-        "blueprintIsCampless": true,
-        "blueprintIsEarly": false,
-        "blueprintPieces": 3,
         "campOrdinal": "15",
         "effects": {},
         "id": "unlock_building_spaceship1",
         "name": "Space Colony Hull"
     },
     "unlock_building_spaceship2": {
-        "blueprintCampOrdinal": 15,
-        "blueprintIsCampless": true,
-        "blueprintIsEarly": false,
-        "blueprintPieces": 2,
         "campOrdinal": "15",
         "effects": {},
         "id": "unlock_building_spaceship2",
         "name": "Space Colony Shield"
     },
     "unlock_building_spaceship3": {
-        "blueprintCampOrdinal": 15,
-        "blueprintIsCampless": true,
-        "blueprintIsEarly": false,
-        "blueprintPieces": 5,
         "campOrdinal": "15",
         "effects": {},
         "id": "unlock_building_spaceship3",
@@ -810,7 +851,7 @@
         "name": "Augmented Clothing 3"
     },
     "unlock_item_clothing_body_15": {
-        "campOrdinal": "15",
+        "campOrdinal": "14",
         "effects": {},
         "id": "unlock_item_clothing_body_15",
         "name": "Scavenger Gear"

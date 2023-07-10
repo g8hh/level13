@@ -10,10 +10,13 @@ define([
 	'game/nodes/PlayerPositionNode',
 	'game/nodes/tribe/TribeUpgradesNode',
 	'game/components/sector/improvements/SectorImprovementsComponent',
+	'game/components/sector/SectorFeaturesComponent',
 	'game/components/common/LogMessagesComponent',
 	'game/components/type/LevelComponent',
-], function (Ash, GameGlobals, GlobalSignals, GameConstants, CampConstants, LogConstants, OccurrenceConstants, CampNode, PlayerPositionNode, TribeUpgradesNode,
-	SectorImprovementsComponent, LogMessagesComponent, LevelComponent) {
+], function (
+	Ash, GameGlobals, GlobalSignals, GameConstants, CampConstants, LogConstants, OccurrenceConstants, CampNode,
+	PlayerPositionNode, TribeUpgradesNode, SectorImprovementsComponent, SectorFeaturesComponent, LogMessagesComponent,
+	LevelComponent) {
 	var ReputationSystem = Ash.System.extend({
 	
 		playerNodes: null,
@@ -72,30 +75,36 @@ define([
 		
 		updateTargetReputations: function () {
 			if (!this.campNodes.head) return;
-			for (var campNode = this.campNodes.head; campNode; campNode = campNode.next) {
-				var reputationComponent = campNode.reputation;
-				reputationComponent.targetValue = this.getTargetReputation(campNode);
+			let baseValue = GameGlobals.tribeHelper.getCurrentReputationBaseValue();
+			for (let campNode = this.campNodes.head; campNode; campNode = campNode.next) {
+				let reputationComponent = campNode.reputation;
+				reputationComponent.targetValue = this.getTargetReputation(campNode, baseValue);
 			}
 		},
 		
-		getTargetReputation: function (campNode) {
-			var sectorImprovements = campNode.entity.get(SectorImprovementsComponent);
+		getTargetReputation: function (campNode, baseValue) {
+			let sectorImprovements = campNode.entity.get(SectorImprovementsComponent);
+			let sectorFeatures = campNode.entity.get(SectorFeaturesComponent);
 			
-			var storage = GameGlobals.resourcesHelper.getCurrentCampStorage(campNode.entity);
-			var resources = storage ? storage.resources : null;
+			let storage = GameGlobals.resourcesHelper.getCurrentCampStorage(campNode.entity);
+			let resources = storage ? storage.resources : null;
 			
-			var danger = GameGlobals.campHelper.getCampRaidDanger(campNode.entity);
-			var levelComponent = GameGlobals.levelHelper.getLevelEntityForSector(campNode.entity).get(LevelComponent);
+			let danger = GameGlobals.campHelper.getCampRaidDanger(campNode.entity);
+			let levelComponent = GameGlobals.levelHelper.getLevelEntityForSector(campNode.entity).get(LevelComponent);
 			
-			var targetReputation = GameGlobals.campHelper.getTargetReputation(sectorImprovements, resources, campNode.camp.population, levelComponent.populationFactor, danger);
-			var sources = targetReputation.sources;
-			var penalties = targetReputation.penalties;
+			let isSunlit = sectorFeatures.sunlit;
 			
-			for (var key in sources) {
-				campNode.reputation.addTargetValueSource(key, sources[key]);
+			let targetReputation = GameGlobals.campHelper.getTargetReputation(campNode.entity, baseValue, sectorImprovements, resources, campNode.camp.population, levelComponent.populationFactor, danger, isSunlit);
+			
+			let sources = targetReputation.sources;
+			let percentages = targetReputation.percentages;
+			let penalties = targetReputation.penalties;
+			
+			for (let key in sources) {
+				campNode.reputation.addTargetValueSource(key, sources[key], percentages[key] != 0, percentages[key]);
 			}
 			
-			for (var key in penalties) {
+			for (let key in penalties) {
 				this.logReputationPenalty(campNode, key, penalties[key]);
 			}
 			

@@ -1,6 +1,7 @@
 // Singleton with helper methods for UI elements used throughout the game
 define(['ash',
 	'game/GameGlobals',
+	'game/constants/ColorConstants',
 	'game/constants/StoryConstants',
 	'game/constants/PositionConstants',
 	'game/constants/SectorConstants',
@@ -18,7 +19,7 @@ define(['ash',
 	'game/components/common/VisitedComponent',
 	'utils/UIAnimations'
 ], function (Ash, GameGlobals,
-	StoryConstants, PositionConstants, SectorConstants, FollowerConstants, ItemConstants, BagConstants, PerkConstants, UpgradeConstants, PlayerActionConstants,
+	ColorConstants, StoryConstants, PositionConstants, SectorConstants, FollowerConstants, ItemConstants, BagConstants, PerkConstants, UpgradeConstants, PlayerActionConstants,
 	PositionComponent, CampComponent, SectorStatusComponent, SectorLocalesComponent,
 	PassagesComponent, VisitedComponent, UIAnimations) {
 
@@ -29,9 +30,39 @@ define(['ash',
 
 		MAP_MINIMAP_SIZE: 7,
 		SCROLL_INDICATOR_SIZE: 5,
+		
+		UNLOCKABLE_FEATURE_WORKER_AUTO_ASSIGNMENT: "workerAutoAssignment",
+		UNLOCKABLE_FEATURE_MAP_MODES: "mapModes",
+		
+		ICON_FALLBACK: "img/eldorado/icon_placeholder.png",
+		
+		LAUNCH_FADEOUT_DURATION: 1000,
+		THEME_TRANSITION_DURATION: 1200,
 
-		resourceImages: {
-			metal: "img/res-metal.png",
+		names: {
+			resources: {
+				stamina: "stamina",
+				resource_metal: "metal",
+				resource_fuel: "fuel",
+				resource_rubber: "rubber",
+				resource_rope: "rope",
+				resource_food: "food",
+				resource_water: "water",
+				resource_concrete: "concrete",
+				resource_herbs: "herbs",
+				resource_medicine: "medicine",
+				resource_tools: "tools",
+				resource_robots: "robots",
+				item_exploration_1: "lock pick",
+				rumours: "rumours",
+				evidence: "evidence",
+				insight: "insight",
+			}
+		},
+		
+		getIconOrFallback: function (icon) {
+			if (icon) return icon;
+			return this.ICON_FALLBACK;
 		},
 
 		getItemDiv: function (itemsComponent, item, count, calloutContent, hideComparisonIndicator) {
@@ -40,6 +71,7 @@ define(['ash',
 
 			var classes = "item";
 			if (item && item.equipped) classes += " item-equipped";
+			if (item && item.broken) classes += " item-broken";
 			if (hasCount) classes += " item-with-count";
 			var div = "<div class='" + classes + (item ? "' data-itemid='" + item.id + "' data-iteminstanceid='" + item.itemID + "'>" : ">");
 
@@ -73,13 +105,18 @@ define(['ash',
 
 			return div;
 		},
-
+		
 		getItemSlot: function (itemsComponent, item, count, isLost, simple, showBagOptions, bagOptions, tab) {
+			let itemCategory = ItemConstants.getItemCategory(item);
 			let itemDev = this.getItemDiv(itemsComponent, item, count, this.getItemCallout(item, false, showBagOptions, bagOptions, tab));
-			var imageDiv = "<div class='item-slot-image'>"+ itemDev + "</div>";
-			var liclasses = "item-slot item-slot-small lvl13-box-1 ";
+			let imageDiv = "<div class='item-slot-image'>"+ itemDev + "</div>";
+			let liclasses = "item-slot item-slot-small lvl13-box-1 ";
 			if (simple) liclasses += "item-slot-simple";
 			if (isLost) liclasses += "item-slot-lost";
+			if (itemCategory == ItemConstants.itemCategories.equipment) liclasses += " item-slot-equipment";
+			if (itemCategory == ItemConstants.itemCategories.ingredient) liclasses += " item-slot-ingredient";
+			if (itemCategory == ItemConstants.itemCategories.consumable) liclasses += " item-slot-consumable";
+			if (itemCategory == ItemConstants.itemCategories.other) liclasses += " item-slot-other";
 			return "<li class='" + liclasses + "'>" + imageDiv + "</li>"
 		},
 
@@ -91,12 +128,13 @@ define(['ash',
 		},
 
 		getItemCallout: function (item, smallCallout, showBagOptions, bagOptions, tab) {
-			var detail = " (" + this.getItemBonusDescription(item, true, false) + ")";
+			var detail = " (" + this.getItemBonusDescription(item, false) + ")";
 			if (detail.length < 5) detail = "";
 			var weight = BagConstants.getItemCapacity(item);
 			var itemCalloutContent = "<b>" + item.name + "</b><br/>Type: " + ItemConstants.getItemTypeDisplayName(item.type, false) + " " + detail;
 			itemCalloutContent += "</br>Weight: " + weight;
-			itemCalloutContent += "</br>" + item.description;
+			if (item.broken) itemCalloutContent += "<br><span class='warning'>Broken</span>";
+			itemCalloutContent += "</br>" + ItemConstants.getItemDescription(item);
 			if (smallCallout) itemCalloutContent = item.name + (detail.length > 0 ? " " + detail : "");
 			
 			var makeButton = function (action, name) {
@@ -110,7 +148,7 @@ define(['ash',
 			if (showBagOptions) {
 				var options = "<div class='item-bag-options'>";
 				if (bagOptions.canEquip) {
-					var action = "equip_" + item.id;
+					var action = "equip_" + item.itemID;
 					options += makeButton(action, "Equip");
 				} else if (bagOptions.canUnequip) {
 					var action = "unequip_" + item.id;
@@ -211,8 +249,12 @@ define(['ash',
 				case FollowerConstants.abilityType.COST_SCOUT:
 					let scoutCostReduction = FollowerConstants.getFollowerItemBonus(follower, ItemConstants.itemBonusTypes.scout_cost);
 					return "scout cost -" + UIConstants.getMultiplierBonusDisplayValue(scoutCostReduction);
-				case FollowerConstants.abilityType.HAZARD_PREDICTION:
+				case FollowerConstants.abilityType.DETECT_HAZARDS:
 					return "foresee hazards in unvisited sectors";
+				case FollowerConstants.abilityType.DETECT_SUPPLIES:
+					return "foresee supplies in found in current and neighbouring sectors";
+				case FollowerConstants.abilityType.DETECT_INGREDIENTS:
+					return "foresee crafting ingredients found in current and neighbouring sectors";
 				case FollowerConstants.abilityType.SCAVENGE_GENERAL:
 					let scaBonus = FollowerConstants.getFollowerItemBonus(follower, ItemConstants.itemBonusTypes.scavenge_general);
 					return "+" + UIConstants.getMultiplierBonusDisplayValue(scaBonus) + " chance for extra loot when scavenging";
@@ -296,30 +338,30 @@ define(['ash',
 			return html;
 		},
 
-		getItemBonusDescription: function (item, showAllBonuses, useLineBreaks) {
+		getItemBonusDescription: function (item, useLineBreaks) {
 			let result = "";
-			var defaultType = ItemConstants.getItemDefaultBonus(item);
-			var value;
+			let defaultType = ItemConstants.getItemDefaultBonus(item);
 			for (var bonusKey in ItemConstants.itemBonusTypes) {
 				var bonusType = ItemConstants.itemBonusTypes[bonusKey];
-				if (bonusType === defaultType || showAllBonuses) {
-					value = item.getBonus(bonusType);
-					if (value <= 0 && showAllBonuses) {
-						continue;
-					}
-					if (value <= 0 && !showAllBonuses) {}
-					result += this.getItemBonusName(bonusType, true);
-					result += useLineBreaks && !showAllBonuses ? "<br/>" : " ";
-					result += this.getItemBonusText(item, bonusType);
+				let baseValue = item.getBaseBonus(bonusType);
+				if (baseValue <= 0) continue;
+				let currentValue = item.getCurrentBonus(bonusType);
+				
+				result += this.getItemBonusName(bonusType, true);
+				if (currentValue == baseValue) {
+					result += this.getItemBonusText(item, bonusType, baseValue);
+				} else {
+					result += "<span class='strike-through'>";
+					result += this.getItemBonusText(item, bonusType, baseValue);
+					result += "</span>";
+					result += "<span class='warning'>";
+					result += this.getItemBonusText(item, bonusType, currentValue);
+					result += "</span>";
 				}
-				if (showAllBonuses) {
-					result += useLineBreaks ? "<br/>" : ", ";
-				}
+				result += useLineBreaks ? "<br/>" : ", ";
 			}
 
-			if (showAllBonuses) {
-				result = result.substring(0, result.length - (useLineBreaks ? 5 : 2));
-			}
+			result = result.substring(0, result.length - (useLineBreaks ? 5 : 2));
 
 			return result;
 		},
@@ -342,17 +384,19 @@ define(['ash',
 				case ItemConstants.itemBonusTypes.res_radiation: return short ? "radiation prot" : "radiation protection";
 				case ItemConstants.itemBonusTypes.res_poison: return short ? "poison prot" : "poison protection";
 				case ItemConstants.itemBonusTypes.shade: return short ? "sun prot" : "sunblindness protection";
-				case ItemConstants.itemBonusTypes.hazard_prediction: return short ? "surveying" : "hazard surveying";
+				case ItemConstants.itemBonusTypes.detect_hazards: return short ? "hazards" : "surveying (hazards)";
+				case ItemConstants.itemBonusTypes.detect_supplies: return short ? "supplies" : "surveying (supplies)";
+				case ItemConstants.itemBonusTypes.detect_ingredients: return short ? "ingredients" : "surveying (ingredients)";
 				default:
 					log.w("no display name defined for item bonus type: " + bonusType);
 					return "";
 			}
 		},
 
-		getItemBonusText: function (item, bonusType) {
-			var bonusValue = item.getBonus(bonusType);
+		getItemBonusText: function (item, bonusType, bonusValue) {
+			var baseValue = item.getBaseBonus(bonusType);
 			
-			if (ItemConstants.isStaticValue(bonusType)) {
+			if (ItemConstants.isStaticValue(baseValue)) {
 				return " " + bonusValue;
 			} else if (bonusValue === 0) {
 				return "+0";
@@ -360,11 +404,11 @@ define(['ash',
 				// increasing multiplier: fight speed
 				var val = Math.abs(Math.round((1 - bonusValue) * 100));
 				return bonusValue == 1 ? "+0%" : (bonusValue < 1 ? "-" + val + "%" : "+" + val + "%");
-			} else if (bonusValue >= 1) {
+			} else if (baseValue >= 1) {
 				return " +" + bonusValue;
-			} else if (bonusValue > 0) {
+			} else if (baseValue > 0) {
 				return " -" + UIConstants.getMultiplierBonusDisplayValue(bonusValue);
-			} else if (bonusValue > -1) {
+			} else if (baseValue > -1) {
 				return " +" + UIConstants.getMultiplierBonusDisplayValue(bonusValue);
 			} else {
 				return " " + bonusValue;
@@ -377,7 +421,7 @@ define(['ash',
 			let result = "";
 			if (bonusText) result += bonusText;
 			if (timerText) {
-				if (bonusText.length > 0) result += ", ";
+				if (bonusText && bonusText.length > 0) result += ", ";
 				result += timerText;
 			}
 			return result;
@@ -419,9 +463,53 @@ define(['ash',
 				case PerkConstants.perkTypes.health:
 					effect = "health";
 					break;
+				case PerkConstants.perkTypes.luck:
+					return "Reduces probability of negative random events when out exploring";
 			}
 
 			return effect + " " + value;
+		},
+
+		getCostsSpans: function (action, costs) {
+			let result = "";
+			let hasCosts = action && costs && Object.keys(costs).length > 0;
+			if (hasCosts) {
+				for (let key in costs) {
+					let itemName = key.replace("item_", "");
+					let item = ItemConstants.getItemByID(itemName, true);
+					let name = (this.names.resources[key] ? this.names.resources[key] : item !== null ? item.name : key).toLowerCase();
+					let value = costs[key];
+					result += "<span class='action-cost action-cost-" + key + "'>" + name + ": <span class='action-cost-value'>" + UIConstants.getDisplayValue(value) + "</span><br/></span>";
+				}
+			} else if (this.isActionFreeCostShown(action)) {
+				result += "<span class='action-cost p-meta'>free</span><br />";
+			}
+			return result;
+		},
+		
+		getCostsSpansElements: function (action, costs, elements, $container) {
+			elements.costSpans = {};
+			elements.costSpanValues = {};
+			for (let key in costs) {
+				elements.costSpans[key] = $container.children(".action-cost-" + key);
+				elements.costSpanValues[key] = elements.costSpans[key].children(".action-cost-value");
+			}
+		},
+		
+		isActionFreeCostShown: function (action) {
+			let baseId = GameGlobals.playerActionsHelper.getBaseActionID(action);
+			switch (baseId) {
+				case "recruit_follower": return true;
+				case "wait": return true;
+			}
+			return false;
+		},
+		
+		canHideProject: function (projectID) {
+			if (projectID.indexOf("greenhouse") >= 0) return false;
+			if (projectID.indexOf("passage") >= 0) return false;
+			if (projectID.indexOf("tradepost_") >= 0) return false;
+			return true;
 		},
 		
 		getMultiplierBonusDisplayValue: function (value) {
@@ -452,7 +540,7 @@ define(['ash',
 					case ItemConstants.itemTypes.artefact: typeVal = 31; break;
 					case ItemConstants.itemTypes.note: typeVal = 32; break;
 				}
-				return typeVal * 1000 - itemVO.getTotalBonus();
+				return typeVal * 1000 - itemVO.getBaseTotalBonus();
 			};
 			var aVal = getItemSortVal(a);
 			var bVal = getItemSortVal(b);
@@ -476,8 +564,11 @@ define(['ash',
 			return aVal - bVal;
 		},
 
-		createResourceIndicator: function (name, showName, id, showAmount, showChange) {
-			var div = "<div class='stats-indicator' id='" + id + "'>";
+		createResourceIndicator: function (name, showName, id, showAmount, showChange, showFill) {
+			let classes = [ "stats-indicator" ];
+			if (showFill) classes.push("stats-indicator-with-fill");
+			
+			let div = "<div class='" + classes.join(" ") + "' id='" + id + "'>";
 
 			if (!showName) div = "<div class='info-callout-target info-callout-target-small' description='" + name + "'>" + div;
 			else if (showChange) div = "<div class='info-callout-target' description=''>" + div;
@@ -506,40 +597,49 @@ define(['ash',
 		},
 
 		updateResourceIndicator: function (id, value, change, storage, showChangeIcon, showChange, showDetails, showWarning, visible, animate) {
-			GameGlobals.uiFunctions.toggle(id, visible);
-			GameGlobals.uiFunctions.toggle($(id).parent(), visible);
+			let $indicator = $(id);
+			GameGlobals.uiFunctions.toggle($indicator, visible);
+			GameGlobals.uiFunctions.toggle($indicator.parent(), visible);
 			if (visible) {
-				let $valueElement = $(id).children(".value");
+				let $valueElement = $indicator.children(".value");
 				animate = animate || UIAnimations.isAnimating($valueElement);
 				UIAnimations.animateOrSetNumber($valueElement, animate, value, "", false, (v) => { return UIConstants.roundValue(v, true, false); });
-				$(id).children(".value").toggleClass("warning", showWarning && value < 5);
-				$(id).children(".change").toggleClass("warning", change < 0);
-				GameGlobals.uiFunctions.toggle($(id).children(".change"), showChange);
-				GameGlobals.uiFunctions.toggle($(id).children(".forecast"), showDetails);
-				$(id).children(".forecast").toggleClass("warning", change < 0);
+				$indicator.children(".value").toggleClass("warning", showWarning && value < 5);
+				$indicator.children(".change").toggleClass("warning", change < 0);
+				GameGlobals.uiFunctions.toggle($indicator.children(".change"), showChange);
+				GameGlobals.uiFunctions.toggle($indicator.children(".forecast"), showDetails);
+				$indicator.children(".forecast").toggleClass("warning", change < 0);
 
 				var isCappedByStorage = change > 0 && value >= storage;
 
 				if (showChange) {
-					$(id).children(".change").text(Math.round(change * 10000) / 10000 + "/s");
+					$indicator.children(".change").text(Math.round(change * 10000) / 10000 + "/s");
 				}
+				
 				if (showDetails) {
 					if (change > 0 && (storage - value > 0)) {
-						$(id).children(".forecast").text("(" + this.getTimeToNum((storage - value) / change) + " to cap)");
+						$indicator.children(".forecast").text("(" + this.getTimeToNum((storage - value) / change) + " to cap)");
 					} else if (change < 0 && value > 0) {
-						$(id).children(".forecast").text("(" + this.getTimeToNum(value / change) + " to 0)");
+						$indicator.children(".forecast").text("(" + this.getTimeToNum(value / change) + " to 0)");
 					} else if (value >= storage) {
-						$(id).children(".forecast").text("(full)");
+						$indicator.children(".forecast").text("(full)");
 					} else {
-						$(id).children(".forecast").text("");
+						$indicator.children(".forecast").text("");
 					}
+				}
+				
+				if ($indicator.hasClass("stats-indicator-with-fill")) {
+					let sunlit = $("body").hasClass("sunlit");
+					let fillColor = ColorConstants.getColor(sunlit, "bg_element_1");
+					let fillPercent = Math.round(value / storage * 100);
+					$(id).css("background", "linear-gradient(to right, " + fillColor + " " + fillPercent + "%, transparent " + fillPercent + "%)");
 				}
 
 				change = Math.round(change * 10000) / 10000;
-				$(id).children(".change-indicator").toggleClass("indicator-increase", change > 0 && !isCappedByStorage);
-				$(id).children(".change-indicator").toggleClass("indicator-decrease", change < 0);
-				$(id).children(".change-indicator").toggleClass("indicator-even", change === 0 || isCappedByStorage);
-				GameGlobals.uiFunctions.toggle($(id).children(".change-indicator"), showChangeIcon);
+				$indicator.children(".change-indicator").toggleClass("indicator-increase", change > 0 && !isCappedByStorage);
+				$indicator.children(".change-indicator").toggleClass("indicator-decrease", change < 0);
+				$indicator.children(".change-indicator").toggleClass("indicator-even", change === 0 || isCappedByStorage);
+				GameGlobals.uiFunctions.toggle($indicator.children(".change-indicator"), showChangeIcon);
 			}
 		},
 
@@ -549,7 +649,7 @@ define(['ash',
 			for (let i in changeSources) {
 				source = changeSources[i];
 				if (source.amount != 0) {
-					content += source.source + ": " + Math.round(source.amount * 10000) / 10000 + "/s<br/>";
+					content += this.getResourceAccumulationSourceText(source) + "<br/>";
 				}
 			}
 
@@ -558,6 +658,12 @@ define(['ash',
 			}
 
 			this.updateCalloutContent(id, content);
+		},
+		
+		getResourceAccumulationSourceText: function (source) {
+			let divisor = 10000;
+			if (source.amount < 0.0001) divisor = 100000;
+			return source.source + " (" + source.sourceCount + ")" + ": " + Math.round(source.amount * divisor) / divisor + "/s";
 		},
 
 		updateCalloutContent: function (targetElementId, content, isTargetDirect) {
@@ -570,6 +676,61 @@ define(['ash',
 		getBlueprintPieceIcon: function (upgradeID) {
 			let type = UpgradeConstants.getUpgradeType(upgradeID);
 			return "<img src='img/items/blueprints/blueprint-" + type + ".png' alt='' />";
+		},
+		
+		getMilestoneUnlocksDescriptionHTML: function (milestone, previousMilestone, showComparison, showMultiline, hasDeity, hasInvestigate) {
+			let html = "";
+			let baseReputation = Math.max(milestone.baseReputation || 0 , previousMilestone.baseReputation || 0);
+			
+			let addValue = function (label, value) {
+				html += "<span class='unlocks-list-entry'>";
+				html += label;
+				if (value || value === 0) {
+					html += ": ";
+					html += value;
+				}
+				html += "</span>";
+			};
+			
+			let addGroup = function (title, items, getItemDisplayName) {
+				if (!items || items.length == 0) return
+				if  (title && title.length > 0) html += title + ": ";
+				if (showMultiline) html += "<br/>";
+				for (let i = 0; i < items.length; i++) {
+					if (i > 0) html += ", ";
+					html += getItemDisplayName ? getItemDisplayName(items[i]).toLowerCase() : items[i];
+				}
+				html += "<br/>";
+			};
+			
+			addValue("Base reputation", milestone.baseReputation);
+			
+			addValue("Max evidence", milestone.maxEvidence);
+			addValue("Max rumours", milestone.maxRumours);
+			
+			if (milestone.maxFavour && hasDeity) {
+				addValue("Max favour", milestone.maxFavour);
+			}
+			
+			if (milestone.maxInsight && hasInvestigate) {
+				addValue("Max insight", milestone.maxInsight);
+			}
+			
+			addGroup("", milestone.unlockedFeatures, UIConstants.getUnlockedFeatureDisplayName);
+			addGroup("New events", milestone.unlockedEvents);
+			
+			let unlockedUpgrades = GameGlobals.milestoneEffectsHelper.getUnlockedUpgrades(milestone.index);
+			addGroup("Unlocked upgrades", unlockedUpgrades, (upgradeID) => {
+				let upgrade = UpgradeConstants.upgradeDefinitions[upgradeID];
+				let isOtherRequirementsMet = GameGlobals.playerActionsHelper.isRequirementsMet(upgradeID, null, [ PlayerActionConstants.DISABLED_REASON_MILESTONE ]);
+				let c = isOtherRequirementsMet ? "" : "strike-through";
+				return "<span class='" + c + "'>" + upgrade.name + "</span>";
+			});
+			
+			let unlockedActions = GameGlobals.milestoneEffectsHelper.getUnlockedGeneralActions(milestone.index);
+			addGroup("Other", unlockedActions);
+			
+			return html;
 		},
 
 		getTimeToNum: function (seconds) {
@@ -644,18 +805,29 @@ define(['ash',
 			return "Y" + year + "-N" + week;
 		},
 
+		getUnlockedFeatureDisplayName: function (featureID) {
+			switch (featureID) {
+				case UIConstants.UNLOCKABLE_FEATURE_MAP_MODES: return "map modes";
+				case UIConstants.UNLOCKABLE_FEATURE_WORKER_AUTO_ASSIGNMENT: return "worker auto-assignment";
+			}
+			return featureID;
+		},
+
 		roundValue: function (value, showDecimalsWhenSmall, showDecimalsAlways, decimalDivisor) {
 			decimalDivisor = decimalDivisor || 100;
 			let divisor = 0;
 			if (showDecimalsWhenSmall && value <= 10) divisor = decimalDivisor;
 			if (showDecimalsAlways) divisor = decimalDivisor;
 
-			if (value % 1 === 0 || divisor <= 0) return Math.round(value);
+			let result = value;
+			if (value % 1 === 0 || divisor <= 0) {
+				result = Math.round(value);
+			} else {
+				result = Math.round(value * divisor) / divisor;
+			}
 			
-			let result = Math.round(value * divisor) / divisor;
-			
-			if (result == 0) {
-				return "< " + (0.5 / divisor);
+			if (value > 0 && result == 0) {
+				return "< 1";
 			}
 			
 			return result;
@@ -700,11 +872,11 @@ define(['ash',
 			return "";
 		},
 
-		getBagCapacityDisplayValue: function (bagComponent) {
-			if (bagComponent.bonusCapacity > 0) {
+		getBagCapacityDisplayValue: function (bagComponent, isSimple) {
+			if (bagComponent.bonusCapacity > 0 && !isSimple) {
 				return bagComponent.baseCapacity + " +" + bagComponent.bonusCapacity;
 			} else {
-				return bagComponent.baseCapacity;
+				return bagComponent.totalCapacity;
 			}
 		},
 

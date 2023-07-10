@@ -3,31 +3,43 @@ define([
 	'ash',
 	'game/GameGlobals',
 	'game/constants/ItemConstants',
+	'game/constants/LocaleConstants',
 	'game/constants/PerkConstants',
 	'game/constants/PositionConstants',
+	'game/constants/SectorConstants',
 	'game/constants/ExplorationConstants',
 	'game/nodes/sector/SectorNode',
 	'game/nodes/PlayerLocationNode',
 	'game/components/common/CampComponent',
 	'game/components/common/PositionComponent',
+	'game/components/common/VisitedComponent',
+	'game/components/common/RevealedComponent',
+	'game/components/sector/SectorControlComponent',
 	'game/components/sector/SectorStatusComponent',
 	'game/components/sector/SectorFeaturesComponent',
 	'game/components/sector/SectorLocalesComponent',
+	'game/components/sector/improvements/WorkshopComponent',
 	'game/components/type/LevelComponent',
 ], function (
 	Ash,
 	GameGlobals,
 	ItemConstants,
+	LocaleConstants,
 	PerkConstants,
 	PositionConstants,
+	SectorConstants,
 	ExplorationConstants,
 	SectorNode,
 	PlayerLocationNode,
 	CampComponent,
 	PositionComponent,
+	VisitedComponent,
+	RevealedComponent,
+	SectorControlComponent,
 	SectorStatusComponent,
 	SectorFeaturesComponent,
 	SectorLocalesComponent,
+	WorkshopComponent,
 	LevelComponent
 ) {
 	var SectorHelper = Ash.Class.extend({
@@ -113,6 +125,10 @@ define([
 			
 			return false;
 		},
+		
+		isSectorAffectedByHazard: function (sector, itemsComponent) {
+			return this.isAffectedByHazard(sector.get(SectorFeaturesComponent), sector.get(SectorStatusComponent), itemsComponent);
+		},
 			
 		isAffectedByHazard: function (featuresComponent, statusComponent, itemsComponent) {
 			var hazards = this.getEffectiveHazards(featuresComponent, statusComponent);
@@ -130,6 +146,19 @@ define([
 				return "area too polluted";
 			if (hazards.cold > itemsComponent.getCurrentBonus(ItemConstants.itemBonusTypes.res_cold))
 				return "area too cold";
+			return null;
+		},
+		
+		getLuxuryResourceOnSector: function (sector, onlyFound) {
+			let sectorLocalesComponent = sector.get(SectorLocalesComponent);
+			let sectorStatusComponent = sector.get(SectorStatusComponent);
+			for (let i = 0; i < sectorLocalesComponent.locales.length; i++) {
+				let locale = sectorLocalesComponent.locales[i];
+				let isScouted = sectorStatusComponent.isLocaleScouted(i);
+				if (locale.luxuryResource && (isScouted || !onlyFound)) {
+					return locale.luxuryResource;
+				}
+			}
 			return null;
 		},
 		
@@ -160,6 +189,33 @@ define([
 		canHaveBeacon: function (sector) {
 			return GameGlobals.playerActionsHelper.isRequirementsMet("build_out_beacon", sector);
 		},
+				
+		hasSectorKnownResource: function (sector, resourceName, min) {
+			min = min || 1;
+			
+			let sectorStatus = sector.get(SectorStatusComponent);
+			if (!sectorStatus.scouted && !this.isInDetectionRange(sector, ItemConstants.itemBonusTypes.detect_supplies)) {
+				return false;
+			}
+			
+			let sectorFeatures = sector.get(SectorFeaturesComponent);
+			if (sectorFeatures.resourcesCollectable.getResource(resourceName) >= min) {
+				return true;
+			}
+			
+			let knownResources = GameGlobals.sectorHelper.getLocationKnownResources(sector);
+			if (knownResources.indexOf(resourceName) >= 0) {
+				if (sectorFeatures.resourcesScavengable.getResource(resourceName) >= min) {
+					return true;
+				}
+			}
+			
+			if (resourceName == resourceNames.water == sectorFeatures.hasSpring) {
+				return true;
+			}
+			
+			return false;
+		},
 		
 		getLocationDiscoveredResources: function (sector) {
 			var resources = [];
@@ -182,20 +238,93 @@ define([
 				sectorStatus.discoveredResources.splice(sectorStatus.discoveredResources.indexOf(missingResources[j]), 1);
 			}
 			
-			resources.sort(function (a, b) {
-				if (a === b) return 0;
-				if (a === resourceNames.metal) return -1;
-				if (b === resourceNames.metal) return 1;
-				if (a === resourceNames.water) return -1;
-				if (b === resourceNames.water) return 1;
-				if (a === resourceNames.food) return -1;
-				if (b === resourceNames.food) return 1;
-				if (a === resourceNames.fuel) return -1;
-				if (b === resourceNames.fuel) return 1;
-				return 0;
-			});
+			resources.sort(this.resourceSortFunc);
 			
 			return resources;
+		},
+		
+		getLocationKnownResources: function (sector) {
+			sector = sector ? sector : this.playerLocationNodes.head.entity;
+			if (this.isInDetectionRange(sector, ItemConstants.itemBonusTypes.detect_supplies)) {
+				return this.getLocationScavengeableResources(sector);
+			} else {
+				return this.getLocationDiscoveredResources(sector);
+			}
+		},
+		
+		getLocationScavengeableResources: function (sector) {
+			sector = sector ? sector : this.playerLocationNodes.head.entity;
+			let sectorFeatures = sector.get(SectorFeaturesComponent);
+			return sectorFeatures.resourcesScavengable.getNames();
+		},
+		
+		resourceSortFunc: function (a, b) {
+			if (a === b) return 0;
+			if (a === resourceNames.metal) return -1;
+			if (b === resourceNames.metal) return 1;
+			if (a === resourceNames.water) return -1;
+			if (b === resourceNames.water) return 1;
+			if (a === resourceNames.food) return -1;
+			if (b === resourceNames.food) return 1;
+			if (a === resourceNames.fuel) return -1;
+			if (b === resourceNames.fuel) return 1;
+			return 0;
+		},
+		
+		hasSectorVisibleIngredients: function (sector) {
+			sector = sector ? sector : this.playerLocationNodes.head.entity;
+		 	if (this.getLocationKnownItems(sector).length > 0) {
+				return true;
+			}
+			let sectorStatus = sector.get(SectorStatusComponent);
+			if (sectorStatus.scouted && this.getLocationScavengeableItems(sector).length > 0) {
+				return true;
+			}
+			return false;
+		},
+		
+		getSectorStatus: function (sector) {
+			if (!sector) return null;
+			
+			var statusComponent = sector.get(SectorStatusComponent);
+			
+			if (statusComponent.scouted) {
+				var localesComponent = sector.get(SectorLocalesComponent);
+				var workshopComponent = sector.get(WorkshopComponent);
+				var unScoutedLocales = localesComponent.locales.length - statusComponent.getNumLocalesScouted();
+				var sectorControlComponent = sector.get(SectorControlComponent);
+				var hasUnclearedWorkshop = workshopComponent != null && workshopComponent.isClearable && !sectorControlComponent.hasControlOfLocale(LocaleConstants.LOCALE_ID_WORKSHOP);
+				let canBeInvestigated = this.canBeInvestigated(sector);
+				let isCleared = unScoutedLocales <= 0 && !hasUnclearedWorkshop && !canBeInvestigated;
+				
+				if (isCleared) {
+					return SectorConstants.MAP_SECTOR_STATUS_VISITED_CLEARED;
+				} else {
+					return SectorConstants.MAP_SECTOR_STATUS_VISITED_SCOUTED;
+				}
+			}
+			
+			if (statusComponent.revealedByMap) {
+				return SectorConstants.MAP_SECTOR_STATUS_REVEALED_BY_MAP;
+			}
+			
+			var isVisited = sector.has(VisitedComponent);
+			if (isVisited) {
+				return SectorConstants.MAP_SECTOR_STATUS_VISITED_UNSCOUTED;
+			} else {
+				if (sector.has(RevealedComponent)) {
+					return SectorConstants.MAP_SECTOR_STATUS_UNVISITED_VISIBLE;
+				}
+			}
+			
+			return SectorConstants.MAP_SECTOR_STATUS_UNVISITED_INVISIBLE;
+		},
+		
+		canBeInvestigated: function (sector, ignoreScoutedStatus) {
+			if (!GameGlobals.gameState.isFeatureUnlocked("investigate")) return false;
+			let statusComponent = sector.get(SectorStatusComponent);
+			let featuresComponent = sector.get(SectorFeaturesComponent);
+			return (ignoreScoutedStatus || statusComponent.scouted) && featuresComponent.isInvestigatable && statusComponent.getInvestigatedPercent() < 100;
 		},
 		
 		getLocationDiscoveredItems: function (sector) {
@@ -220,6 +349,31 @@ define([
 			}
 			
 			return items;
+		},
+		
+		getLocationKnownItems: function (sector) {
+			sector = sector ? sector : this.playerLocationNodes.head.entity;
+			if (this.isInDetectionRange(sector, ItemConstants.itemBonusTypes.detect_ingredients)) {
+				return this.getLocationScavengeableItems(sector);
+			} else {
+				return this.getLocationDiscoveredItems(sector);
+			}
+		},
+		
+		getLocationScavengeableItems: function (sector) {
+			sector = sector ? sector : this.playerLocationNodes.head.entity;
+			let sectorFeatures = sector.get(SectorFeaturesComponent);
+			return sectorFeatures.itemsScavengeable;
+		},
+		
+		isInDetectionRange: function (sector, itemBonusType) {
+			if (!this.playerLocationNodes.head) return false;
+			let detectionRange = GameGlobals.playerHelper.getCurrentBonus(itemBonusType);
+			if (detectionRange <= 0) return false;
+			let sectorPos = sector.get(PositionComponent);
+			let playerPos = this.playerLocationNodes.head.position;
+			let distance = PositionConstants.getDistanceTo(sectorPos, playerPos);
+			return distance < (detectionRange + 1);
 		},
 		
 		getDangerFactor: function (sectorEntity) {

@@ -32,6 +32,13 @@ function (Ash, ItemData, PlayerActionConstants, UpgradeConstants, WorldConstants
 			note: "note",
 		},
 		
+		itemCategories: {
+			equipment: "equipment",
+			consumable: "consumable",
+			ingredient: "ingredient",
+			other: "other",
+		},
+		
 		itemTypesEquipment: {
 			bag: "bag",
 			light: "light",
@@ -61,17 +68,44 @@ function (Ash, ItemData, PlayerActionConstants, UpgradeConstants, WorldConstants
 			res_radiation: "res_rad",
 			res_poison: "res_poison",
 			shade: "shade",
-			hazard_prediction: "hazard_prediction",
+			detect_hazards: "detect_hazards",
+			detect_supplies: "detect_supplies",
+			detect_ingredients: "detect_ingredients",
 		},
 		
 		bookTypes: {
 			history: "history",
 			fiction: "fiction",
 			science: "science",
+			engineering: "engineering",
 		},
 		
+		itemBonusTypeIcons: {},
+		
 		itemDefinitions: {},
-		itemByID: {}, // cache
+		
+		// caches
+		itemByID: {},
+		equipmentComparisonCache: {},
+		
+		init: function () {
+			let defineItemBonusIcon = function (bonusType, icon) {
+				ItemConstants.itemBonusTypeIcons[bonusType] = { sunlit: "img/eldorado/" + icon + ".png", dark: "img/eldorado/" + icon + "-dark.png" };
+			};
+			
+			defineItemBonusIcon(ItemConstants.itemBonusTypes.light, "icon_stat_light");
+			defineItemBonusIcon(ItemConstants.itemBonusTypes.fight_att, "icon_stat_fight_attack");
+			defineItemBonusIcon(ItemConstants.itemBonusTypes.fight_def, "icon_stat_fight_defence");
+			defineItemBonusIcon(ItemConstants.itemBonusTypes.fight_speed, "icon_stat_fight_speed");
+			defineItemBonusIcon(ItemConstants.itemBonusTypes.fight_shield, "icon_stat_fight_shield");
+			defineItemBonusIcon(ItemConstants.itemBonusTypes.scavenge_cost, "icon_stat_cost_scavenge");
+			defineItemBonusIcon(ItemConstants.itemBonusTypes.scout_cost, "icon_stat_cost_scout");
+			defineItemBonusIcon(ItemConstants.itemBonusTypes.res_cold, "icon_stat_resistance_cold");
+			defineItemBonusIcon(ItemConstants.itemBonusTypes.res_radiation, "icon_stat_resistance_radiation");
+			defineItemBonusIcon(ItemConstants.itemBonusTypes.res_poison, "icon_stat_resistance_poison");
+			defineItemBonusIcon(ItemConstants.itemBonusTypes.shade, "icon_stat_shade");
+			defineItemBonusIcon(ItemConstants.itemBonusTypes.movement, "icon_stat_movement_cost");
+		},
 
 		loadData: function (data) {
 			for (itemID in data) {
@@ -79,8 +113,13 @@ function (Ash, ItemData, PlayerActionConstants, UpgradeConstants, WorldConstants
 				let bonuses = item.bonuses;
 				let type = item.type;
 				if (!this.itemDefinitions[type]) this.itemDefinitions[type] = [];
-				var itemVO = new ItemVO(item.id, item.name, item.type, item.campOrdinalRequired, item.campOrdinalMaximum, item.isEquippable, item.isCraftable, item.isUseable, bonuses, item.icon, item.description, item.isSpecialEquipment);
+				let isRepairable = item.isRepairable;
+				if (isRepairable === undefined) {
+					isRepairable = item.isCraftable && item.isEquippable;
+				}
+				var itemVO = new ItemVO(item.id, item.name, item.type, item.level || 1, item.campOrdinalRequired, item.campOrdinalMaximum, item.isEquippable, item.isCraftable, isRepairable, item.isUseable, bonuses, item.icon, item.description, item.isSpecialEquipment);
 				itemVO.scavengeRarity = item.rarityScavenge;
+				itemVO.investigateRarity = item.rarityInvestigate;
 				itemVO.localeRarity = item.rarityLocale;
 				itemVO.tradeRarity = item.rarityTrade;
 				itemVO.configData = item.configData || {};
@@ -111,11 +150,63 @@ function (Ash, ItemData, PlayerActionConstants, UpgradeConstants, WorldConstants
 			return ItemConstants.itemTypes[type];
 		},
 		
+		getItemCategory: function (item) {
+			if (!item) return ItemConstants.itemCategories.other;
+			switch (item.type) {
+				case ItemConstants.itemTypes.weapon:
+				case ItemConstants.itemTypes.clothing_over:
+				case ItemConstants.itemTypes.clothing_upper:
+				case ItemConstants.itemTypes.clothing_lower:
+				case ItemConstants.itemTypes.clothing_hands:
+				case ItemConstants.itemTypes.clothing_head:
+				case ItemConstants.itemTypes.light:
+				case ItemConstants.itemTypes.bag:
+				case ItemConstants.itemTypes.shoes:
+					return ItemConstants.itemCategories.equipment;
+				case ItemConstants.itemTypes.ingredient:
+					return ItemConstants.itemCategories.ingredient;
+				case ItemConstants.itemTypes.voucher:
+				case ItemConstants.itemTypes.exploration:
+					return ItemConstants.itemCategories.consumable;
+			}
+			return ItemConstants.itemCategories.other;
+		},
+		
+		getUseItemVerb: function (item) {
+			if (item.id.startsWith("cache_metal")) return "Disassemble";
+			if (item.id.startsWith("cache_evidence")) return "Read";
+			if (item.id.startsWith("cache_rumours")) return "Read";
+			if (item.id.startsWith("cache_insight")) return "Read";
+			if (item.id.startsWith("cache_favour")) return "Donate";
+			return "Use";
+		},
+			
 		getItemDisplayName: function (item, short) {
 			if (!short) return item.name;
 			if (item.nameShort) return item.nameShort;
 			let parts = item.name.split(" ");
 			return parts[parts.length - 1];
+		},
+		
+		getItemDescription: function (item) {
+			let result = item.description;
+			if (item.id.indexOf("consumable_weapon") >= 0) result += " (Only one per fight.)";
+			return result;
+		},
+		
+		getItemBonusIcons: function (itemBonusType) {
+			return this.itemBonusTypeIcons[itemBonusType] || null;
+		},
+		
+		getBaseItemId: function (itemId) {
+			let parts = itemId.split("_");
+			if (parts.length > 1) {
+				let postfix = parts[parts.length - 1];
+				if (/^\d+$/.test(postfix)) {
+					return parts.slice(0, -1).join("_");
+				}
+			}
+			return itemId;
 		},
 		
 		isMultiplier: function (itemBonusType) {
@@ -165,6 +256,7 @@ function (Ash, ItemData, PlayerActionConstants, UpgradeConstants, WorldConstants
 		},
 
 		getItemDefaultBonus: function (item) {
+			if (!item) return null;
 			switch (item.type) {
 				case ItemConstants.itemTypes.light:
 					return ItemConstants.itemBonusTypes.light;
@@ -185,17 +277,66 @@ function (Ash, ItemData, PlayerActionConstants, UpgradeConstants, WorldConstants
 			}
 		},
 		
+		// returns 1 if given new item is better than the old item, 0 if the same or depends on bonus type, -1 if worse
+		getEquipmentComparison: function (itemOld, itemNew) {
+			if (!itemNew && !itemOld) return 0;
+			if (!itemNew) return -1;
+			if (!itemOld) return 1;
+			if (itemNew.id === itemOld.id && itemNew.broken && itemOld.broken) return 0;
+			
+			let getItemCacheId = function (itemVO) { return itemVO.id + (itemVO.broken ? "b" : ""); }
+			let cacheId = getItemCacheId(itemOld) + "--" + getItemCacheId(itemNew);
+			
+			if (this.equipmentComparisonCache[cacheId]) {
+				return this.equipmentComparisonCache[cacheId];
+			}
+			
+			let result = 0;
+			for (var bonusKey in ItemConstants.itemBonusTypes) {
+				var bonusType = ItemConstants.itemBonusTypes[bonusKey];
+				var currentBonus = ItemConstants.getItemBonusComparisonValue(itemOld, bonusType);
+				var newBonus = ItemConstants.getItemBonusComparisonValue(itemNew, bonusType);
+				
+				// TODO take speed inco account, but only together with damage
+				if (bonusType == ItemConstants.itemBonusTypes.fight_speed) {
+					continue;
+				}
+				if (currentBonus == newBonus) {
+					continue;
+				}
+				if (newBonus < currentBonus) {
+					if (result > 0) return 0;
+					result = -1;
+				} else if (newBonus > currentBonus) {
+					if (result < 0) return 0;
+					result = 1;
+				}
+			}
+			
+			if (result == 0 && itemOld.broken && !itemNew.broken) result = 1;
+			if (result == 0 && !itemOld.broken && itemNew.broken) result = -1;
+			
+			this.equipmentComparisonCache[cacheId] = result;
+			
+			return result;
+		},
+		
 		getItemBonusComparisonValue: function (item, bonusType) {
 			if (!item) return 0;
 			if (!bonusType) {
-				return item.getTotalBonus();
+				let result = 0;
+				for (let bonusKey in ItemConstants.itemBonusTypes) {
+					bonusType = ItemConstants.itemBonusTypes[bonusKey];
+					result += this.getItemBonusComparisonValue(item, bonusType)
+				}
+				return result;
 			}
-			let result = item.getBonus(bonusType);
+			let result = item.getCurrentBonus(bonusType);
 			if (!ItemConstants.isIncreasing(bonusType)) {
 				result = 1-result;
 			}
 			if (bonusType == ItemConstants.itemBonusTypes.fight_att) {
-				result = result * item.getBonus(ItemConstants.itemBonusTypes.fight_speed);
+				result = result * item.getCurrentBonus(ItemConstants.itemBonusTypes.fight_speed);
 			}
 			return result;
 		},
@@ -289,18 +430,36 @@ function (Ash, ItemData, PlayerActionConstants, UpgradeConstants, WorldConstants
 		},
 		
 		getAvailableMetalCaches: function (campOrdinal) {
+			return this.getAvailableCaches("cache_metal", campOrdinal);
+		},
+		
+		getAvailableInsightCaches: function (campOrdinal) {
+			return this.getAvailableCaches("cache_insight", campOrdinal);
+		},
+		
+		getAvailableCaches: function (cacheType, campOrdinal) {
 			let result = [];
-				for (var type in this.itemDefinitions ) {
-					for (let i in this.itemDefinitions[type]) {
-						var item = this.itemDefinitions[type][i];
-						if (item.id.indexOf("cache_metal") == 0) {
-							if (item.requiredCampOrdinal <= campOrdinal) {
-								result.push(item.id);
-							}
-						}
+			for (let type in this.itemDefinitions ) {
+				for (let i in this.itemDefinitions[type]) {
+					let item = this.itemDefinitions[type][i];
+					if (item.id.indexOf(cacheType) == 0) {
+						if (item.requiredCampOrdinal && item.requiredCampOrdinal > campOrdinal) continue;
+						if (item.maximumCampOrdinal && item.maximumCampOrdinal < campOrdinal) continue;
+						result.push(item.id);
 					}
 				}
+			}
 			return result;
+		},
+		
+		getInsightForCache: function (itemConfig) {
+			if (!itemConfig) return 0;
+			if (itemConfig.configData && (itemConfig.configData.insightValue || itemConfig.configData.insightValue == 0)) {
+				return itemConfig.configData.insightValue;
+			}
+			
+			let level = itemConfig.level || 1;
+			return Math.pow(level, 2);
 		},
 		
 		getIngredient: function (i) {
@@ -339,9 +498,10 @@ function (Ash, ItemData, PlayerActionConstants, UpgradeConstants, WorldConstants
 				default:
 					return false;
 			}
-		}
+		},
 	};
 	
+	ItemConstants.init();
 	ItemConstants.loadData(ItemData);
 	
 	return ItemConstants;

@@ -14,7 +14,8 @@ define(['ash'], function (Ash) {
 		
 		medicine: "medicine",
 		tools: "tools",
-		concrete: "concrete"
+		concrete: "concrete",
+		robots: "robots",
 	};
 	
 	isResource = function (name) {
@@ -59,6 +60,7 @@ define(['ash'], function (Ash) {
 			this.tools = 0;
 			this.medicine = 0;
 			this.concrete = 0;
+			this.robots = 0;
 		},
 		
 		addResource: function (res, amount) {
@@ -75,6 +77,7 @@ define(['ash'], function (Ash) {
 				case resourceNames.tools: this.tools += amount; break;
 				case resourceNames.medicine: this.medicine += amount; break;
 				case resourceNames.concrete: this.concrete += amount; break;
+				case resourceNames.robots: this.robots += amount; break;
 				default:
 					log.w("Unknown resource name: " + res);
 			}
@@ -92,6 +95,7 @@ define(['ash'], function (Ash) {
 				case resourceNames.tools: this.tools = amount; break;
 				case resourceNames.medicine: this.medicine = amount; break;
 				case resourceNames.concrete: this.concrete = amount; break;
+				case resourceNames.robots: this.robots = amount; break;
 				default:
 					log.w("Unknown resource name: " + res);
 			}
@@ -111,6 +115,7 @@ define(['ash'], function (Ash) {
 				case resourceNames.medicine: return this.medicine;
 				case resourceNames.tools: return this.tools;
 				case resourceNames.concrete: return this.concrete;
+				case resourceNames.robots: return this.robots;
 				
 				default:
 					log.w("Unknown resource name: " + res);
@@ -118,21 +123,45 @@ define(['ash'], function (Ash) {
 			return 0;
 		},
 		
+		getResourcesWithHighestAmount: function () {
+			let result = [];
+			let max = 0;
+			for (let key in resourceNames) {
+				let name = resourceNames[key];
+				let amount = this.getResource(name);
+				if (amount == max) {
+					result.push(name);
+					continue;
+				}
+				if (amount > max) {
+					result = [];
+					result.push(name);
+					max = amount;
+					continue;
+				}
+			}
+			return result;
+		},
+		
 		addAll: function (resourceVO) {
-			for(var key in resourceNames) {
+			for (let key in resourceNames) {
 				var name = resourceNames[key];
 				this.addResource(name, resourceVO.getResource(name));
 			}
 		},
 		
 		limitAll: function (min, max) {
-			for(var key in resourceNames) {
+			for (let key in resourceNames) {
 				var name = resourceNames[key];
 				this.limit(name, min, max);
 			}
 		},
 		
-		limit: function (name, min, max) {
+		limit: function (name, min, max, allowDecimalOverflow) {
+			if (allowDecimalOverflow) {
+				max = Math.floor(max) + 0.9999;
+			}
+			
 			var amount = this.getResource(name);
 			if (amount == 0) return;
 			if (amount < min)
@@ -142,7 +171,7 @@ define(['ash'], function (Ash) {
 		},
 	
 		cleanUp: function() {
-			for(var key in resourceNames) {
+			for (let key in resourceNames) {
 				var name = resourceNames[key];
 				var amount = this.getResource(name);
 				if (isNaN(amount)) {
@@ -153,7 +182,7 @@ define(['ash'], function (Ash) {
 		
 		getTotal: function() {
 			var total = 0;
-			 for(var key in resourceNames) {
+			 for (let key in resourceNames) {
 				var name = resourceNames[key];
 				var amount = this.getResource(name);
 				total += amount;
@@ -163,7 +192,7 @@ define(['ash'], function (Ash) {
 		
 		getNames: function () {
 			let result = [];
-			 for(var key in resourceNames) {
+			 for (let key in resourceNames) {
 				var name = resourceNames[key];
 				var amount = this.getResource(name);
 				if (amount > 0)
@@ -192,6 +221,7 @@ define(['ash'], function (Ash) {
 			if (this.tools !== 0) copy.t = this.tools;
 			if (this.medicine !== 0) copy.med = this.medicine;
 			if (this.concrete !== 0) copy.c = this.concrete;
+			if (this.robots !== 0) copy.rb = this.robots;
 			return copy;
 		},
 
@@ -207,11 +237,12 @@ define(['ash'], function (Ash) {
 			if (componentValues.t) this.tools = componentValues.t;
 			if (componentValues.med) this.medicine = componentValues.med;
 			if (componentValues.c) this.concrete = componentValues.c;
+			if (componentValues.rb) this.robots = componentValues.rb;
 		},
 		
 		clone: function() {
 			var c = new ResourcesVO();
-			for(var key in resourceNames) {
+			for (let key in resourceNames) {
 				var name = resourceNames[key];
 				c.setResource(name, this.getResource(name));
 			}
