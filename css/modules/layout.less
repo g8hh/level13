@@ -1,6 +1,8 @@
 // Base page layout including log, sticky footer etc
 
-@footer-height: 50px;
+@header-side-width: 75px;
+@header-side-space: @header-side-width + 20px;
+@footer-height: 65px;
 
 html {
 	height: 100%;
@@ -13,8 +15,25 @@ body {
 	overflow-x: hidden;
 }
 
+.div-horizontal-space-filler {
+	visibility:hidden;
+	padding:1px;
+	height:1px
+}
+
 #grid-main {
 	height: 100%;
+}
+
+#unit-main, #footer {
+	padding-left: @header-side-space;
+}
+
+#header-side {
+	position: fixed;
+	width: @header-side-width;
+	z-index: 5;
+	margin-left: -@header-side-space;
 }
 
 #log {
@@ -40,10 +59,6 @@ body {
 #tab-header h2 {
 	 margin: 2px 0px;
  }
-	
- #unit-main {
-	 padding-left: 28px; /* for the self-bar */
- }
 
 .sticky-footer {
 	height: @footer-height;
@@ -60,6 +75,11 @@ body {
 	min-height: 100%;
 	height: auto !important;
 	margin: 0 auto -@footer-height;
+}
+
+.game-opacity-controller {
+	.opacity-transition-reset();
+	overflow: hidden;
 }
 
 div.grid-content {

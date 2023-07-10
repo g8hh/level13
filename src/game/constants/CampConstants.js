@@ -5,13 +5,18 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 		// population
 		POPULATION_PER_HOUSE: 4,
 		POPULATION_PER_HOUSE2: 6,
+		POPULATION_PER_HOUSE2_LEVEL_2: 8,
 		POOL_RUMOURS_PER_POPULATION: 3,
+		POPULATION_DECREASE_COOLDOWN: 60,
 		
 		// Storage
 		BASE_STORAGE: 50,
 		STORAGE_PER_IMPROVEMENT: 50,
 		STORAGE_PER_IMPROVEMENT_LEVEL_2: 75,
 		STORAGE_PER_IMPROVEMENT_LEVEL_3: 125,
+		
+		// special resource storage (robots)
+		SPECIAL_STORAGE_PER_FACTORY: 50,
 		
 		// Rumours
 		RUMOURS_PER_POP_PER_SEC_BASE: 0.0003,
@@ -23,6 +28,7 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 		RUMOURS_BONUS_PER_INN_PER_UPGRADE: 0.01,
 		RUMOURS_PER_VISIT_CAMPFIRE_BASE: 1,
 		RUMOURS_PER_VISIT_MARKET_BASE: 2,
+		RUMOURS_PER_VISIT_LIBRARY_BASE: 1,
 		
 		// Evidence
 		EVIDENCE_BONUS_PER_LIBRARY_LEVEL: 0.15,
@@ -37,7 +43,8 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 		CONSUMPTION_FOOD_PER_WORKER_PER_S: 0.01,
 		CONSUMPTION_HERBS_PER_WORKER_PER_S: 0.05,
 		CONSUMPTION_METAL_PER_TOOLSMITH_PER_S: 0.03,
-		CONSUMPTION_METAL_PER_CONCRETE_PER_S: 0.02,
+		CONSUMPTION_METAL_PER_CONCRETE_PER_S: 0.03,
+		CONSUMPTION_TOOLS_PER_ROBOT_MAKER_PER_S: 0.03,
 		
 		// Production
 		PRODUCTION_METAL_PER_WORKER_PER_S: 0.02,
@@ -47,15 +54,18 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 		PRODUCTION_FUEL_PER_WORKER_PER_S: 0.02,
 		PRODUCTION_RUBBER_PER_WORKER_PER_S: 0.02,
 		PRODUCTION_HERBS_PER_WORKER_PER_S: 0.02,
-		PRODUCTION_MEDICINE_PER_WORKER_PER_S: 0.01,
-		PRODUCTION_TOOLS_PER_WORKER_PER_S: 0.02,
-		PRODUCTION_CONCRETE_PER_WORKER_PER_S: 0.02,
+		PRODUCTION_MEDICINE_PER_WORKER_PER_S: 0.005,
+		PRODUCTION_TOOLS_PER_WORKER_PER_S: 0.01,
+		PRODUCTION_CONCRETE_PER_WORKER_PER_S: 0.01,
+		PRODUCTION_ROBOTS_PER_WORKER_PER_S: 0.001,
 		PRODUCTION_EVIDENCE_PER_WORKER_PER_S: 0.00075,
 		PRODUCTION_FAVOUR_PER_WORKER_PER_S: 0.00075,
 		
+		PRODUCTION_BONUS_PER_ROBOT_PER_SEC: 0.02,
+		
 		// reputation
-		REPUTATION_TO_POPULATION_FACTOR: 0.85,
-		REPUTATION_TO_POPULATION_OFFSET: -0.5,
+		REPUTATION_TO_POPULATION_FACTOR: 0.89,
+		REPUTATION_TO_POPULATION_OFFSET: -0.55,
 		REPUTATION_PER_RADIO_PER_SEC: 0.1,
 		REPUTATION_PER_HOUSE_FROM_GENERATOR: 0.3,
 		REPUTATION_PENALTY_DEFENCES_THRESHOLD: 0.25,
@@ -64,6 +74,7 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 		REPUTATION_PENALTY_TYPE_DEFENCES: "DEFENCES",
 		REPUTATION_PENALTY_TYPE_HOUSING: "HOUSING",
 		REPUTATION_PENALTY_TYPE_LEVEL_POP: "LEVEL_POPULATION",
+		REPUTATION_PENALTY_TYPE_SUNLIT: "SUNLIT",
 		MAX_REPUTATION: 30,
 		
 		// raids
@@ -129,6 +140,12 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 				getLimitNum: function (improvements, workshops) { return improvements.getCount(improvementNames.cementmill); },
 				getLimitText: function (num) { return num + " cement mills built"; },
 			},
+			robotmaker: {
+				id: "robotmaker",
+				resourceProduced: resourceNames.robots,
+				getLimitNum: function (improvements, workshops) { return improvements.getCount(improvementNames.robotFactory); },
+				getLimitText: function (num) { return num + " robot factories built"; },
+			},
 			scientist: {
 				id: "scientist",
 				getLimitNum: function (improvements, workshops) { return improvements.getCount(improvementNames.library); },
@@ -144,6 +161,10 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 				getLimitNum: function (improvements, workshops) { return improvements.getCount(improvementNames.temple); },
 				getLimitText: function (num) { return num + " temples built"; },
 			},
+		},
+		
+		isLocalResource: function (resourceName) {
+			return resourceName == resourceNames.robots;
 		},
 		
 		getWorkerIDByProducedResource: function (resourceName) {
@@ -162,21 +183,41 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 			return CampConstants.BASE_STORAGE + storageCount * storagePerImprovement;
 		},
 		
+		getRobotStorageCapacity: function (factoryCount, factoryLevel) {
+			factoryCount = factoryCount || 0;
+			factoryLevel = factoryLevel || 1;
+			var storagePerFactory = CampConstants.SPECIAL_STORAGE_PER_FACTORY;
+			return factoryCount * storagePerFactory;
+		},
+		
 		// population cap of one camp
 		getHousingCap: function (improvementsComponent) {
 			return this.getHousingCap2(
 				improvementsComponent.getCount(improvementNames.house),
-				improvementsComponent.getCount(improvementNames.house2));
+				improvementsComponent.getCount(improvementNames.house2),
+				improvementsComponent.getLevel(improvementNames.house2));
 		},
 		
-		getHousingCap2: function (numHouses, numHouses2) {
+		getHousingCap2: function (numHouses, numHouses2, levelHouses2) {
 			let result = numHouses * CampConstants.POPULATION_PER_HOUSE;
-			result += numHouses2 * CampConstants.POPULATION_PER_HOUSE2;
+			result += numHouses2 * this.getPopulationPerHouse2(levelHouses2);
 			return result;
+		},
+		
+		getPopulationPerHouse2: function (improvementLevel) {
+			return improvementLevel == 1 ? CampConstants.POPULATION_PER_HOUSE2 : CampConstants.POPULATION_PER_HOUSE2_LEVEL_2;
 		},
 		
 		getSmithsPerSmithy: function (upgradeLevel) {
 			return 2 + (upgradeLevel - 1) * 2;
+		},
+		
+		getRobotMakersPerFactory: function (upgradeLevel) {
+			return upgradeLevel;
+		},
+		
+		getWearPerRobotPerSec: function () {
+			return this.PRODUCTION_ROBOTS_PER_WORKER_PER_S / this.SPECIAL_STORAGE_PER_FACTORY / 2;
 		},
 		
 		getApothecariesPerShop: function (upgradeLevel) {
@@ -227,6 +268,12 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 			return CampConstants.RUMOURS_PER_VISIT_MARKET_BASE * majorLevel;
 		},
 		
+		getEvidencePerUseLibrary: function (libraryLevel, majorLevel) {
+			libraryLevel = libraryLevel || 1;
+			majorLevel = majorLevel || majorLevel;
+			return CampConstants.RUMOURS_PER_VISIT_LIBRARY_BASE * majorLevel;
+		},
+		
 		getLibraryEvidenceGenerationPerSecond: function (libraryCount, libraryLevel) {
 			var libraryLevelFactor = (1 + libraryLevel * CampConstants.EVIDENCE_BONUS_PER_LIBRARY_LEVEL);
 			return 0.0015 * libraryCount * libraryLevelFactor;
@@ -234,7 +281,7 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 		
 		getResearchCenterEvidenceGenerationPerSecond: function (centerCount, centerLevel) {
 			var levelFactor = (1 + centerLevel * CampConstants.EVIDENCE_BONUS_PER_RESEARCH_CENTER_LEVEL);
-			return 0.0015 * centerCount * levelFactor;
+			return 0.0025 * centerCount * levelFactor;
 		},
 		
 		getTempleFavourGenerationPerSecond: function (templeCount, templeLevel) {
@@ -271,7 +318,7 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 		},
 		
 		getWorkerDisplayName: function (workerType) {
-			let def = this.workerTypes[workerType];
+			let def = CampConstants.workerTypes[workerType];
 			if (!def) {
 				log.w("no such workerType:" + workerType);
 				return workerType;

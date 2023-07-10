@@ -26,7 +26,7 @@ define([
 			this.nodeList = engine.getNodeList(StaminaNode);
 			
 			var sys = this;
-			GlobalSignals.playerMovedSignal.add(function () { sys.updateWarningLimit(); });
+			GlobalSignals.playerPositionChangedSignal.add(function () { sys.updateWarningLimit(); });
 			GlobalSignals.healthChangedSignal.add(function () { sys.updateWarningLimit(); });
 			GlobalSignals.gameShownSignal.add(function () { sys.updateWarningLimit(); });
 		},
@@ -89,10 +89,12 @@ define([
 		},
 		
 		updateStaminaValue: function (node, time) {
-			var staminaComponent = node.stamina;
-			var busyComponent = node.entity.get(PlayerActionComponent);
-			var isResting = busyComponent && busyComponent.getLastActionName() == "use_in_home";
-			var isHealing = busyComponent && busyComponent.getLastActionName() == "use_in_hospital";
+			let staminaComponent = node.stamina;
+			let busyComponent = node.entity.get(PlayerActionComponent);
+			let isResting = busyComponent && busyComponent.getLastActionName() == "use_in_home";
+			let isHealing = busyComponent && busyComponent.getLastActionName() == "use_in_hospital";
+			
+			if (!staminaComponent.stamina) staminaComponent.stamina = 0;
 			
 			var maxVal = staminaComponent.maxStamina;
 			var staminaPerSec = 0;
@@ -126,12 +128,13 @@ define([
 		},
 		
 		updateStaminaWarning: function (node, time) {
+			if (GameGlobals.gameState.uiStatus.isTransitioning) return;
 			var staminaComponent = node.stamina;
 			var isWarning = staminaComponent.stamina <= this.warningLimit;
 			if (isWarning && !this.isWarning) {
 				var logComponent = node.entity.get(LogMessagesComponent);
 				var hasCamp = GameGlobals.gameState.unlockedFeatures.camp;
-				if (!node.position.inCamp) {
+				if (!node.position.inCamp && !GameGlobals.playerHelper.hasRestedThisExcursion()) {
 					if (hasCamp)
 						logComponent.addMessage(LogConstants.MSG_ID_STAMINA_WARNING, "Getting tired. Should head back to camp soon.");
 					else

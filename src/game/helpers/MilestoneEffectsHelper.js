@@ -1,0 +1,137 @@
+// Helper to check effects of milestones (unlocks)
+define([
+	'ash',
+	'game/GameGlobals',
+	'game/constants/ImprovementConstants',
+	'game/constants/PlayerActionConstants',
+	'game/constants/UpgradeConstants',
+	'game/constants/TribeConstants',
+	'game/constants/OccurrenceConstants',
+	'game/vos/ImprovementVO',
+], function (Ash, GameGlobals, ImprovementConstants, PlayerActionConstants, UpgradeConstants, TribeConstants, OccurrenceConstants, ImprovementVO) {
+	
+	let MilestoneEffectsHelper = Ash.Class.extend({
+		
+		upgradesRevealingMilestones: {}, // upgradeID => milestone index
+		
+		constructor: function () {},
+		
+		getMilestoneIndexForAction: function (action) {
+			let reqs = PlayerActionConstants.requirements[action];
+			if (reqs && reqs.milestone) {
+				return reqs.milestone;
+			}
+			return 0;
+		},
+		
+		getMilestoneIndexForOccurrence: function (occurrence) {
+			for (let i = 0; i < TribeConstants.milestones.length; i++) {
+				let milestone = TribeConstants.getMilestone(i);
+				if (milestone.unlockedEvents) {
+					if (milestone.unlockedEvents.indexOf(occurrence) >= 0) {
+						return i;
+					}
+				}
+			}
+			return 0;
+		},
+		
+		getMinimumCampOrdinalForMilestone: function (milestone) {
+			if (!milestone.index) milestone = TribeConstants.getMilestone(milestone);
+			
+			let result = 0;
+			let action = "claim_milestone_" + milestone.index;
+			
+			let reqs = GameGlobals.playerActionsHelper.getReqs(action);
+			let previousMilestone = TribeConstants.getPreviousMilestone(milestone);
+			
+			if (reqs) {
+				if (reqs.tribe && reqs.tribe.improvements) {
+					for (let improvementID in reqs.tribe.improvements) {
+						let improvementName = improvementNames[improvementID];
+						let buildAction = PlayerActionConstants.getActionNameForImprovement(improvementName);
+						let buildCampStep = GameGlobals.playerActionsHelper.getMinimumCampAndStep(buildAction);
+						result = Math.max(result, buildCampStep.campOrdinal);
+					}
+				}
+				if (reqs.tribe && reqs.tribe.projects) {
+					for (let improvementID in reqs.tribe.projects) {
+						let improvementName = improvementNames[improvementID];
+						let buildAction = PlayerActionConstants.getActionNameForImprovement(improvementName);
+						let buildCampStep = GameGlobals.playerActionsHelper.getMinimumCampAndStep(buildAction);
+						result = Math.max(result, buildCampStep.campOrdinal);
+					}
+				}
+				if (reqs.tribe && reqs.tribe.population) {
+					result = Math.max(result, GameGlobals.campBalancingHelper.getMinCampOrdinalForPopulation(reqs.tribe.population, previousMilestone));
+				}
+			}
+			
+			return result;
+		},
+		
+		getMilestoneAtCampOrdinal: function (campOrdinal) {
+			let result = null;
+			for (let i = 0; i < TribeConstants.milestones.length; i++) {
+				let milestone = TribeConstants.getMilestone(i);
+				if (this.getMinimumCampOrdinalForMilestone(milestone) > campOrdinal) {
+					return result;
+				}
+				result = milestone;
+			}
+			return result;
+		},
+		
+		getUnlockedGeneralActions: function (milestoneIndex) {
+			return this.getUnlockedActions(milestoneIndex, function (action) {
+				let baseActionID = GameGlobals.playerActionsHelper.getBaseActionID(action);
+				if (UpgradeConstants.upgradeDefinitions[action]) return false;
+				return true;
+			});
+		},
+		
+		getUnlockedUpgrades: function (milestoneIndex) {
+			return this.getUnlockedActions(milestoneIndex, function (action) {
+				return GameGlobals.playerActionsHelper.isUnlockUpgradeAction(action);
+			});
+		},
+		
+		getUnlockedActions: function (milestoneIndex, filter) {
+			let result = [];
+			for (let action in PlayerActionConstants.requirements) {
+				let reqs = PlayerActionConstants.requirements[action];
+				if (reqs.milestone) {
+					if (reqs.milestone == milestoneIndex && (!filter || filter(action))) {
+						result.push(action);
+					}
+				}
+			}
+			return result;
+		},
+		
+		getMilestoneRevealingUpgrade: function (upgradeID) {
+			let cachedValue = this.upgradesRevealingMilestones[upgradeID];
+			
+			if (cachedValue) {
+				return cachedValue;
+			}
+			
+			let result = -1;
+			for (let i = 0; i < TribeConstants.milestones.length; i++) {
+				let revealedUpgrades = GameGlobals.milestoneEffectsHelper.getUnlockedUpgrades(i);
+				for (let j = 0; j < revealedUpgrades.length; j++) {
+					if (revealedUpgrades[j] == upgradeID) {
+						result = i;
+						break;
+					}
+				}
+			}
+			
+			this.upgradesRevealingMilestones[upgradeID] = result;
+			return result;
+		},
+		
+	});
+	
+	return MilestoneEffectsHelper;
+});

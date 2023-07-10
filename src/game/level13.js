@@ -23,6 +23,7 @@ define([
 	'game/systems/ui/UIOutTradeSystem',
 	'game/systems/ui/UIOutUpgradesSystem',
 	'game/systems/ui/UIOutTribeSystem',
+	'game/systems/ui/UIOutMilestonesSystem',
 	'game/systems/ui/UIOutFightSystem',
 	'game/systems/ui/UIOutLogSystem',
 	'game/systems/ui/UIOutManageSaveSystem',
@@ -35,8 +36,10 @@ define([
 	'game/systems/StaminaSystem',
 	'game/systems/PlayerPositionSystem',
 	'game/systems/PlayerActionSystem',
+	'game/systems/PlayerMovementSystem',
 	'game/systems/SectorStatusSystem',
-	'game/systems/LevelPassagesSystem',
+	'game/systems/TutorialSystem',
+	'game/systems/LevelStatusSystem',
 	'game/systems/CollectorSystem',
 	'game/systems/FightSystem',
 	'game/systems/FollowerSystem',
@@ -48,12 +51,15 @@ define([
 	'game/systems/RumourSystem',
 	'game/systems/EvidenceSystem',
 	'game/systems/EndingSystem',
+	'game/systems/ExcursionSystem',
 	'game/systems/FavourSystem',
 	'game/systems/GlobalResourcesSystem',
 	'game/systems/GlobalResourcesResetSystem',
+	'game/systems/InsightSystem',
 	'game/systems/BagSystem',
 	'game/systems/UnlockedFeaturesSystem',
 	'game/systems/occurrences/CampEventsSystem',
+	'game/systems/occurrences/PlayerEventsSystem',
 	'game/UIFunctions',
 	'utils/StringUtils',
 	'brejep/tickprovider',
@@ -82,6 +88,7 @@ define([
 	UIOutTradeSystem,
 	UIOutUpgradesSystem,
 	UIOutTribeSystem,
+	UIOutMilestonesSystem,
 	UIOutFightSystem,
 	UIOutLogSystem,
 	UIOutManageSaveSystem,
@@ -94,8 +101,10 @@ define([
 	StaminaSystem,
 	PlayerPositionSystem,
 	PlayerActionSystem,
+	PlayerMovementSystem,
 	SectorStatusSystem,
-	LevelPassagesSystem,
+	TutorialSystem,
+	LevelStatusSystem,
 	CollectorSystem,
 	FightSystem,
 	FollowerSystem,
@@ -107,12 +116,15 @@ define([
 	RumourSystem,
 	EvidenceSystem,
 	EndingSystem,
+	ExcursionSystem,
 	FavourSystem,
 	GlobalResourcesSystem,
 	GlobalResourcesResetSystem,
+	InsightSystem,
 	BagSystem,
 	UnlockedFeaturesSystem,
 	CampEventsSystem,
+	PlayerEventsSystem,
 	UIFunctions,
 	StringUtils,
 	TickProvider
@@ -131,7 +143,6 @@ define([
 
 			GameGlobalsInitializer.init(this.engine);
 			this.addSystems();
-			this.initializePlugins(plugins);
 
 			GameGlobals.uiFunctions.init();
 			GameGlobals.uiFunctions.hideGame();
@@ -141,6 +152,7 @@ define([
 			GlobalSignals.exceptionCallback = function (ex) { game.handleException(ex) };
 			GlobalSignals.gameStateReadySignal.addOnce(function () {
 				game.start();
+				game.initializePlugins(plugins);
 			});
 			
 			GlobalSignals.changelogLoadedSignal.addOnce(function () {
@@ -165,7 +177,7 @@ define([
 			log.i("START " + GameConstants.STARTTimeNow() + "\t initializing systems");
 
 			this.engine.addSystem(new SaveSystem(), SystemPriorities.preUpdate);
-			this.engine.addSystem(new LevelPassagesSystem(), SystemPriorities.preupdate);
+			this.engine.addSystem(new LevelStatusSystem(), SystemPriorities.preupdate);
 			this.engine.addSystem(new PlayerPositionSystem(), SystemPriorities.preupdate);
 
 			this.engine.addSystem(new GlobalResourcesResetSystem(), SystemPriorities.update);
@@ -183,11 +195,16 @@ define([
 			this.engine.addSystem(new RumourSystem(), SystemPriorities.update);
 			this.engine.addSystem(new EvidenceSystem(), SystemPriorities.update);
 			this.engine.addSystem(new FavourSystem(), SystemPriorities.update);
+			this.engine.addSystem(new InsightSystem(), SystemPriorities.update);
 			this.engine.addSystem(new PlayerActionSystem(), SystemPriorities.update);
+			this.engine.addSystem(new PlayerMovementSystem(), SystemPriorities.update);
 			this.engine.addSystem(new SectorStatusSystem(), SystemPriorities.update);
 			this.engine.addSystem(new UnlockedFeaturesSystem(), SystemPriorities.update);
 			this.engine.addSystem(new GlobalResourcesSystem(), SystemPriorities.update);
 			this.engine.addSystem(new CampEventsSystem(), SystemPriorities.update);
+			this.engine.addSystem(new PlayerEventsSystem(), SystemPriorities.update);
+			this.engine.addSystem(new ExcursionSystem(), SystemPriorities.update);
+			this.engine.addSystem(new TutorialSystem(), SystemPriorities.update);
 			this.engine.addSystem(new EndingSystem(), SystemPriorities.update);
 
 			this.engine.addSystem(new AutoPlaySystem(), SystemPriorities.postUpdate);
@@ -206,6 +223,7 @@ define([
 			this.engine.addSystem(new UIOutTradeSystem(), SystemPriorities.render);
 			this.engine.addSystem(new UIOutUpgradesSystem(), SystemPriorities.render);
 			this.engine.addSystem(new UIOutTribeSystem(), SystemPriorities.render);
+			this.engine.addSystem(new UIOutMilestonesSystem(), SystemPriorities.render);
 			this.engine.addSystem(new UIOutFightSystem(), SystemPriorities.render);
 			this.engine.addSystem(new UIOutLogSystem(), SystemPriorities.render);
 			this.engine.addSystem(new UIOutManageSaveSystem(), SystemPriorities.render);
@@ -221,8 +239,6 @@ define([
 		start: function () {
 			log.i("START " + GameConstants.STARTTimeNow() + "\t start tick");
 			this.gameManager.startGame();
-			this.tickProvider.add(this.gameManager.update, this.gameManager);
-			this.tickProvider.start();
 		},
 
 		handleException: function (ex) {

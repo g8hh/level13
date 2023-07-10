@@ -1,6 +1,66 @@
 {
 	"versions": [
 		{
+			"version": "0.5.1",
+			"released": "2023-07-06",
+			"phase": "alpha",
+			"final": true,
+			"changes": [
+				{
+					"type": "UI",
+					"summary": "Add simple ending"
+				},
+				{
+					"type": "GD",
+					"summary": "Add milestones and limits to evidence / rumour / favour accumulation based on milestones"
+				},
+				{
+					"type": "GD",
+					"summary": "Add investigate action and insight stat"
+				},
+				{
+					"type": "GD",
+					"summary": "Add study at library action"
+				},
+				{
+					"type": "GD",
+					"summary": "Add breaking and repairing items"
+				},
+				{
+					"type": "GD",
+					"summary": "Add luxury resources and outposts"
+				},
+				{
+					"type": "GD",
+					"summary": "Add worker robots"
+				},
+				{
+					"type": "GD",
+					"summary": "Add more permanent and temporary effects (tired, blessed, varied injuries)"
+				},
+				{
+					"type": "GD",
+					"summary": "Add more follower types"
+				},
+				{
+					"type": "GD",
+					"summary": "Add a chance that defenders (soldiers) get killed or buildings damaged during raids"
+				},
+				{
+					"type": "UI",
+					"summary": "Improve the map (modes, readability fixes and layout improvements)"
+				},
+				{
+					"type": "UI",
+					"summary": "Remove many repetitive log messages and add some new ones"
+				},
+				{
+					"type": "UI",
+					"summary": "Many smaller UI improvements"
+				}
+			]
+		},
+		{
 			"version": "0.4.3",
 			"released": "2022-05-12",
 			"requiredVersion": "0.4.1",
@@ -82,7 +142,7 @@
 				},
 				{
 					"type": "GD",
-					"summary": "Make some debuffs (hunger, thirst, cold, poison, radiation) less forgiving by adding them slowly instead of immediately"
+					"summary": "Make some debuffs (hunger, thirst, cold, poison, radiation) more forgiving by adding them slowly instead of immediately"
 				},
 				{
 					"type": "GD",

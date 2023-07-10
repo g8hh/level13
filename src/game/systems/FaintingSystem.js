@@ -214,12 +214,13 @@ define([
 			};
 			
 			if (handleResults) {
-				var resultVO = GameGlobals.playerActionResultsHelper.getFadeOutResults(loseInventoryProbability, injuryProbability, loseAugmentationProbability, loseFollowerProbability);
+				var resultVO = GameGlobals.playerActionResultsHelper.getFadeOutResults("despair", loseInventoryProbability, injuryProbability, loseAugmentationProbability, loseFollowerProbability);
 				this.playerResourcesNodes.head.entity.add(new PlayerActionResultComponent(resultVO));
 				var resultPopUpCallback = function (isTakeAll) {
 					GameGlobals.playerActionResultsHelper.collectRewards(isTakeAll, resultVO);
 					finalStep();
 				};
+				GameGlobals.playerActionResultsHelper.preCollectRewards(resultVO);
 				GameGlobals.uiFunctions.showResultPopup("Exhaustion", msg, resultVO, resultPopUpCallback);
 			} else {
 				finalStep();
@@ -240,11 +241,11 @@ define([
 			
 			setTimeout(function () {
 				if (sector.has(CampComponent)) {
-					GameGlobals.playerActionFunctions.enterCamp(false);
-					GameGlobals.uiFunctions.showTab(GameGlobals.uiFunctions.elementIDs.tabs.in);
+					GameGlobals.playerActionFunctions.enterCamp();
 				} else {
 					if (GameGlobals.logWarnings) log.w("Fainting target sector has no CampComponent");
 				}
+				sys.playerStatsNodes.head.stamina.limitStamina(sys.playerStatsNodes.head.maxStamina / 2);
 			}, 100);
 		},
 	

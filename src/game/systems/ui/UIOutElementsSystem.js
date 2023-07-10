@@ -6,6 +6,7 @@ define([
 	'game/constants/UIConstants',
 	'game/constants/PlayerStatConstants',
 	'game/constants/PlayerActionConstants',
+	'game/constants/PerkConstants',
 	'game/nodes/PlayerLocationNode',
 	'game/nodes/player/PlayerStatsNode',
 	'game/nodes/player/AutoPlayNode',
@@ -16,6 +17,7 @@ define([
 	UIConstants,
 	PlayerStatConstants,
 	PlayerActionConstants,
+	PerkConstants,
 	PlayerLocationNode,
 	PlayerStatsNode,
 	AutoPlayNode,
@@ -51,7 +53,7 @@ define([
 			GlobalSignals.add(this, GlobalSignals.gameShownSignal, this.onElementsVisibilityChanged);
 			GlobalSignals.add(this, GlobalSignals.updateButtonsSignal, this.onElementsVisibilityChanged);
 			GlobalSignals.add(this, GlobalSignals.featureUnlockedSignal, this.onElementsVisibilityChanged);
-			GlobalSignals.add(this, GlobalSignals.playerMovedSignal, this.onElementsVisibilityChanged);
+			GlobalSignals.add(this, GlobalSignals.playerPositionChangedSignal, this.onElementsVisibilityChanged);
 			GlobalSignals.add(this, GlobalSignals.tabChangedSignal, this.onElementsVisibilityChanged);
 			GlobalSignals.add(this, GlobalSignals.elementCreatedSignal, this.onElementsVisibilityChanged);
 			GlobalSignals.add(this, GlobalSignals.actionButtonClickedSignal, this.onElementsVisibilityChanged);
@@ -61,6 +63,8 @@ define([
 			GlobalSignals.add(this, GlobalSignals.updateButtonsSignal, this.onButtonStatusChanged);
 			GlobalSignals.add(this, GlobalSignals.improvementBuiltSignal, this.onButtonStatusChanged);
 			GlobalSignals.add(this, GlobalSignals.actionStartedSignal, this.onButtonStatusChanged);
+			GlobalSignals.add(this, GlobalSignals.playerMoveStartedSignal, this.onButtonStatusChanged);
+			GlobalSignals.add(this, GlobalSignals.playerMoveCompletedSignal, this.onButtonStatusChanged);
 			
 			GlobalSignals.add(this, GlobalSignals.gameShownSignal, this.refreshGlobalSavedElements);
 			GlobalSignals.add(this, GlobalSignals.calloutsGeneratedSignal, this.refreshGlobalSavedElements);
@@ -141,20 +145,20 @@ define([
 
 			var costs = GameGlobals.playerActionsHelper.getCosts(action);
 
-			var costsStatus = {};
+			let costsStatus = {};
 			costsStatus.hasCostBlockers = false;
 			costsStatus.bottleneckCostFraction = 1;
 
 			// callout content
-			var sectorEntity = GameGlobals.buttonHelper.getButtonSectorEntity($button);
-			var disabledReason = GameGlobals.playerActionsHelper.checkRequirements(action, false, sectorEntity).reason;
+			let sectorEntity = GameGlobals.buttonHelper.getButtonSectorEntity($button);
+			let disabledReason = GameGlobals.playerActionsHelper.checkRequirements(action, false, sectorEntity).reason;
 			let hasCooldown = GameGlobals.buttonHelper.hasButtonCooldown($button);
-			var isDisabledOnlyForCooldown = !disabledReason && hasCooldown;
-			let showDescription = disabledReason != PlayerActionConstants.UNAVAILABLE_REASON_MAX_IMPROVEMENT_LEVEL;
+			let isDisabledOnlyForCooldown = !disabledReason && hasCooldown;
+			let showDescription = disabledReason != PlayerActionConstants.DISABLED_REASON_MAX_IMPROVEMENT_LEVEL;
 			
 			this.updateButtonCalloutDescription($button, action, buttonStatus, buttonElements, showDescription);
 			
-			if (!isHardDisabled || isDisabledOnlyForCooldown) {
+			if (!isHardDisabled && !isDisabledOnlyForCooldown) {
 				GameGlobals.uiFunctions.toggle($enabledContent, true, this.buttonCalloutSignalParams);
 				GameGlobals.uiFunctions.toggle($disabledContent, false, this.buttonCalloutSignalParams);
 				var hasCosts = action && costs && Object.keys(costs).length > 0;
@@ -164,73 +168,55 @@ define([
 				this.updateButtonCalloutRisks($button, action, buttonElements);
 				this.updateButtonSpecialReqs($button, action, buttonElements);
 			} else {
-				var lastReason = buttonStatus.disabledReason;
-				if (lastReason !== disabledReason) {
+				let lastReason = buttonStatus.disabledReason;
+				let displayReason = disabledReason;
+				if (isDisabledOnlyForCooldown) {
+					displayReason = "Cooldown " + PlayerActionConstants.getCooldown(action) + "s";
+				}
+				if (lastReason !== displayReason) {
 					GameGlobals.uiFunctions.toggle($enabledContent, false, this.buttonCalloutSignalParams);
 					GameGlobals.uiFunctions.toggle($disabledContent, true, this.buttonCalloutSignalParams);
-					buttonElements.calloutSpanDisabledReason.html(disabledReason);
-					buttonStatus.disabledReason = disabledReason;
+					buttonElements.calloutSpanDisabledReason.html(displayReason);
+					buttonStatus.disabledReason = displayReason;
 				}
 			}
+			
+			buttonStatus.isInProgress = GameGlobals.playerActionsHelper.isInProgress(action, sectorEntity);
 
 			// overlays
 			this.updateButtonCooldownOverlays($button, action, buttonStatus, buttonElements, sectorEntity, isHardDisabled, costsStatus);
 		},
 		
 		updateButtonCalloutDescription: function ($button, action, buttonStatus, buttonElements, showDescription) {
-			let baseActionId = GameGlobals.playerActionsHelper.getBaseActionID(action);
-			if (!GameGlobals.playerActionsHelper.isImproveBuildingAction(baseActionId)) {
+			let baseActionID = GameGlobals.playerActionsHelper.getBaseActionID(action);
+			if (!GameGlobals.playerActionsHelper.isImproveBuildingAction(baseActionID) && !GameGlobals.playerActionsHelper.isBuildImprovementAction(baseActionID)) {
 				return;
 			}
 			
 			GameGlobals.uiFunctions.toggle(buttonElements.calloutDisabledDivider, showDescription);
 			GameGlobals.uiFunctions.toggle(buttonElements.descriptionSpan, showDescription);
-			buttonElements.descriptionSpan.text(GameGlobals.playerActionsHelper.getDescription(action));
+			buttonElements.descriptionSpan.html(GameGlobals.playerActionsHelper.getDescription(action));
 		},
 
 		updateButtonCalloutCosts: function ($button, action, buttonStatus, buttonElements, costs, costsStatus) {
-			var playerHealth = this.playerStatsNodes.head.stamina.health;
-			var showStorage = GameGlobals.resourcesHelper.getCurrentStorageCap();
 			if (!buttonStatus.displayedCosts) buttonStatus.displayedCosts = {};
-			
-			for (var key in costs) {
-				var $costSpan = buttonElements.costSpans[key];
-				if (!$costSpan || $costSpan.length == 0) {
-					log.w("cost span missing: " + key + " " + action);
-					continue;
-				}
-				var value = costs[key];
-				var costFraction = GameGlobals.playerActionsHelper.checkCost(action, key);
-				var isFullCostBlocker = (isResource(key.split("_")[1]) && value > showStorage) || (key == "stamina" && value > playerHealth * PlayerStatConstants.HEALTH_TO_STAMINA_FACTOR);
-				if (isFullCostBlocker) {
-					costsStatus.hasCostBlockers = true;
-				} else if (costFraction < costsStatus.bottleneckCostFraction) {
-					costsStatus.bottleneckCostFraction = costFraction;
-				}
-				$costSpan.toggleClass("action-cost-blocker", costFraction < 1);
-				$costSpan.toggleClass("action-cost-blocker-storage", isFullCostBlocker);
-
-				if (value !== buttonStatus.displayedCosts[key]) {
-					var $costSpanValue = buttonElements.costSpanValues[key];
-					$costSpanValue.html(UIConstants.getDisplayValue(value));
-					GameGlobals.uiFunctions.toggle($costSpan, value > 0, this.buttonCalloutSignalParams);
-					buttonStatus.displayedCosts[key] = value;
-				}
-			}
+			GameGlobals.uiFunctions.updateCostsSpans(action, costs, buttonElements, costsStatus, buttonStatus.displayedCosts, this.buttonCalloutSignalParams);
 		},
 
 		updateButtonCalloutRisks: function ($button, action, buttonElements) {
 			var sectorEntity = GameGlobals.buttonHelper.getButtonSectorEntity($button) || this.playerLocationNodes.head.entity;
 			var playerVision = this.playerStatsNodes.head.vision.value;
+			let perksComponent = this.playerStatsNodes.head.perks;
+			let playerLuck = perksComponent.getTotalEffect(PerkConstants.perkTypes.luck);
 			var hasEnemies = GameGlobals.fightHelper.hasEnemiesCurrentLocation(action);
 			var baseActionId = GameGlobals.playerActionsHelper.getBaseActionID(action);
 			var encounterFactor = GameGlobals.playerActionsHelper.getEncounterFactor(action);
 			var sectorDangerFactor = GameGlobals.sectorHelper.getDangerFactor(sectorEntity);
 
-			var injuryRisk = PlayerActionConstants.getInjuryProbability(action, playerVision);
+			var injuryRisk = PlayerActionConstants.getInjuryProbability(action, playerVision, playerLuck);
 			var injuryRiskBase = injuryRisk > 0 ? PlayerActionConstants.getInjuryProbability(action) : 0;
 			var injuryRiskVision = injuryRisk - injuryRiskBase;
-			var inventoryRisk = PlayerActionConstants.getLoseInventoryProbability(action, playerVision);
+			var inventoryRisk = PlayerActionConstants.getLoseInventoryProbability(action, playerVision, playerLuck);
 			var inventoryRiskBase = inventoryRisk > 0 ? PlayerActionConstants.getLoseInventoryProbability(action) : 0;
 			var inventoryRiskVision = inventoryRisk - inventoryRiskBase;
 			var fightRisk = hasEnemies ? PlayerActionConstants.getRandomEncounterProbability(baseActionId, playerVision, sectorDangerFactor, encounterFactor) : 0;
@@ -259,7 +245,7 @@ define([
 		updateButtonCooldownOverlays: function ($button, action, buttonStatus, buttonElements, sectorEntity, isHardDisabled, costsStatus) {
 			costsStatus.bottleneckCostFraction = Math.min(costsStatus.bottleneckCostFraction, GameGlobals.playerActionsHelper.checkRequirements(action, false, sectorEntity).value);
 			if (costsStatus.hasCostBlockers) costsStatus.bottleneckCostFraction = 0;
-			if (isHardDisabled) costsStatus.bottleneckCostFraction = 0;
+			if (isHardDisabled || buttonStatus.isInProgress) costsStatus.bottleneckCostFraction = 0;
 
 			if (buttonStatus.bottleneckCostFraction !== costsStatus.bottleneckCostFraction) {
 				buttonElements.cooldownReqs.css("width", ((costsStatus.bottleneckCostFraction) * 100) + "%");
@@ -314,15 +300,21 @@ define([
 		},
 
 		updateInfoCallouts: function () {
-			var targets;
 			$.each(this.elementsCalloutContainers, function () {
-				targets = $(this).children(".info-callout-target");
+				let targets = $(this).children(".info-callout-target");
 				if (targets.length > 0) {
 					var visible = true;
+					$.each(targets, function() {
+						visible = visible && $(this).css("display") !== "none";
+					});
 					$.each(targets.children(), function () {
 						visible = visible && $(this).css("display") !== "none";
 					});
 					GameGlobals.uiFunctions.toggle($(this), visible, this.buttonCalloutSignalParams);
+				}
+				let sideTargets = $(this).children(".info-callout-target-side");
+				if (sideTargets.length > 0) {
+					$(this).children(".info-callout").css("left", $(this).width() + "px")
 				}
 			});
 		},
@@ -345,7 +337,7 @@ define([
 			$.each($("button.action"), function () {
 				var $button = $(this);
 				var action = $button.attr("action");
-				var isVisible = (GameGlobals.uiFunctions.isElementToggled($button) !== false) && GameGlobals.uiFunctions.isElementVisible($button);
+				var isVisible = GameGlobals.uiFunctions.isElementToggled($button) === true || GameGlobals.uiFunctions.isElementVisible($button);
 				sys.updateButtonContainer($button, isVisible);
 				if (isVisible) {
 					sys.elementsVisibleButtons.push($button);
@@ -369,14 +361,10 @@ define([
 					elements.cooldownReqs = $button.siblings(".cooldown-reqs");
 					elements.cooldownDuration = $button.children(".cooldown-duration");
 					elements.cooldownAction = $button.children(".cooldown-action");
-
-					var costs = GameGlobals.playerActionsHelper.getCosts(action);
-					elements.costSpans = {};
-					elements.costSpanValues = {};
-					for (var key in costs) {
-						elements.costSpans[key] = elements.calloutContentEnabled.children(".action-cost-" + key);
-						elements.costSpanValues[key] = elements.costSpans[key].children(".action-cost-value");
-					}
+					
+					let costs = GameGlobals.playerActionsHelper.getCosts(action);
+					UIConstants.getCostsSpansElements(action, costs, elements, elements.calloutContentEnabled);
+					
 					sys.buttonElements.push(elements);
 					buttonActions.push(action);
 				}

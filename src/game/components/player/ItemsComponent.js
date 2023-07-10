@@ -28,9 +28,6 @@ function (Ash, ItemVO, ItemConstants) {
 
 			this.items[item.type].push(item);
 			item.carried = isCarried;
-			
-			this.uniqueItems = null;
-			this.uniqueItemsCarried = null;
 		},
 
 		discardItem: function (item, autoEquip) {
@@ -63,19 +60,6 @@ function (Ash, ItemVO, ItemConstants) {
 					log.w("Item to discard not found.");
 				}
 			}
-			
-			this.uniqueItems = null;
-			this.uniqueItemsCarried = null;
-		},
-
-		discardItems: function (item, autoEquip) {
-			var count;
-			var keepOne = !this.isItemsDiscardable(item);
-			var target = keepOne ? 1 : 0;
-			do {
-				this.discardItem(item, autoEquip);
-				count = this.getCount(item, true);
-			} while (count > target);
 		},
 
 		isItemDiscardable: function (item) {
@@ -124,42 +108,19 @@ function (Ash, ItemVO, ItemConstants) {
 			return result;
 		},
 		
-		// returns 1 if given item is better than the given items, 0 if the same or depends on bonus type, -1 if worse
 		getEquipmentComparisonWithItem: function (item, currentItem) {
-			if (currentItem && item.id === currentItem.id) return 0;
-			let result = 0;
-			for (var bonusKey in ItemConstants.itemBonusTypes) {
-				var bonusType = ItemConstants.itemBonusTypes[bonusKey];
-				var currentBonus = ItemConstants.getItemBonusComparisonValue(currentItem, bonusType);
-				var newBonus = ItemConstants.getItemBonusComparisonValue(item, bonusType);
-				
-				// TODO take speed inco account, but only together with damage
-				if (bonusType == ItemConstants.itemBonusTypes.fight_speed) {
-					continue;
-				}
-				if (currentBonus == newBonus) {
-					continue;
-				}
-				if (newBonus < currentBonus) {
-					if (result > 0) return 0;
-					result = -1;
-				} else if (newBonus > currentBonus) {
-					if (result < 0) return 0;
-					result = 1;
-				}
-			}
-			return result;
+			return ItemConstants.getEquipmentComparison(currentItem, item);
 		},
 
 		// Equips the given item if it's better than the previous equipment (based on total bonus)
 		autoEquip: function (item) {
-			var shouldEquip = item.equippable;
+			let shouldEquip = item.equippable;
 			if (shouldEquip) {
 				for (let i = 0; i < this.items[item.type].length; i++) {
 					var existingItem = this.items[item.type][i];
 					if (existingItem.itemID === item.itemID) continue;
 					if (existingItem.equipped && !(this.isItemMultiEquippable(existingItem) && this.isItemMultiEquippable(item))) {
-						var isExistingBonusBetter = existingItem.getTotalBonus() >= item.getTotalBonus();
+						let isExistingBonusBetter = existingItem.getCurrentTotalBonus() >= item.getCurrentTotalBonus();
 						if (!isExistingBonusBetter) {
 							this.unequip(existingItem);
 						}
@@ -181,16 +142,40 @@ function (Ash, ItemVO, ItemConstants) {
 		},
 
 		autoEquipByType: function (itemType) {
-			var best = null;
+			let best = null;
 			for (let i = 0; i < this.items[itemType].length; i++) {
 				var item = this.items[itemType][i];
 				if (!item.equippable) continue;
-				if (best === null || best.getTotalBonus() < item.getTotalBonus()) {
+				if (best === null || best.getCurrentTotalBonus() < item.getCurrentTotalBonus()) {
 					 best = item;
 				}
 			}
 
 			if (best!== null) this.autoEquip(best);
+		},
+		
+		autoEquipByBonusType: function (itemBonusType, includeNotCarried) {
+			for (let key in this.items) {
+				let bestItem = null;
+				let bestItemBonus = 0;
+				let bestItemTotalBonus = 0;
+				for (let i = 0; i < this.items[key].length; i++) {
+					let item = this.items[key][i];
+					if (!item.equippable) continue;
+					if (!includeNotCarried && !item.carried) continue;
+					let itemBonus = ItemConstants.getItemBonusComparisonValue(item, itemBonusType);
+					let totalBonus = ItemConstants.getItemBonusComparisonValue(item);
+					if (itemBonus > bestItemBonus || (itemBonus == bestItemBonus && totalBonus > bestItemTotalBonus)) {
+						bestItem = item;
+						bestItemBonus = itemBonus;
+						bestItemTotalBonus = totalBonus;
+					}
+				}
+				
+				if (bestItem != null) {
+					this.equip(bestItem);
+				}
+			}
 		},
 
 		isItemMultiEquippable: function (item) {
@@ -204,6 +189,7 @@ function (Ash, ItemVO, ItemConstants) {
 		// Equips the given item regardless of whether it's better than the previous equipment
 		equip: function (item) {
 			if (!item) return;
+			if (item.equipped) return;
 			if (item.equippable) {
 				var previousItems = this.getEquipped(item.type);
 				for (let i = 0; i < previousItems.length; i++) {
@@ -245,7 +231,7 @@ function (Ash, ItemVO, ItemConstants) {
 					for (let i = 0; i < this.items[key].length; i++) {
 						var item = this.items[key][i];
 						if (item.equipped) {
-							let itemBonus = item.getBonus(bonusType);
+							let itemBonus = item.getCurrentBonus(bonusType);
 							if (isMultiplier) {
 								if (itemBonus != 0) {
 									bonus *= itemBonus;
@@ -285,33 +271,20 @@ function (Ash, ItemVO, ItemConstants) {
 
 		getUnique: function (includeNotCarried) {
 			let result = [];
-			
-			if (includeNotCarried && this.uniqueItems) {
-				result = this.uniqueItems;
-			} else if (!includeNotCarried && this.uniqueItemsCarried) {
-				result = this.uniqueItemsCarried;
-			} else {
-				let resultMap = {};
+			let resultMap = {};
 
-				for (let key in this.items) {
-					for( let i = 0; i < this.items[key].length; i++) {
-						let item = this.items[key][i];
-						if (includeNotCarried || item.carried) {
-							var itemKey = item.id;
-							if (resultMap[itemKey]) {
-								resultMap[itemKey] = resultMap[itemKey] + 1;
-							} else {
-								result.push(item);
-								resultMap[itemKey] = 1;
-							}
+			for (let key in this.items) {
+				for( let i = 0; i < this.items[key].length; i++) {
+					let item = this.items[key][i];
+					if (includeNotCarried || item.carried) {
+						var itemKey = item.id + (item.broken ? "_b" : "");
+						if (resultMap[itemKey]) {
+							resultMap[itemKey] = resultMap[itemKey] + 1;
+						} else {
+							result.push(item);
+							resultMap[itemKey] = 1;
 						}
 					}
-				}
-				
-				if (includeNotCarried) {
-					this.uniqueItems = result;
-				} else {
-					this.uniqueItemsCarried = result;
 				}
 			}
 			
@@ -320,18 +293,50 @@ function (Ash, ItemVO, ItemConstants) {
 
 		getCount: function (item, includeNotCarried) {
 			if (!item) return 0;
-			var itemKey = item.id;
-			return this.getCountById(itemKey, includeNotCarried);
+			return this.getCountByIdAndStatus(item.id, item.broken, includeNotCarried);
 		},
 
 		getCountById: function (id, includeNotCarried) {
 			let result = 0;
 			
-			for (var key in this.items) {
-				for( let i = 0; i < this.items[key].length; i++) {
+			for (let key in this.items) {
+				for (let i = 0; i < this.items[key].length; i++) {
 					var item = this.items[key][i];
 					if (!includeNotCarried && !item.carried) continue;
 					if (item.id == id) {
+						result++;
+					}
+				}
+			}
+			
+			return result;
+		},
+		
+		getCountByBaseId: function (itemBaseId, includeNotCarried) {
+			let result = 0;
+			
+			for (let key in this.items) {
+				for (let i = 0; i < this.items[key].length; i++) {
+					var item = this.items[key][i];
+					if (!includeNotCarried && !item.carried) continue;
+					let baseID = ItemConstants.getBaseItemId(item.id);
+					if (baseID == itemBaseId) {
+						result++;
+					}
+				}
+			}
+			
+			return result;
+		},
+		
+		getCountByIdAndStatus: function (id, isBroken, includeNotCarried) {
+			let result = 0;
+			
+			for (let key in this.items) {
+				for (let i = 0; i < this.items[key].length; i++) {
+					let item = this.items[key][i];
+					if (!includeNotCarried && !item.carried) continue;
+					if (item.id == id && item.broken == isBroken) {
 						result++;
 					}
 				}
@@ -348,7 +353,7 @@ function (Ash, ItemVO, ItemConstants) {
 			var weakest = null;
 			for (let i = 0; i < this.items[type].length; i++) {
 				var item = this.items[type][i];
-				if (!weakest || item.getTotalBonus() < weakest.getTotalBonus()) weakest = item;
+				if (!weakest || item.getCurrentTotalBonus() < weakest.getCurrentTotalBonus()) weakest = item;
 			}
 			return weakest;
 		},
@@ -357,7 +362,7 @@ function (Ash, ItemVO, ItemConstants) {
 			var strongest = null;
 			for (let i = 0; i < this.items[type].length; i++) {
 				var item = this.items[type][i];
-				if (!strongest || item.getTotalBonus() > strongest.getTotalBonus()) strongest = item;
+				if (!strongest || item.getCurrentTotalBonus() > strongest.getCurrentTotalBonus()) strongest = item;
 			}
 			return strongest;
 		},
@@ -366,7 +371,7 @@ function (Ash, ItemVO, ItemConstants) {
 			for (var key in this.items) {
 				for( let i = 0; i < this.items[key].length; i++) {
 					var item = this.items[key][i];
-					if (id != item.id) continue;
+					if (id && id != item.id) continue;
 					if (instanceId && instanceId != item.itemID) continue;
 					if (!includeNotCarried && !item.carried) continue;
 					if (!includeEquipped && item.equipped) continue;
@@ -386,6 +391,11 @@ function (Ash, ItemVO, ItemConstants) {
 				}
 			}
 			return null;
+		},
+
+		isEquipped: function (item) {
+			let equippedItems = this.getEquipped(item.type);
+			return equippedItems.length > 0 && equippedItems[0].id == item.id;
 		},
 
 		contains: function (name) {
@@ -429,7 +439,7 @@ function (Ash, ItemVO, ItemConstants) {
 			};
 			if (getSortTypeValue(a.type) > getSortTypeValue(b.type)) return 1;
 			if (getSortTypeValue(a.type) < getSortTypeValue(b.type)) return -1;
-			return b.getTotalBonus() - a.getTotalBonus();
+			return b.getCurrentTotalBonus() - a.getCurrentTotalBonus();
 		},
 
 		getSaveKey: function () {
@@ -461,6 +471,7 @@ function (Ash, ItemVO, ItemConstants) {
 					var item = definition.clone();
 					item.itemID = componentValues.items[key][i].itemID;
 					item.foundPosition = componentValues.items[key][i].foundPosition;
+					item.broken = componentValues.items[key][i].broken == 1;
 					var carried = componentValues.items[key][i].carried;
 					this.addItem(item, carried);
 					if (componentValues.items[key][i].equipped) {
@@ -468,8 +479,6 @@ function (Ash, ItemVO, ItemConstants) {
 					}
 				}
 			}
-			this.uniqueItems = null;
-			this.uniqueItemsCarried = null;
 		}
 	});
 

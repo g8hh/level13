@@ -3,19 +3,24 @@ define(['ash', 'game/constants/MovementConstants'], function (Ash, MovementConst
 
 	var SectorStatusComponent = Ash.Class.extend({
 		
-		NUM_SCAVENGES_PER_SECTOR: 50,
+		NUM_SCAVENGES_PER_SECTOR: 30,
+		NUM_INVESTIGATES_PER_SECTOR: 3,
 
 		discoveredResources: [],
 		discoveredItems: [],
 		scavenged: false,
+		investigated: false,
 		scouted: false,
 		revealedByMap: false,
+		pendingRevealByMap: false,
 		localesScouted: [],
 		wasteClearedDirections: [],
 		debrisClearedDirections: [],
 		gapBridgedDirections: [],
 		weightedNumScavenges: 0,
+		weightedNumInvestigates: 0,
 		stashesFound: 0,
+		graffiti: null,
 		
 		scoutedTimestamp: 0,
 		
@@ -26,14 +31,18 @@ define(['ash', 'game/constants/MovementConstants'], function (Ash, MovementConst
 			this.discoveredResources = [];
 			this.discoveredItems = [];
 			this.scavenged = false;
+			this.investigated = false;
 			this.scouted = false;
 			this.revealedByMap = false;
+			this.pendingRevealByMap = false;
 			this.localesScouted = [];
 			this.wasteClearedDirections = [];
 			this.debrisClearedDirections = [];
 			this.gapBridgedDirections = [];
 			this.weightedNumScavenges = 0;
+			this.weightedNumInvestigates = 0;
 			this.stashesFound = 0;
+			this.graffiti = null;
 			
 			this.hazardReduction = {};
 			this.glowStickSeconds = -100;
@@ -69,7 +78,12 @@ define(['ash', 'game/constants/MovementConstants'], function (Ash, MovementConst
 		},
 		
 		getScavengedPercent: function () {
-			return Math.min(this.weightedNumScavenges/this.NUM_SCAVENGES_PER_SECTOR, 1) * 100;
+			return Math.min(this.weightedNumScavenges / this.NUM_SCAVENGES_PER_SECTOR, 1) * 100;
+		},
+		
+		getInvestigatedPercent: function (addition) {
+			addition = addition || 0;
+			return Math.min((this.weightedNumInvestigates + addition) / this.NUM_INVESTIGATES_PER_SECTOR, 1) * 100;
 		},
 		
 		getHazardReduction: function (hazard) {
@@ -119,12 +133,17 @@ define(['ash', 'game/constants/MovementConstants'], function (Ash, MovementConst
 				copy.dI = this.discoveredItems;
 			if (this.scavenged)
 				copy.sc = this.scavenged ? 1 : 0;
+			if (this.investigated)
+				copy.i = this.investigated ? 1 : 0;
 			if (this.scouted) {
 				copy.s = this.scouted ? 1 : 0;
 				copy.st = this.scoutedTimestamp ? this.scoutedTimestamp : 1;
 			}
 			if (this.revealedByMap && !this.scouted) {
 				copy.rm = this.revealedByMap;
+			}
+			if (this.pendingRevealByMap && !this.scouted) {
+				copy.prm = this.pendingRevealByMap;
 			}
 			if (this.localesScouted.length > 0)
 				copy.lS = this.localesScouted;
@@ -136,8 +155,12 @@ define(['ash', 'game/constants/MovementConstants'], function (Ash, MovementConst
 				copy.bd = this.gapBridgedDirections;
 			if (this.weightedNumScavenges)
 				copy.sw = Math.round(this.weightedNumScavenges * 1000)/1000;
+			if (this.weightedNumInvestigates)
+				copy.iw = Math.round(this.weightedNumInvestigates * 1000)/1000;
 			if (this.stashesFound)
 				copy.sf = this.stashesFound;
+			if (this.graffiti)
+				copy.g = this.graffiti;
 			return Object.keys(copy).length > 0 ? copy : null;
 		},
 
@@ -145,8 +168,10 @@ define(['ash', 'game/constants/MovementConstants'], function (Ash, MovementConst
 			this.discoveredResources = componentValues.dR ? componentValues.dR : [];
 			this.discoveredItems = componentValues.dI ? componentValues.dI : [];
 			this.scavenged = typeof componentValues.sc !== "undefined" ? componentValues.sc : false;
+			this.investigated = typeof componentValues.i !== "undefined" ? componentValues.i : false;
 			this.scouted = typeof componentValues.s !== "undefined" ? componentValues.s : false;
 			this.revealedByMap = typeof componentValues.rm !== "undefined" ? componentValues.rm : false;
+			this.pendingRevealByMap = typeof componentValues.prm !== "undefined" ? componentValues.prm : false;
 			this.scoutedTimestamp = typeof componentValues.st !== "undefined" ? componentValues.st : this.scouted ? 1 : null;
 			if (componentValues.lS && componentValues.lS.length > 0)
 				this.localesScouted = componentValues.lS;
@@ -156,7 +181,9 @@ define(['ash', 'game/constants/MovementConstants'], function (Ash, MovementConst
 			this.debrisClearedDirections = componentValues.dd ? componentValues.dd : [];
 			this.gapBridgedDirections = componentValues.bd ? componentValues.bd : [];
 			this.weightedNumScavenges = componentValues.sw ? componentValues.sw : 0;
+			this.weightedNumInvestigates = componentValues.iw ? componentValues.iw : 0;
 			this.stashesFound = componentValues.sf ? componentValues.sf : 0;
+			this.graffiti = componentValues.g ? componentValues.g : null;
 		}
 
 	});

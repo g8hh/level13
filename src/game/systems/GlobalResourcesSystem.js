@@ -56,6 +56,8 @@ define([
 				let hasTradePost = campImprovements.getCount(improvementNames.tradepost) > 0;
 				node.resources.storageCapacity = CampConstants.getStorageCapacity(storageCount, storageLevel);
 				node.resources.limitToStorage(!hasTradePost);
+				
+				this.updateCampSpecialStorage(node);
 			}
 		},
 		
@@ -76,7 +78,7 @@ define([
 				if (sources) {
 					for (let i = 0; i < sources.length; i++) {
 						var source = sources[i];
-						globalResourceAccumulationComponent.addChange(name, source.amount, source.source);
+						globalResourceAccumulationComponent.addChange(name, source.amount, source.source, source.sourceCount);
 					}
 				}
 			};
@@ -98,8 +100,10 @@ define([
 				if (hasTradePost) {
 					for (var key in resourceNames) {
 						var name = resourceNames[key];
-						updateSectorResource(node, name);
-						updateSectorResAcc(node, name);
+						if (!CampConstants.isLocalResource(name)) {
+							updateSectorResource(node, name);
+							updateSectorResAcc(node, name);
+						}
 					}
 					updateSectorCurrency(node);
 					globalResourcesComponent.storageCapacity += node.resources.storageCapacity;
@@ -127,25 +131,39 @@ define([
 			var gameState = GameGlobals.gameState;
 			var campNodes = this.campNodes;
 			var checkUnlockedResource = function (name) {
-				if (gameState.unlockedFeatures.resources[name]) return true;
-				if (playerResources[name] > 0) return true;
+				if (gameState.unlockedFeatures["resource_" + name]) return;
+				
+				let shouldUnlock = false;
+				if (playerResources[name] > 0) shouldUnlock = true;
 				for (var node = campNodes.head; node; node = node.next) {
-					if (node.resources.resources[name] > 0) return true;
+					if (node.resources.resources[name] > 0) {
+						shouldUnlock = true;
+						break;
+					}
 				}
-				if (globalResources[name] > 0) return true;
-				return false;
+				if (globalResources[name] > 0) shouldUnlock = true;
+				
+				if (shouldUnlock) {
+					GameGlobals.playerActionFunctions.unlockFeature("resource_" + name);
+				}
 			};
 			
-			GameGlobals.gameState.unlockedFeatures.resources.food = checkUnlockedResource("food");
-			GameGlobals.gameState.unlockedFeatures.resources.water = checkUnlockedResource("water");
-			GameGlobals.gameState.unlockedFeatures.resources.metal = checkUnlockedResource("metal");
-			GameGlobals.gameState.unlockedFeatures.resources.rope = checkUnlockedResource("rope");
-			GameGlobals.gameState.unlockedFeatures.resources.herbs = checkUnlockedResource("herbs");
-			GameGlobals.gameState.unlockedFeatures.resources.fuel = checkUnlockedResource("fuel");
-			GameGlobals.gameState.unlockedFeatures.resources.rubber = checkUnlockedResource("rubber");
-			GameGlobals.gameState.unlockedFeatures.resources.medicine = checkUnlockedResource("medicine");
-			GameGlobals.gameState.unlockedFeatures.resources.concrete = checkUnlockedResource("concrete");
-			GameGlobals.gameState.unlockedFeatures.resources.tools = checkUnlockedResource("tools");
+			checkUnlockedResource("food");
+			checkUnlockedResource("water");
+			checkUnlockedResource("metal");
+			checkUnlockedResource("rope");
+			checkUnlockedResource("herbs");
+			checkUnlockedResource("fuel");
+			checkUnlockedResource("rubber");
+			checkUnlockedResource("medicine");
+			checkUnlockedResource("concrete");
+			checkUnlockedResource("robots");
+			checkUnlockedResource("tools");
+		},
+		
+		updateCampSpecialStorage: function (node) {
+			let maxRobots = GameGlobals.campHelper.getRobotStorageCapacity(node.entity);
+			node.resources.resources.limit(resourceNames.robots, 0, maxRobots, true);
 		},
 		
 		onInventoryChanged: function () {

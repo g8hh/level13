@@ -37,12 +37,13 @@ define([
 			
 			var playerBagBonus = playerItems.getCurrentBonus(ItemConstants.itemBonusTypes.bag, null, true);
 			var followerBagBonus = playerFollowers.getCurrentBonus(ItemConstants.itemBonusTypes.bag);
-			let carryCapacity = Math.max(playerBagBonus, ItemConstants.PLAYER_DEFAULT_STORAGE) + followerBagBonus;
+			let baseCapacity = Math.max(playerBagBonus, ItemConstants.PLAYER_DEFAULT_STORAGE);
+			let carryCapacity = baseCapacity + followerBagBonus;
 			
 			playerResources.storageCapacity = carryCapacity;
-			playerBag.baseCapacity = playerBagBonus;
-			playerBag.totalCapacity = carryCapacity;
+			playerBag.baseCapacity = baseCapacity;
 			playerBag.bonusCapacity = followerBagBonus;
+			playerBag.totalCapacity = carryCapacity;
 			
 			this.updateUsedCapacity(playerBag, playerResources, playerItems);
 			
@@ -55,7 +56,9 @@ define([
 				perksComponent.removePerkById(PerkConstants.perkIds.encumbered);
 			}
 			
-			GameGlobals.gameState.unlockedFeatures.bag = GameGlobals.gameState.unlockedFeatures.bag || playerItems.getAll().length > 0;
+			if (playerItems.getAll().length > 0) {
+				GameGlobals.playerActionFunctions.unlockFeature("bag");
+			}
 		},
 		
 		updateUsedCapacity: function (playerBag, playerResources, playerItems) {

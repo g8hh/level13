@@ -11,6 +11,7 @@ define([
 	'game/constants/PositionConstants',
 	'game/constants/SectorConstants',
 	'game/constants/TradeConstants',
+	'game/constants/TribeConstants',
 	'game/constants/UpgradeConstants',
 	'game/constants/WorldConstants',
 	'game/vos/GangVO',
@@ -28,7 +29,7 @@ define([
 	'worldcreator/CriticalPathVO',
 ], function (
 	Ash, MathUtils, GameGlobals,
-	EnemyConstants, ItemConstants, LevelConstants, LocaleConstants, MovementConstants, PositionConstants, SectorConstants, TradeConstants, UpgradeConstants, WorldConstants,
+	EnemyConstants, ItemConstants, LevelConstants, LocaleConstants, MovementConstants, PositionConstants, SectorConstants, TradeConstants, TribeConstants, UpgradeConstants, WorldConstants,
 	GangVO, LocaleVO, PathConstraintVO, PositionVO, ResourcesVO, StashVO, WaymarkVO,
 	WorldCreatorConstants, WorldCreatorHelper, WorldCreatorRandom, WorldCreatorDebug, WorldCreatorLogger, CriticalPathVO
 ) {
@@ -36,6 +37,10 @@ define([
 	var SectorGenerator = {
 		
 		itemsHelper: null,
+		
+		LUXURY_RESOURCE_LOCATION_TYPE_FARMABLE: "LUXURY_RESOURCE_LOCATION_TYPE_FARMABLE",
+		LUXURY_RESOURCE_LOCATION_TYPE_BIO: "LUXURY_RESOURCE_LOCATION_TYPE_BIO",
+		LUXURY_RESOURCE_LOCATION_TYPE_MINERAL: "LUXURY_RESOURCE_LOCATION_TYPE_MINERAL",
 		
 		prepareSectors: function (seed, worldVO, itemsHelper, enemyCreator) {
 			this.itemsHelper = itemsHelper;
@@ -72,6 +77,7 @@ define([
 				}
 				
 				// level-wide features 2
+				this.generateInvestigateSectors(seed, worldVO, levelVO);
 				this.generateLocales(seed, worldVO, levelVO);
 				this.generateMovementBlockers(seed, worldVO, levelVO);
 				this.generateEnemies(seed, worldVO, levelVO, enemyCreator);
@@ -107,6 +113,7 @@ define([
 			
 			levelVO.additionalCampPositions = [];
 			
+			let isSurfaceLevel = levelVO.level === worldVO.topLevel;
 			let campOrdinal = levelVO.campOrdinal;
 			let minPathlenC2P = 3;
 			let maxPathLenC2P = WorldCreatorConstants.getMaxPathLength(campOrdinal, WorldCreatorConstants.CRITICAL_PATH_TYPE_CAMP_TO_PASSAGE);
@@ -117,6 +124,7 @@ define([
 				if (sectorVO.isCamp) return false;
 				if (sectorVO.isPassageUp || sectorVO.isPassageDown) return false;
 				if (sectorVO.stage != WorldConstants.CAMP_STAGE_EARLY) return false;
+				if (sectorVO.sunlit && !isSurfaceLevel) return false;
 				if (WorldCreatorHelper.getDistanceToCamp(worldVO, levelVO, sectorVO, WorldCreatorConstants.MAX_CAMP_POS_DISTANCE) > WorldCreatorConstants.MAX_CAMP_POS_DISTANCE) return false;
 				
 				for (let i = 0; i < levelVO.passagePositions.length; i++) {
@@ -644,13 +652,19 @@ define([
 				let campNeighbours = levelVO.getNeighbourList(campPosition.sectorX, campPosition.sectorY);
 				let firstCacheSector = WorldCreatorRandom.getRandomItemFromArray(seed, campNeighbours);
 				addStash(firstCacheSector, "first-cache", ItemConstants.STASH_TYPE_ITEM, 1, "cache_metal_1");
-				addStashes(seed / 3 * 338 + l * 402, "guaranteed-early", ItemConstants.STASH_TYPE_ITEM, ["cache_metal_1"], 4, 1, lateZones);
+				addStashes(seed / 2 * 401 + l * 801, "guaranteed-early", ItemConstants.STASH_TYPE_ITEM, ["cache_water_1"], 3, 1, lateZones);
+				addStashes(seed / 4 * 278 + l * 151, "guaranteed-early", ItemConstants.STASH_TYPE_ITEM, ["cache_food_1"], 3, 1, lateZones);
+				addStashes(seed / 3 * 338 + l * 402, "guaranteed-early", ItemConstants.STASH_TYPE_ITEM, ["cache_metal_1"], 7, 1, lateZones);
 				addStashes(seed * l * 8 / 3 + (l+100)*14 + 3333, "guaranteed-early", ItemConstants.STASH_TYPE_ITEM, [ "exploration_1" ], 1, 1, lateZones);
+			}
+			
+			if (l == WorldConstants.LEVEL_NUMBER_STASH_ADVANCED_MAP) {
+				addStashes(seed / 2 + 5312, "guaranteed-early", ItemConstants.STASH_TYPE_ITEM, [ "equipment_map_2" ], 1, 1, earlyZonesEntrance);
 			}
 			
 			// stashes: every campable level guaranteed items
 			if (levelVO.isCampable && l != 13) {
-				var numCaches = levelVO.populationFactor >= 1 ? 3 : 5;
+				let numCaches = levelVO.populationFactor >= 1 ? 3 : 5;
 				addStashes(seed / 7 * 937 + l * 331, "guaranteed-campable-early", ItemConstants.STASH_TYPE_ITEM, ItemConstants.getAvailableMetalCaches(levelVO.campOrdinal), numCaches, 1, lateZones);
 				addStashes(3000 + seed % 7 * 188 + (levelVO.level % 3) * 105 + Math.abs(levelVO.minX + 50) * 77, "guaranteed-campable", ItemConstants.STASH_TYPE_ITEM, [ "consumable_map_1", "consumable_map_2" ], [1, 3], 1, lateZones);
 			}
@@ -658,7 +672,9 @@ define([
 			// stashes: every non-campable level guaranteed items
 			if (!levelVO.isCampable) {
 				addStashes(seed % 45 * (l + 11) * 9 + (l+100)*7 + 1111, "guaranteed-noncampable", ItemConstants.STASH_TYPE_ITEM, [ "stamina_potion_1"], 1, 1);
-				addStashes(3000 + seed % 7 * 188 + (levelVO.level % 3) * 105 + Math.abs(levelVO.minX + 50) * 77, "guaranteed-noncampable", ItemConstants.STASH_TYPE_ITEM, [ "consumable_map_1", "consumable_map_2" ], 2, 1, lateZones);
+				if (levelVO.level != worldVO.bottomLevel) {
+					addStashes(3000 + seed % 7 * 188 + (levelVO.level % 3) * 105 + Math.abs(levelVO.minX + 50) * 77, "guaranteed-noncampable", ItemConstants.STASH_TYPE_ITEM, [ "consumable_map_1", "consumable_map_2" ], 2, 1, lateZones);
+				}
 			}
 			
 			// stashes: currency (uncampable levels and late zones)
@@ -701,15 +717,22 @@ define([
 				"consumable_weapon_1",
 				"consumable_weapon_bio",
 				"consumable_weapon_mechanical",
+				"consumable_graffiti_01",
 				"flee_1",
-				"cache_evidence_1",
-				"cache_evidence_2",
-				"cache_evidence_3",
-				"cache_evidence_3",
+				"cache_evidence_11",
+				"cache_evidence_12",
+				"cache_evidence_21",
+				"cache_evidence_22",
+				"cache_evidence_31",
+				"cache_evidence_32",
+				"cache_rumours_11",
+				"cache_rumours_22",
 				"cache_metal_1",
 				"cache_metal_2",
 				"cache_metal_3",
 				"cache_metal_4",
+				"cache_food_1",
+				"cache_water_1",
 			];
 			var maxRarity = 9;
 			return allItems.filter((itemID) => this.itemsHelper.isAvailable(ItemConstants.getItemConfigByID(itemID), levelVO.campOrdinal, WorldConstants.CAMP_STEP_END, true, true, maxRarity));
@@ -1045,9 +1068,9 @@ define([
 			var r3 = WorldCreatorRandom.random(seed / (l + 5) + x * x * y + 66);
 			var r4 = WorldCreatorRandom.random(seed / x * ll + x * y * 16);
 			var sca = new ResourcesVO();
-			var metalThresholds = { "ABUNDANT": 0.95, "COMMON": 0.8, "DEFAULT": 0.03 };
-			var foodThresholds = { "ABUNDANT": 0.98, "COMMON": 0.95, "DEFAULT": 0.75 };
-			var waterThresholds = { "ABUNDANT": 1, "COMMON": 0.95, "DEFAULT": 0.85 };
+			let metalThresholds = { "ABUNDANT": 0.95, "COMMON": 0.8, "DEFAULT": Math.ceil(campOrdinal / 3) * 0.02 };
+			let foodThresholds = { "ABUNDANT": 0.98, "COMMON": 0.95, "DEFAULT": 0.75 };
+			let waterThresholds = { "ABUNDANT": 1, "COMMON": 0.95, "DEFAULT": 0.85 };
 			switch (sectorType) {
 				case SectorConstants.SECTOR_TYPE_RESIDENTIAL:
 					metalThresholds.ABUNDANT = 1;
@@ -1175,6 +1198,7 @@ define([
 					sca.metal = WorldConstants.resourcePrevalence.ABUNDANT;
 					sca.food = WorldConstants.resourcePrevalence.COMMON;
 					col.water = WorldConstants.resourcePrevalence.RARE;
+					col.food = WorldConstants.resourcePrevalence.RARE;
 				} else {
 					if (isOutpost) {
 						sca.metal = MathUtils.clamp(sca.metal, WorldConstants.resourcePrevalence.COMMON, WorldConstants.resourcePrevalence.ABUNDANT);
@@ -1243,7 +1267,7 @@ define([
 			for (let i = 0; i < stages.length; i++) {
 				var stageVO = stages[i];
 				let step = WorldConstants.getStepForStage(stageVO.stage);
-				let maxPerType = levelVO.levelOrdinal > 10 ? 1 : levelVO.levelOrdinal > 3 ? 3 : 10;
+				let maxPerType = levelVO.levelOrdinal > 10 ? 1 : levelVO.levelOrdinal > 3 ? 2 : 8;
 				
 				// ingredients for required equipment
 				let requiredEquipment = [];
@@ -1273,7 +1297,7 @@ define([
 				}
 				
 				// a couple of random ingredients
-				let numRandomIngredients = 2;
+				let numRandomIngredients = Math.min(2, levelVO.campOrdinal);
 				for (let i = 0; i < numRandomIngredients; i++) {
 					var s1 = 4200 + seed % 3000 + (levelVO.level + 5) * 217 + i * 991;
 					var r1 = WorldCreatorRandom.random(s1);
@@ -1474,6 +1498,51 @@ define([
 			}
 		},
 		
+		generateInvestigateSectors: function (seed, worldVO, levelVO) {
+			if (levelVO.numInvestigateSectors < 1) return;
+			
+			let addSector = function (sectorVO) {
+				sectorVO.isInvestigatable = true;
+			};
+			
+			let getInvestigateSectorScore = function (sectorVO) {
+				let score = 0;
+				score -= sectorVO.criticalPaths.length;
+				score -= sectorVO.locales.length;
+				score -= sectorVO.waymarks.length;
+				switch (sectorVO.sectorType) {
+					case SectorConstants.SECTOR_TYPE_RESIDENTIAL: score += 1; break;
+					case SectorConstants.SECTOR_TYPE_INDUSTRIAL: score += 3; break;
+					case SectorConstants.SECTOR_TYPE_MAINTENANCE: score += 0; break;
+					case SectorConstants.SECTOR_TYPE_COMMERCIAL: score += 1; break;
+					case SectorConstants.SECTOR_TYPE_PUBLIC: score += 3; break;
+					case SectorConstants.SECTOR_TYPE_SLUM: score += 0; break;
+				}
+				return score;
+			};
+			
+			let l = levelVO.level;
+			let campOrdinal = WorldCreatorHelper.getCampOrdinal(seed, levelVO.level);
+			let startPos = levelVO.excursionStartPosition;
+			
+			let excludedZones = [ WorldConstants.ZONE_ENTRANCE ];
+			let excludedFeatures = [ "isCamp", "isPassageUp", "isPassageDown", "workshopResource" ];
+			let pathConstraints = [];
+			
+			let pathType = WorldCreatorConstants.CRITICAL_PATH_TYPE_CAMP_TO_POI_2;
+			let maxLength = WorldCreatorConstants.getMaxPathLength(campOrdinal, pathType);
+			pathConstraints.push(new PathConstraintVO(startPos, maxLength, pathType));
+			
+			let options = { requireCentral: false, excludingFeature: excludedFeatures, pathConstraints: pathConstraints, excludedZones: excludedZones };
+			let count = levelVO.numInvestigateSectors;
+			let sectors = WorldCreatorRandom.randomSectorsScored(seed, worldVO, levelVO, count, count + 1, options, getInvestigateSectorScore);
+			WorldCreatorLogger.i("add investigate sectors on level " + l + ": " + sectors.length);
+			for (let i = 0; i < sectors.length; i++) {
+				addSector(sectors[i]);
+			}
+			
+		},
+		
 		generateLocales: function (seed, worldVO, levelVO) {
 			var l = levelVO.level;
 			var campOrdinal = WorldCreatorHelper.getCampOrdinal(seed, levelVO.level);
@@ -1525,8 +1594,22 @@ define([
 				addLocale(sector, locale);
 				// WorldCreatorLogger.i("add follower locale at " + sector)
 			}
+			
+			// 4) spawn locales for luxury resources
+			for (let i = 0; i < levelVO.luxuryResources.length; i++) {
+				let resource = levelVO.luxuryResources[i];
+				let locationType = this.getLuxuryResourceLocationType(resource);
+				let filter = sectorVO => this.filterSectorForLuxuryLocationType(sectorVO, locationType);
+				let options = { excludingFeature: excludedFeatures, excludedZones: lateZones, excludedZones: [ WorldConstants.ZONE_PASSAGE_TO_CAMP ], filter: filter };
+				let sector = WorldCreatorRandom.randomSectors(seed  + 773 + levelVO.level * 24 + i * 992, worldVO, levelVO, 1, 2, options)[0];
+				let localeType = this.getLocaleTypeForLuxuryResourceOnSector(seed, locationType, sector);
+				let locale = new LocaleVO(localeType, false, false);
+				locale.luxuryResource = resource;
+				addLocale(sector, locale);
+				WorldCreatorLogger.i("add luxury resource locale at " + sector);
+			}
 
-			// 4) spawn other types (for blueprints)
+			// 5) spawn other types (for blueprints)
 			var createLocales = function (worldVO, levelVO, campOrdinal, isEarly, count, countEasy) {
 				var pathConstraints = [];
 				if (levelVO.campPosition) {
@@ -1555,6 +1638,7 @@ define([
 					var localeType = generator.getLocaleType(worldVO, levelVO, sectorVO, s1, isEarly);
 					var isEasy = i <= countEasy;
 					var locale = new LocaleVO(localeType, isEasy, isEarly);
+					locale.hasBlueprints = true;
 					addLocale(sectorVO, locale);
 					// WorldCreatorLogger.i(sectorVO.position + " added locale: isEarly:" + isEarly + ", distance to camp: " + WorldCreatorHelper.getDistanceToCamp(worldVO, levelVO, sectorVO) + ", zone: " + sectorVO.zone);
 					for (let j = 0; j < pathConstraints.length; j++) {
@@ -1754,7 +1838,7 @@ define([
 			// mark selected
 			for (let i = 0; i < selectedWaymarks.length; i++) {
 				let waymark = selectedWaymarks[i];
-				WorldCreatorLogger.i("selected waymark: " + waymark.type + " " + waymark.waymark + " (" + waymark.waymark.zone + ") -> " + waymark.poi + "(" + waymark.poi.zone + ")");
+				//WorldCreatorLogger.i("selected waymark: " + waymark.type + " " + waymark.waymark + " (" + waymark.waymark.zone + ") -> " + waymark.poi + "(" + waymark.poi.zone + ")");
 				waymark.waymark.waymarks.push(new WaymarkVO(waymark.waymark.position, waymark.poi.position, waymark.type))
 			}
 		},
@@ -1957,8 +2041,79 @@ define([
 			
 			return sectorType;
 		},
+
+		filterSectorForLuxuryLocationType: function (sectorVO, luxuryLocationType) {
+			if (sectorVO.sectorType == SectorConstants.SECTOR_TYPE_SLUM) return false;
+			if (sectorVO.sectorType == SectorConstants.SECTOR_TYPE_PUBLIC) return false;
+			
+			switch (luxuryLocationType) {
+				case this.LUXURY_RESOURCE_LOCATION_TYPE_FARMABLE:
+					return !sectorVO.hazards.hasHazards();
+				case this.LUXURY_RESOURCE_LOCATION_TYPE_BIO:
+					return !sectorVO.hazards.radiation;
+				case this.LUXURY_RESOURCE_LOCATION_TYPE_MINERAL:
+					return sectorVO.sectorType != SectorConstants.SECTOR_TYPE_RESIDENTIAL;
+			}
+			
+			return true;
+		},
+		
+		getLocaleTypeForLuxuryResourceOnSector: function (seed, luxuryLocationType, sector) {
+			let options = [ ];
+			
+			if (sector.sectorType == SectorConstants.SECTOR_TYPE_COMMERCIAL || sector.sectorType == SectorConstants.SECTOR_TYPE_RESIDENTIAL) {
+				options.push(localeTypes.market);
+			} else {
+				options.push(localeTypes.warehouse);
+			}
+			
+			switch (luxuryLocationType) {
+				case this.LUXURY_RESOURCE_LOCATION_TYPE_FARMABLE:
+					options.push(localeTypes.farm);
+					break;
+				case this.LUXURY_RESOURCE_LOCATION_TYPE_BIO:
+					options.push(localeTypes.lab);
+					break;
+			}
+			
+			return WorldCreatorRandom.getRandomItemFromArray(seed, options);
+		},
+		
+		getLuxuryResourceLocationType: function (luxuryType) {
+			switch (luxuryType) {
+				case TribeConstants.luxuryType.HONEY:
+				case TribeConstants.luxuryType.OLIVES:
+				case TribeConstants.luxuryType.TRUFFLES:
+				case TribeConstants.luxuryType.CHOCOLATE:
+				case TribeConstants.luxuryType.COFFEE:
+				case TribeConstants.luxuryType.SPICES:
+				case TribeConstants.luxuryType.TOBACCO:
+				case TribeConstants.luxuryType.TEA:
+					return this.LUXURY_RESOURCE_LOCATION_TYPE_FARMABLE;
+					
+				case TribeConstants.luxuryType.AMBER:
+				case TribeConstants.luxuryType.PEARLS:
+				case TribeConstants.luxuryType.IVORY:
+				case TribeConstants.luxuryType.SALT:
+					return this.LUXURY_RESOURCE_LOCATION_TYPE_BIO;
+				
+				case TribeConstants.luxuryType.DIAMONDS:
+				case TribeConstants.luxuryType.EMERALDS:
+				case TribeConstants.luxuryType.GOLD:
+				case TribeConstants.luxuryType.JADE:
+				case TribeConstants.luxuryType.SILVER:
+					return this.LUXURY_RESOURCE_LOCATION_TYPE_MINERAL;
+					
+				default:
+					log.w("unknown luxury resource type: " + luxuryType);
+					return this.LUXURY_RESOURCE_LOCATION_TYPE_MINERAL;
+			}
+		},
 		
 		isSunlit: function (seed, worldVO, levelVO, sectorVO) {
+			let isSurfaceLevel = levelVO.level === worldVO.topLevel;
+			if (sectorVO.isCamp && !isSurfaceLevel) return false;
+			
 			let l = sectorVO.position.level;
 			
 			let isHole = function (pos) {
@@ -2005,6 +2160,8 @@ define([
 		},
 		
 		isSunlitByNeighbours: function (worldVO, levelVO, sectorVO) {
+			let isSurfaceLevel = levelVO.level === worldVO.topLevel;
+			if (sectorVO.isCamp && !isSurfaceLevel) return false;
 			let numTotal = 0;
 			let numSunlit = 0;
 			let neighbours = levelVO.getNeighbourList(sectorVO.position.sectorX, sectorVO.position.sectorY);
@@ -2110,12 +2267,10 @@ define([
 			var l = levelVO.level;
 			var s1 = seed + l * 7 + sectorVO.position.sectorX * seed % 6 * 10;
 			var campOrdinal = levelVO.campOrdinal;
-			var unlockElevatorOrdinal = UpgradeConstants.getMinimumCampOrdinalForUpgrade("unlock_building_passage_elevator");
-			var unlockHoleOrdinal = UpgradeConstants.getMinimumCampOrdinalForUpgrade("unlock_building_passage_hole");
+			var unlockElevatorOrdinal = GameGlobals.upgradeEffectsHelper.getMinimumCampOrdinalForUpgrade("unlock_building_passage_elevator");
+			var unlockHoleOrdinal = GameGlobals.upgradeEffectsHelper.getMinimumCampOrdinalForUpgrade("unlock_building_passage_hole");
 			if (l === 13) {
 				return MovementConstants.PASSAGE_TYPE_STAIRWELL;
-			} else if (campOrdinal > WorldConstants.CAMP_ORDINAL_LIMIT) {
-				return MovementConstants.PASSAGE_TYPE_BLOCKED;
 			} else if (l === 14) {
 				return MovementConstants.PASSAGE_TYPE_HOLE;
 			} else if (levelVO.isCampable && campOrdinal == unlockElevatorOrdinal) {
@@ -2135,27 +2290,31 @@ define([
 		},
 		
 		getPossibleEnemies: function (seed, worldVO, levelVO, sectorVO, enemyCreator) {
-			var l = sectorVO.position.level;
-			var x = sectorVO.position.sectorX;
-			var y = sectorVO.position.sectorY;
-			var campOrdinal = levelVO.campOrdinal;
-			var step = WorldConstants.getCampStep(sectorVO.zone);
-			var isPollutedLevel = levelVO.notCampableReason === LevelConstants.UNCAMPABLE_LEVEL_TYPE_POLLUTION;
-			var isRadiatedLevel = levelVO.notCampableReason === LevelConstants.UNCAMPABLE_LEVEL_TYPE_RADIATION;
+			let l = sectorVO.position.level;
+			let x = sectorVO.position.sectorX;
+			let y = sectorVO.position.sectorY;
+			let campOrdinal = levelVO.campOrdinal;
+			let step = WorldConstants.getCampStep(sectorVO.zone);
+			let isPollutedLevel = levelVO.notCampableReason === LevelConstants.UNCAMPABLE_LEVEL_TYPE_POLLUTION;
+			let isRadiatedLevel = levelVO.notCampableReason === LevelConstants.UNCAMPABLE_LEVEL_TYPE_RADIATION;
+			let tags = [];
 			
-			var enemyDifficulty = enemyCreator.getDifficulty(campOrdinal, step);
+			if (levelVO.level == worldVO.bottomLevel) tags.push("ground");
+			if (levelVO.level == worldVO.topLevel) tags.push("surface");
+			
+			let enemyDifficulty = enemyCreator.getDifficulty(campOrdinal, step);
 			if (sectorVO.isOnEarlyCriticalPath()) enemyDifficulty -= 2;
 			enemyDifficulty = Math.max(enemyDifficulty, 1);
 			sectorVO.enemyDifficulty = enemyDifficulty;
 
-			var enemies = [];
+			let enemies = [];
 			
 			// collect all valid enemies for this sector (candidates)
-			var candidates = [];
-			var enemy;
-			var candidateDifficulties = [];
-			var addEnemyCandidates = function (enemyType) {
-				var typeEnemies = enemyCreator.getEnemies(enemyType, enemyDifficulty, false);
+			let candidates = [];
+			let enemy;
+			let candidateDifficulties = [];
+			let addEnemyCandidates = function (enemyType) {
+				let typeEnemies = enemyCreator.getEnemies(enemyType, enemyDifficulty, false, tags);
 				for (var e in typeEnemies) {
 					enemy = typeEnemies[e];
 					candidates.push(enemy);
@@ -2175,12 +2334,12 @@ define([
 			if (levelVO.populationFactor > 0) addEnemyCandidates(EnemyConstants.enemyTypes.inhabited);
 			if (levelVO.populationFactor <= 0) addEnemyCandidates(EnemyConstants.enemyTypes.uninhabited);
 			
-			var hasWater = sectorVO.hasWater();
-			var directions = PositionConstants.getLevelDirections();
-			var neighbours = levelVO.getNeighbours(x, y);
+			let hasWater = sectorVO.hasWater();
+			let directions = PositionConstants.getLevelDirections();
+			let neighbours = levelVO.getNeighbours(x, y);
 			for (var d in directions) {
-				var direction = directions[d];
-				var neighbour = neighbours[direction];
+				let direction = directions[d];
+				let neighbour = neighbours[direction];
 				if (neighbour) {
 					hasWater = hasWater || neighbour.hasWater();
 				}
@@ -2193,20 +2352,29 @@ define([
 				return enemies;
 			}
 			
-			// select enemies from candidates by rarity and difficulty
+			// select enemies from candidates by (sector adjusted) rarity and difficulty
+			let getAdjustedRarity = function (enemyVO) {
+				let result = enemyVO.rarity;
+				if (!levelVO.isCampable && enemyVO.enemyClass == "bandit") {
+					result += 50;
+				}
+				result = MathUtils.clamp(result, 1, 100);
+				return result;
+			};
 			candidates = candidates.sort(function (a,b) {
-				return a.rarity - b.rarity;
+				return getAdjustedRarity(a) - getAdjustedRarity(b);
 			});
 			candidateDifficulties = candidateDifficulties.sort(function (a,b) {
 				return a - b;
 			});
 			
-			var minDifficulty = levelVO.isHard ? candidateDifficulties[Math.floor(candidateDifficulties.length/2)] : candidateDifficulties[0];
+			let minDifficulty = levelVO.isHard ? candidateDifficulties[Math.floor(candidateDifficulties.length/2)] : candidateDifficulties[0];
 			for (let i = 0; i < candidates.length; i++) {
-				enemy = candidates[i];
+				let enemy = candidates[i];
+				let rarity = getAdjustedRarity(enemy);
 				if (enemyCreator.getEnemyDifficultyLevel(enemy) < minDifficulty) continue;
-				var threshold = MathUtils.map(enemy.rarity, 1, 100, 0.01, 0.99);
-				var r = WorldCreatorRandom.random(9999 + l * seed + x * l * 80 + y * 10 + i * x *22 - y * i * x * 15);
+				let threshold = MathUtils.map(rarity, 1, 100, 0.01, 0.99);
+				let r = WorldCreatorRandom.random(9999 + l * seed + x * l * 80 + y * 10 + i * x *22 - y * i * x * 15);
 				if (i == 0 || r > threshold) {
 					enemies.push(enemy);
 				}
@@ -2282,13 +2450,13 @@ define([
 				blockerTypes.push(MovementConstants.BLOCKER_TYPE_DEBRIS);
 			}
 			
-			var unlockGapOrdinal = UpgradeConstants.getMinimumCampOrdinalForUpgrade("unlock_building_bridge");
+			var unlockGapOrdinal = GameGlobals.upgradeEffectsHelper.getMinimumCampOrdinalForUpgrade("unlock_building_bridge");
 			if (campOrdinal > unlockGapOrdinal || (campOrdinal == unlockGapOrdinal && campStage == WorldConstants.CAMP_STAGE_LATE)) {
 				blockerTypes.push(MovementConstants.BLOCKER_TYPE_GAP);
 			}
 			
-			var unlockToxicWasteOrdinal = UpgradeConstants.getMinimumCampOrdinalForUpgrade("unlock_action_clear_waste_t");
-			let unlockToxicWasteStep = UpgradeConstants.getMinimumCampStepForUpgrade("unlock_action_clear_waste_t");
+			let unlockToxicWasteOrdinal = GameGlobals.upgradeEffectsHelper.getMinimumCampOrdinalForUpgrade("unlock_action_clear_waste_t");
+			let unlockToxicWasteStep = GameGlobals.upgradeEffectsHelper.getMinimumCampStepForUpgrade("unlock_action_clear_waste_t");
 			let unlockToxicWasteStage = WorldConstants.getStageForStep(unlockToxicWasteStep);
 			if (WorldConstants.isHigherCampOrdinalAndStage(campOrdinal, campStage, unlockToxicWasteOrdinal, unlockToxicWasteStage) && !isRadiatedLevel) {
 				blockerTypes.push(MovementConstants.BLOCKER_TYPE_WASTE_TOXIC);
@@ -2298,8 +2466,8 @@ define([
 				}
 			}
 			
-			var unlockRadioactiveWasteOrdinal = UpgradeConstants.getMinimumCampOrdinalForUpgrade("unlock_action_clear_waste_r");
-			let unlockRadioactiveWasteStep = UpgradeConstants.getMinimumCampStepForUpgrade("unlock_action_clear_waste_r");
+			var unlockRadioactiveWasteOrdinal = GameGlobals.upgradeEffectsHelper.getMinimumCampOrdinalForUpgrade("unlock_action_clear_waste_r");
+			let unlockRadioactiveWasteStep = GameGlobals.upgradeEffectsHelper.getMinimumCampStepForUpgrade("unlock_action_clear_waste_r");
 			let unlockRadioactiveWasteStage = WorldConstants.getStageForStep(unlockRadioactiveWasteStep);
 			if (WorldConstants.isHigherCampOrdinalAndStage(campOrdinal, campStage, unlockRadioactiveWasteOrdinal, unlockRadioactiveWasteStage)) {
 				blockerTypes.push(MovementConstants.BLOCKER_TYPE_WASTE_RADIOACTIVE);

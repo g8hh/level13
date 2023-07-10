@@ -1,4 +1,4 @@
-define(['ash', 'game/GameGlobals', 'game/vos/PlayerActionVO'], function (Ash, GameGlobals, PlayerActionVO) {
+define(['ash', 'game/constants/PlayerActionConstants', 'game/vos/PlayerActionVO'], function (Ash, PlayerActionConstants, PlayerActionVO) {
 
 	var PlayerActionComponent = Ash.Class.extend({
 
@@ -9,12 +9,16 @@ define(['ash', 'game/GameGlobals', 'game/vos/PlayerActionVO'], function (Ash, Ga
 		constructor: function () {
 			this.endTimeStampToActionDict = {};
 			this.endTimeStampList = [];
+			this.busyStartTime = -1;
 		},
 
-		addAction: function (action, duration, param, deductedCosts, isBusyAction) {
-			if (!this.isBusy() && isBusyAction) this.busyStartTime = new Date().getTime();
-			var endTimeStamp = new Date().getTime() + duration * 1000;
-			this.endTimeStampToActionDict[endTimeStamp] = new PlayerActionVO(action, param, deductedCosts, isBusyAction);
+		addAction: function (action, duration, level, param, deductedCosts, isBusyAction) {
+			let startTime = new Date().getTime();
+			if (!this.isBusy() && isBusyAction) {
+				this.busyStartTime = startTime;
+			}
+			let endTimeStamp = new Date().getTime() + duration * 1000;
+			this.endTimeStampToActionDict[endTimeStamp] = new PlayerActionVO(action, level, param, deductedCosts, startTime, isBusyAction);
 			this.endTimeStampList.push(endTimeStamp);
 			this.sortTimeStamps();
 			return endTimeStamp;
@@ -24,8 +28,19 @@ define(['ash', 'game/GameGlobals', 'game/vos/PlayerActionVO'], function (Ash, Ga
 			return this.endTimeStampToActionDict[this.getLastTimeStamp(requireBusy)];
 		},
 		
+		getAllActions: function (requireBusy) {
+			let result = [];
+			for (let i = this.endTimeStampList.length - 1; i >= 0; i--) {
+				let action = this.endTimeStampToActionDict[this.endTimeStampList[i]];
+				if (!requireBusy || action.isBusy) {
+					result.push(action);
+				}
+			}
+			return result;
+		},
+		
 		getLastActionName: function (requireBusy) {
-			var lastAction = this.getLastAction(requireBusy);
+			let lastAction = this.getLastAction(requireBusy);
 			return lastAction ? lastAction.action : null;
 		},
 
@@ -33,7 +48,7 @@ define(['ash', 'game/GameGlobals', 'game/vos/PlayerActionVO'], function (Ash, Ga
 			var lastTimeStamp = -1;
 			if (requireBusy) {
 				for (let i = this.endTimeStampList.length - 1; i >= 0; i--) {
-					var action = this.endTimeStampToActionDict[this.endTimeStampList[i]];
+					let action = this.endTimeStampToActionDict[this.endTimeStampList[i]];
 					if (action.isBusy) {
 						lastTimeStamp = this.endTimeStampList[i];
 						break;
@@ -43,6 +58,29 @@ define(['ash', 'game/GameGlobals', 'game/vos/PlayerActionVO'], function (Ash, Ga
 				lastTimeStamp = this.endTimeStampList[this.endTimeStampList.length - 1];
 			}
 			return lastTimeStamp;
+		},
+		
+		getActionTimestamp: function (action, level) {
+			let result = -1;
+			for (let i = this.endTimeStampList.length - 1; i >= 0; i--) {
+				let timestampAction = this.endTimeStampToActionDict[this.endTimeStampList[i]];
+				if (timestampAction.action == action && timestampAction.level == level) {
+					result = this.endTimeStampList[i];
+					break;
+				}
+			}
+			return result;
+		},
+		
+		getAction: function (action, level) {
+			let result = null;
+			for (let i = this.endTimeStampList.length - 1; i >= 0; i--) {
+				let timestampAction = this.endTimeStampToActionDict[this.endTimeStampList[i]];
+				if (timestampAction.action == action && timestampAction.level == level) {
+					return timestampAction;
+				}
+			}
+			return result;
 		},
 
 		applyExtraTime: function (extraTime) {
@@ -74,19 +112,23 @@ define(['ash', 'game/GameGlobals', 'game/vos/PlayerActionVO'], function (Ash, Ga
 		},
 
 		getBusyDescription: function () {
-			var action = this.getLastAction(true).action;
-			var baseActionID = GameGlobals.playerActionsHelper.getBaseActionID(action);
+			let action = this.getLastAction(true).action;
+			if (action.indexOf("build_") >= 0) return "building";
+			
+			let baseActionID = PlayerActionConstants.getBaseActionID(action);
 			switch (baseActionID) {
 				case "use_in_home": return "resting";
 				case "use_in_campfire": return "discussing";
 				case "use_in_hospital": return "recovering";
 				case "use_in_hospital_2": return "augmenting";
 				case "use_in_market": return "visiting";
+				case "use_in_library": return "studying";
 				case "use_in_temple": return "donating";
 				case "use_in_shrine": return "meditating";
 				case "clear_waste_t": return "clearing waste";
 				case "clear_waste_r": return "clearing waste";
-				default: return this.action;
+				case "launch": return "launch";
+				default: return baseActionID;
 			}
 		},
 
@@ -102,6 +144,17 @@ define(['ash', 'game/GameGlobals', 'game/vos/PlayerActionVO'], function (Ash, Ga
 			if (!this.isBusy()) return 0;
 			var lastTimeStamp = this.getLastTimeStamp(true);
 			return (lastTimeStamp - new Date().getTime()) / 1000;
+		},
+		
+		getActionCompletionPercentage: function (action, level) {
+			let actionVO = this.getAction(action, level);
+			if (!actionVO) return 1;
+			let timestamp = this.getActionTimestamp(action, level);
+			if (!timestamp) return 1;
+			
+			let totalTime = timestamp - actionVO.startTime;
+			let timePassed = new Date().getTime() - actionVO.startTime;
+			return timePassed / totalTime * 100;
 		},
 
 		getSaveKey: function () {

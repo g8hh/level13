@@ -13,6 +13,7 @@ function (Ash, WorldConstants, ResourcesVO, LocaleConstants, PlayerStatConstants
 		sewer: 7,
 		warehouse: 8,
 		library: 9,
+		farm: 10,
 		
 		camp: 50,
 		hut: 51,
@@ -28,15 +29,20 @@ function (Ash, WorldConstants, ResourcesVO, LocaleConstants, PlayerStatConstants
 		isEarly: true,
 		requirements: {},
 		costs: {},
+		
+		hasBlueprints: false,
+		followerID: null,
+		luxuryResource: null,
 	
 		constructor: function (type, isEasy, isEarly) {
 			this.type = type;
 			this.isEasy = isEasy;
 			this.isEarly = isEarly;
+			
 			this.requirements.vision = [this.getVisionRequirement(), -1];
 			this.costs = {};
 			this.costs.stamina = this.getStaminaRequirement();
-			if (type !== localeTypes.grove) {
+			if (type !== localeTypes.grove && type !== localeTypes.tradingpartner) {
 				 this.costs.item_exploration_1 = 1;
 			}
 		},
@@ -76,6 +82,7 @@ function (Ash, WorldConstants, ResourcesVO, LocaleConstants, PlayerStatConstants
 			case localeTypes.factory:
 				res.addResource(resourceNames.metal, abundant);
 				if (unlockedResources.concrete) res.addResource(resourceNames.concrete, abundant);
+				if (unlockedResources.robots) res.addResource(resourceNames.robots, defaultAmount);
 				if (unlockedResources.tools) res.addResource(resourceNames.tools, defaultAmount);
 				break;
 			case localeTypes.house:
@@ -100,6 +107,7 @@ function (Ash, WorldConstants, ResourcesVO, LocaleConstants, PlayerStatConstants
 			case localeTypes.transport:
 				res.addResource(resourceNames.water, defaultAmount);
 				if (unlockedResources.tools) res.addResource(resourceNames.tools, defaultAmount);
+				if (unlockedResources.robots) res.addResource(resourceNames.robots, defaultAmount);
 				break;
 			case localeTypes.sewer:
 			case localeTypes.warehouse:
@@ -127,17 +135,6 @@ function (Ash, WorldConstants, ResourcesVO, LocaleConstants, PlayerStatConstants
 		
 		getBracket: function () {
 			return this.isEarly ? LocaleConstants.LOCALE_BRACKET_EARLY : LocaleConstants.LOCALE_BRACKET_LATE;
-		},
-		
-		hasBlueprints: function () {
-			switch (this.type) {
-				case localeTypes.grove:
-				case localeTypes.tradingpartner:
-					return false;
-				
-				default:
-					return true;
-			}
 		},
 		
 		getDebugName: function () {

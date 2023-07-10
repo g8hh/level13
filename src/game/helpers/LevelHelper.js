@@ -6,9 +6,12 @@ define([
 	'utils/VOCache',
 	'game/constants/EnemyConstants',
 	'game/constants/FightConstants',
+	'game/constants/ImprovementConstants',
 	'game/constants/LocaleConstants',
+	'game/constants/PlayerActionConstants',
 	'game/constants/PositionConstants',
 	'game/constants/MovementConstants',
+	'game/constants/TribeConstants',
 	'game/constants/SectorConstants',
 	'game/constants/WorldConstants',
 	'game/nodes/level/LevelNode',
@@ -30,6 +33,7 @@ define([
 	'game/components/sector/improvements/SectorImprovementsComponent',
 	'game/components/sector/improvements/WorkshopComponent',
 	'game/components/level/LevelPassagesComponent',
+	'game/components/level/LevelStatusComponent',
 	'game/vos/LevelProjectVO',
 	'game/vos/ImprovementVO',
 	'game/vos/PositionVO'
@@ -40,9 +44,12 @@ define([
 	VOCache,
 	EnemyConstants,
 	FightConstants,
+	ImprovementConstants,
 	LocaleConstants,
+	PlayerActionConstants,
 	PositionConstants,
 	MovementConstants,
+	TribeConstants,
 	SectorConstants,
 	WorldConstants,
 	LevelNode,
@@ -64,6 +71,7 @@ define([
 	SectorImprovementsComponent,
 	WorkshopComponent,
 	LevelPassagesComponent,
+	LevelStatusComponent,
 	LevelProjectVO,
 	ImprovementVO,
 	PositionVO
@@ -113,9 +121,27 @@ define([
 			}
 			return null;
 		},
+		
+		isLevelTypeRevealed: function (level) {
+			let entity = this.getLevelEntityForPosition(level);
+			let levelStatus = entity.get(LevelStatusComponent);
+			return levelStatus.isLevelTypeRevealed || false;
+		},
+		
+		getLevelMaxHazard: function (level, hazardType) {
+			let result = 0;
+			
+			this.saveSectorsForLevel(level);
+			
+			for (let i = 0; i < this.sectorEntitiesByLevel[level].length; i++) {
+				let sectorEntity = this.sectorEntitiesByLevel[level][i];
+				let featuresComponent = sectorEntity.get(SectorFeaturesComponent);
+				result = Math.max(result, featuresComponent.hazards[hazardType] || 0);
+			}
+			return result;
+		},
 
 		getSectorByPosition: function (level, sectorX, sectorY) {
-			var sectorPosition;
 			level = parseInt(level);
 			sectorX = parseInt(sectorX);
 			sectorY = parseInt(sectorY);
@@ -131,7 +157,8 @@ define([
 			if (this.sectorEntitiesByPosition[level][sectorX][sectorY] === null) {
 				return null;
 			}
-
+			
+			var sectorPosition;
 			for (var node = this.sectorNodes.head; node; node = node.next) {
 				sectorPosition = node.entity.get(PositionComponent);
 				if (sectorPosition.level === level && sectorPosition.sectorX === sectorX && sectorPosition.sectorY === sectorY) {
@@ -139,6 +166,7 @@ define([
 					return node.entity;
 				}
 			}
+			
 			this.sectorEntitiesByPosition[level][sectorX][sectorY] = null;
 
 			return null;
@@ -260,7 +288,7 @@ define([
 				let statusComponent = node.entity.get(SectorStatusComponent);
 				if (!statusComponent.scavenged) continue;
 				if (statusComponent.getScavengedPercent() > 75) continue;
-				let discoveredItems = GameGlobals.sectorHelper.getLocationDiscoveredItems(node.entity);
+				let discoveredItems = GameGlobals.sectorHelper.getLocationKnownItems(node.entity);
 				for (let i = 0; i < discoveredItems.length; i++) {
 					if (discoveredItems[i] == item.id) {
 						return true;
@@ -411,6 +439,11 @@ define([
 			}
 			return null;
 		},
+		
+		getCampSectorOnLevel: function (level) {
+			let campNode = GameGlobals.campHelper.getCampNodeForLevel(level);
+			return campNode ? campNode.entity : null;
+		},
 
 		forEverySectorFromLocation: function (pos, func, limitToCurrentLevel) {
 			// TODO go by path distance, not distance in coordinates / make that an option
@@ -466,6 +499,10 @@ define([
 			return result;
 		},
 
+		getBuiltProjects: function () {
+			return this.getBuiltProjectsForCamp(null);
+		},
+
 		getBuiltProjectsForCamp: function (sectorEntity) {
 			var projects = [];
 
@@ -503,17 +540,23 @@ define([
 				projectExists = false;
 				for (let j = 0; j < result.length; j++) {
 					existingProject = result[j];
+					
 					// corresponding up and down passages
-					if (existingProject.sector === project.sector && (existingProject.level - 1 === project.level || existingProject.level + 1 === project.level)) {
-						projectExists = true;
-						break;
-					}
-					// neighbouring movement blockers
-					var dist = PositionConstants.getDistanceTo(existingProject.position, project.position);
-					if (dist < 2) {
-						if (PositionConstants.getOppositeDirection(project.direction) == existingProject.direction) {
+					if (existingProject.improvement && existingProject.improvement.isPassage()) {
+						if (existingProject.sector === project.sector && (existingProject.level - 1 === project.level || existingProject.level + 1 === project.level)) {
 							projectExists = true;
 							break;
+						}
+					}
+					
+					// neighbouring movement blockers
+					if (existingProject.action == project.action && project.direction && project.direction !== undefined) {
+						var dist = PositionConstants.getDistanceTo(existingProject.position, project.position);
+						if (dist < 2) {
+							if (PositionConstants.getOppositeDirection(project.direction) == existingProject.direction) {
+								projectExists = true;
+								break;
+							}
 						}
 					}
 				}
@@ -530,25 +573,33 @@ define([
 			levelStats.countClearedSectors = 0;
 			levelStats.countScoutedSectors = 0;
 			levelStats.countRevealedSectors = 0;
-
-			var sectorPosition;
-			var statusComponent;
-			var sectorStatus;
+			levelStats.countVisitedSectors = 0;
+			levelStats.countKnownIngredientSectors = 0;
+			levelStats.countInvestigatableSectors = 0;
+			levelStats.hasCamp = false;
+			
 			for (var node = this.sectorNodes.head; node; node = node.next) {
-				sectorPosition = node.entity.get(PositionComponent);
-				sectorStatus = SectorConstants.getSectorStatus(node.entity);
+				let sectorPosition = node.entity.get(PositionComponent);
+				let sectorStatus = GameGlobals.sectorHelper.getSectorStatus(node.entity);
 				if (sectorPosition.level !== level) continue;
 				levelStats.totalSectors++;
 
-				statusComponent = node.entity.get(SectorStatusComponent);
+				let statusComponent = node.entity.get(SectorStatusComponent);
+				let featuresComponent = node.entity.get(SectorFeaturesComponent);
+				
 				if (sectorStatus === SectorConstants.MAP_SECTOR_STATUS_VISITED_CLEARED) levelStats.countClearedSectors++;
 				if (statusComponent.scouted) levelStats.countScoutedSectors++;
+				if (node.entity.has(VisitedComponent)) levelStats.countVisitedSectors++;
 				if (node.entity.has(RevealedComponent) || node.entity.has(VisitedComponent)) levelStats.countRevealedSectors++;
+				if (GameGlobals.sectorHelper.hasSectorVisibleIngredients(node.entity)) levelStats.countKnownIngredientSectors++;
+				if (GameGlobals.sectorHelper.canBeInvestigated(node.entity)) levelStats.countInvestigatableSectors++;
+				if (node.entity.has(CampComponent)) levelStats.hasCamp = true;
 			}
 
 			levelStats.percentClearedSectors = levelStats.countClearedSectors == levelStats.totalSectors ? 1 : levelStats.countClearedSectors / levelStats.totalSectors;
 			levelStats.percentScoutedSectors = levelStats.countScoutedSectors == levelStats.totalSectors ? 1 : levelStats.countScoutedSectors / levelStats.totalSectors;
 			levelStats.percentRevealedSectors = levelStats.countRevealedSectors == levelStats.totalSectors ? 1 : levelStats.countRevealedSectors / levelStats.totalSectors;
+			levelStats.percentVisitedSectors = levelStats.countVisitedSectors == levelStats.totalSectors ? 1 : levelStats.countVisitedSectors / levelStats.totalSectors;
 
 			return levelStats;
 		},
@@ -600,12 +651,13 @@ define([
 			var featuresComponent = sectorEntity.get(SectorFeaturesComponent);
 			var improvementsComponent = sectorEntity.get(SectorImprovementsComponent);
 			let level = sectorPosition.level;
-			var levelOrdinal = GameGlobals.gameState.getLevelOrdinal(level);
+			let levelOrdinal = GameGlobals.gameState.getLevelOrdinal(level);
 
 			var scouted = statusComponent && statusComponent.scouted;
 			if (!scouted) return projects;
 
 			levelPassagesComponent = levelPassagesComponent || this.getLevelEntityForPosition(sectorPosition.level).get(LevelPassagesComponent);
+			let camp = sectorEntity.get(CampComponent);
 
 			var improvementName = "";
 			var actionName = "";
@@ -630,7 +682,7 @@ define([
 						actionLabel = "repair";
 						break;
 				}
-				if (GameGlobals.playerActionsHelper.checkRequirements(actionName, false, sectorEntity).value > 0) {
+				if (GameGlobals.playerActionsHelper.isVisible(actionName, sectorEntity, [ PlayerActionConstants.DISABLED_REASON_UPGRADE ])) {
 					actionName = actionName + "_" + levelOrdinal;
 					projects.push(new LevelProjectVO(new ImprovementVO(improvementName), actionName, sectorPosition, PositionConstants.DIRECTION_UP, null, actionLabel));
 				}
@@ -658,7 +710,7 @@ define([
 						break;
 				}
 				
-				if (GameGlobals.playerActionsHelper.checkRequirements(actionName, false, sectorEntity).value > 0) {
+				if (GameGlobals.playerActionsHelper.isVisible(actionName, sectorEntity, [ PlayerActionConstants.DISABLED_REASON_UPGRADE ])) {
 					actionName = actionName + "_" + levelOrdinal;
 					projects.push(new LevelProjectVO(new ImprovementVO(improvementName), actionName, sectorPosition, PositionConstants.DIRECTION_DOWN, null, actionLabel));
 				}
@@ -690,17 +742,27 @@ define([
 				}
 			}
 
-			// space ship
+			// space ship and sundome
 			if (levelOrdinal === GameGlobals.gameState.getSurfaceLevelOrdinal()) {
-				var camp = sectorEntity.get(CampComponent);
 				if (camp) {
-					var actions = [ "build_out_spaceship1", "build_out_spaceship2", "build_out_spaceship3"];
+					var actions = [ "build_out_spaceship1", "build_out_spaceship2", "build_out_spaceship3", "build_out_sundome"];
 					for (let i = 0; i < actions.length; i++) {
-						if (GameGlobals.playerActionsHelper.checkRequirements(actions[i])) {
+						if (GameGlobals.playerActionsHelper.isRequirementsMet(actions[i]) || GameGlobals.playerActionsHelper.isInProgress(actions[i])) {
 							var improvement = GameGlobals.playerActionsHelper.getImprovementNameForAction(actions[i]);
-							projects.push(new LevelProjectVO(new ImprovementVO(improvement), actions[i], sectorPosition));
+							if (improvementsComponent.getCount(improvement) <= 0) {
+								projects.push(new LevelProjectVO(new ImprovementVO(improvement), actions[i], sectorPosition));
+							}
 						}
 					}
+				}
+			}
+			
+			// lxuury resources
+			if (improvementsComponent.getCount(improvementNames.luxuryOutpost) <= 0) {
+				let luxuryResource = GameGlobals.sectorHelper.getLuxuryResourceOnSector(sectorEntity);
+				if (luxuryResource && GameGlobals.gameState.foundLuxuryResources.indexOf(luxuryResource) >= 0) {
+					let name = this.getProjectName(improvementNames.luxuryOutpost, sectorEntity);
+					projects.push(new LevelProjectVO(new ImprovementVO(improvementNames.luxuryOutpost), "build_out_luxury_outpost", sectorPosition, null, name));
 				}
 			}
 			
@@ -725,23 +787,38 @@ define([
 		},
 
 		getBuiltProjectsForSector: function (sectorEntity) {
-			var projects = [];
-			var statusComponent = sectorEntity.get(SectorStatusComponent);
-			var scouted = statusComponent && statusComponent.scouted;
+			let projects = [];
+			let statusComponent = sectorEntity.get(SectorStatusComponent);
+			let scouted = statusComponent && statusComponent.scouted;
 			if (!scouted) return projects;
 
-			var sectorPosition = sectorEntity.get(PositionComponent);
-			var sectorImprovements = sectorEntity.get(SectorImprovementsComponent);
-			var improvementList = sectorImprovements.getAll(improvementTypes.level);
+			let sectorPosition = sectorEntity.get(PositionComponent);
+			let level = sectorPosition.level;
+			let sectorImprovements = sectorEntity.get(SectorImprovementsComponent);
+			let improvementList = sectorImprovements.getAll(improvementTypes.level);
 			for (let i = 0; i < improvementList.length; i++) {
-				var improvement = improvementList[i];
+				let improvement = improvementList[i];
 				if (improvement.name === improvementNames.collector_food) continue;
 				if (improvement.name === improvementNames.collector_water) continue;
 				if (improvement.name === improvementNames.beacon) continue;
-				projects.push(new LevelProjectVO(improvement, "", sectorPosition));
+				if (improvement.name === improvementNames.luxuryOutpost && !GameGlobals.sectorHelper.getLuxuryResourceOnSector(sectorEntity, true)) continue;
+				let name = this.getProjectName(improvement.name, sectorEntity);
+				projects.push(new LevelProjectVO(improvement, "", sectorPosition, null, name));
 			}
 
 			return projects;
+		},
+		
+		getProjectName: function (improvementName, sector) {
+			switch (improvementName) {
+				case improvementNames.luxuryOutpost:
+					let luxuryResource = GameGlobals.sectorHelper.getLuxuryResourceOnSector(sector);
+					let resourceName = TribeConstants.getLuxuryDisplayName(luxuryResource);
+					return "Resource outpost (" + resourceName + ")";
+			}
+			
+			let improvementID = ImprovementConstants.getImprovementID(improvementName);
+			return ImprovementConstants.getImprovementDisplayName(improvementID);
 		},
 		
 		getTotalClearedWorkshopCount: function (resourceName) {
@@ -825,6 +902,41 @@ define([
 			return count;
 		},
 
+		getFoundLuxuryResourceOnLevel: function (level) {
+			let resource = this.getLuxuryResourceOnLevel(level);
+			
+			if (resource == null) return null;
+			
+			if (GameGlobals.gameState.foundLuxuryResources.indexOf(resource) < 0) return null;
+			
+			return resource;
+		},
+		
+		getLuxuryResourceOnLevel: function (level) {
+			let locales = this.getLevelLocales(level, true);
+			let resource = null;
+			for (let i = 0; i < locales.length; i++) {
+				let locale = locales[i];
+				if (locale.luxuryResource) {
+					return locale.luxuryResource;
+				}
+			}
+			
+			return null;
+		},
+		
+		getFoundLuxuryResourceOnCampOrdinal: function (campOrdinal) {
+			let levelsForCamp = GameGlobals.gameState.getLevelsForCamp(campOrdinal);
+			for (let i = 0; i < levelsForCamp.length; i++) {
+				let level = levelsForCamp[i];
+				let resourceOnLevel = this.getFoundLuxuryResourceOnLevel(level);
+				if (resourceOnLevel) {
+					return resourceOnLevel;
+				}
+			}
+			return null;
+		},
+
 		isLevelUnlocked: function (level) {
 			if (level === 13) return true;
 			var levelEntity = this.getLevelEntityForPosition(level);
@@ -853,6 +965,12 @@ define([
 			var settings = { skipUnvisited: false, skipBlockers: true, omitWarnings: false };
 			var path = this.findPathTo(startSector, goalSector, settings);
 			return path && path.length >= 0;
+		},
+		
+		isLevelCampable: function (level) {
+			let levelEntity = GameGlobals.levelHelper.getLevelEntityForPosition(level);
+			let levelComponent = levelEntity.get(LevelComponent);
+			return levelComponent.isCampable;
 		},
 		
 		isCampReachableByTribeTraders: function (sector) {
@@ -921,7 +1039,7 @@ define([
 				if (locale === excludeLocaleVO) continue;
 				if (localeBracket && localeBracket !== locale.getBracket()) continue;
 				if (!includeScouted && sectorStatus.isLocaleScouted(i)) continue;
-				if (requireBlueprints && !locale.hasBlueprints()) continue;
+				if (requireBlueprints && !locale.hasBlueprints) continue;
 				locales.push(locale);
 			}
 			return locales;
@@ -970,6 +1088,30 @@ define([
 					resultDistance = distance;
 				}
 			}
+			return result;
+		},
+		
+		findNearestKnownWaterSector: function (pos) {
+			let result = null;
+			this.forEverySectorFromLocation(pos, (sector) => {
+				if (GameGlobals.sectorHelper.hasSectorKnownResource(sector, resourceNames.water, true)) {
+					result = sector;
+					return true;
+				}
+				return false;
+			});
+			return result;
+		},
+		
+		findNearestKnownFoodSector: function (pos) {
+			let result = null;
+			this.forEverySectorFromLocation(pos, (sector) => {
+				if (GameGlobals.sectorHelper.hasSectorKnownResource(sector, resourceNames.food, true)) {
+					result = sector;
+					return true;
+				}
+				return false;
+			});
 			return result;
 		},
 		

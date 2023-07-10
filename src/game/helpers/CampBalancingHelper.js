@@ -8,27 +8,31 @@ define([
 	'game/constants/OccurrenceConstants',
 	'game/constants/PlayerActionConstants',
 	'game/constants/UpgradeConstants',
+	'game/constants/TribeConstants',
 	'game/constants/WorldConstants',
 	'game/components/common/CampComponent',
 	'game/components/sector/improvements/SectorImprovementsComponent',
 	'game/components/tribe/UpgradesComponent',
 	'game/vos/ResourcesVO',
 	'worldcreator/WorldCreatorConstants',
-], function (Ash, GameGlobals, GameConstants, CampConstants, ImprovementConstants, OccurrenceConstants, PlayerActionConstants, UpgradeConstants, WorldConstants,
-	CampComponent, SectorImprovementsComponent, UpgradesComponent, ResourcesVO, WorldCreatorConstants) {
+], function (
+	Ash, GameGlobals, GameConstants, CampConstants, ImprovementConstants, OccurrenceConstants, PlayerActionConstants,
+	UpgradeConstants, TribeConstants, WorldConstants, CampComponent, SectorImprovementsComponent, UpgradesComponent,
+	ResourcesVO, WorldCreatorConstants
+) {
 	
 	var CampBalancingHelper = Ash.Class.extend({
 		
 		constructor: function () {},
 		
 		getImprovementCost: function (improvementName, actionOrdinal, isOutpost, costKey) {
-			let actionName = GameGlobals.playerActionsHelper.getActionNameForImprovement(improvementName);
+			let actionName = PlayerActionConstants.getActionNameForImprovement(improvementName);
 			let costs = GameGlobals.playerActionsHelper.getCostsByOrdinal(actionName, 1, actionOrdinal, isOutpost);
 			return cost = costs[costKey] || 0;
 		},
 		
 		getMaxCostKeyForImprovement: function (improvementName, actionOrdinal, isOutpost) {
-			let actionName = GameGlobals.playerActionsHelper.getActionNameForImprovement(improvementName);
+			let actionName = PlayerActionConstants.getActionNameForImprovement(improvementName);
 			let costs = GameGlobals.playerActionsHelper.getCostsByOrdinal(actionName, 1, actionOrdinal, isOutpost);
 			let maxCost = 0;
 			let maxCostKey = null;
@@ -45,7 +49,7 @@ define([
 		},
 		
 		getSlowestCostKeyForImprovement: function (improvementName, actionOrdinal, isOutpost, maxCampOrdinal) {
-			let actionName = GameGlobals.playerActionsHelper.getActionNameForImprovement(improvementName);
+			let actionName = PlayerActionConstants.getActionNameForImprovement(improvementName);
 			let costs = GameGlobals.playerActionsHelper.getCostsByOrdinal(actionName, 1, actionOrdinal, isOutpost);
 			
 			let longestDuration = 0;
@@ -86,6 +90,8 @@ define([
 					return def.getLimitNum(improvements, workshops) * CampConstants.getWorkersPerMill(GameGlobals.upgradeEffectsHelper.getBuildingUpgradeLevel(improvementNames.cementmill, upgrades));
 				case CampConstants.workerTypes.toolsmith.id:
 					return def.getLimitNum(improvements, workshops) * CampConstants.getSmithsPerSmithy(GameGlobals.upgradeEffectsHelper.getBuildingUpgradeLevel(improvementNames.smithy, upgrades));
+				case CampConstants.workerTypes.robotmaker.id:
+					return def.getLimitNum(improvements, workshops) * CampConstants.getRobotMakersPerFactory(GameGlobals.upgradeEffectsHelper.getBuildingUpgradeLevel(improvementNames.robotFactory, upgrades));
 				case CampConstants.workerTypes.scientist.id:
 					var hasUnlockedScientists = GameGlobals.upgradeEffectsHelper.getWorkerLevel(def.id, upgrades) > 0;
 					return hasUnlockedScientists ? def.getLimitNum(improvements, workshops) * CampConstants.getScientistsPerLibrary(GameGlobals.upgradeEffectsHelper.getBuildingUpgradeLevel(improvementNames.library, upgrades)) : 0;
@@ -106,19 +112,27 @@ define([
 
 			return this.getMaxWorkers(workerID, improvements, upgrades, workshops);
 		},
+		
+		getMinCampOrdinalForPopulation: function (totalPopulation, milestone) {
+			for (let i = 0; i < WorldConstants.CAMPS_TOTAL; i++) {
+				let pop = this.getMaxTotalPopulation(i, milestone);
+				if (pop >= totalPopulation) return i;
+			}
+			return WorldConstants.CAMPS_TOTAL
+		},
 
-		getMaxTotalPopulation: function (maxCampOrdinal) {
+		getMaxTotalPopulation: function (maxCampOrdinal, milestone) {
 			let result = 0;
 			for (let campOrdinal = 1; campOrdinal <= maxCampOrdinal; campOrdinal++) {
-				let pop = GameGlobals.campBalancingHelper.getMaxPopulation(campOrdinal, maxCampOrdinal);
+				let pop = GameGlobals.campBalancingHelper.getMaxPopulation(campOrdinal, maxCampOrdinal, milestone);
 				result += pop;
 			}
 			return result;
 		},
 		
-		getMaxPopulation: function (campOrdinal, maxCampOrdinal) {
+		getMaxPopulation: function (campOrdinal, maxCampOrdinal, milestone) {
 			let housingCap = GameGlobals.campBalancingHelper.getMaxHousing(campOrdinal, maxCampOrdinal);
-			let reputation = GameGlobals.campBalancingHelper.getMaxReputation(campOrdinal, maxCampOrdinal);
+			let reputation = GameGlobals.campBalancingHelper.getMaxReputation(campOrdinal, maxCampOrdinal, milestone).value;
 			let reputationCap = CampConstants.getMaxPopulation(reputation);
 			
 			return Math.min(housingCap, reputationCap);
@@ -137,31 +151,52 @@ define([
 			return Math.round((this.getMaxPopulation(campOrdinal, maxCampOrdinal - 1) + this.getMaxPopulation(campOrdinal, maxCampOrdinal)) / 2);
 		},
 		
-		getMaxReputation: function (campOrdinal, maxCampOrdinal) {
+		getMaxReputation: function (campOrdinal, maxCampOrdinal, milestone) {
 			let totalStorage = GameGlobals.campBalancingHelper.getMaxTotalStorage(maxCampOrdinal);
-			let improvementsComponent = GameGlobals.campBalancingHelper.getMaxImprovements(maxCampOrdinal, campOrdinal, totalStorage);
-			let populationFactor = GameGlobals.campBalancingHelper.getPopulationFactor(campOrdinal);
-			let danger = 0;
-			return GameGlobals.campBalancingHelper.getTargetReputation(improvementsComponent, null, 0, populationFactor, danger).value;
+			let improvementsComponent = GameGlobals.campBalancingHelper.getMaxImprovements(maxCampOrdinal, campOrdinal, totalStorage, milestone);
+			return GameGlobals.campBalancingHelper.getMaxReputationWithParams(campOrdinal, maxCampOrdinal, milestone, improvementsComponent);
 		},
 		
-		getTargetReputation: function (improvementsComponent, resourcesVO, population, populationFactor, danger) {
+		getMaxReputationWithParams: function (campOrdinal, maxCampOrdinal, milestone, improvementsComponent) {
+			let baseValue = GameGlobals.tribeBalancingHelper.getMaxReputationBaseValue(maxCampOrdinal, milestone);
+			let numAvailableLuxuryResources = GameGlobals.campBalancingHelper.getMaxNumAvailableLuxuryResources(maxCampOrdinal);
+			let populationFactor = GameGlobals.campBalancingHelper.getPopulationFactor(campOrdinal);
+			let isSunlit = campOrdinal == 15;
+			let danger = 0;
+			return GameGlobals.campBalancingHelper.getTargetReputation(baseValue, improvementsComponent, numAvailableLuxuryResources, null, 0, populationFactor, danger, isSunlit);
+		},
+		
+		getTargetReputation: function (baseValue, improvementsComponent, numAvailableLuxuryResources, resourcesVO, population, populationFactor, danger, isSunlit) {
 			let result = 0;
-			var sources = {}; // text -> value
-			var penalties = {}; // id -> bool
+			let sources = {}; // text -> value
+			let percentages = {}; // text -> percentage value (for those sources that are calculated as percentages of the base value)
+			let penalties = {}; // id -> bool
 			
-			var addValue = function (value, name) {
+			let addValue = function (value, name, isPercentage, percentageValue) {
+				if (value == 0) return;
 				result += value;
 				if (!sources[name]) sources[name] = 0;
 				sources[name] += value;
+				if (isPercentage) {
+					percentages[name] = percentageValue;
+				}
 			};
 			
-			var addPenalty = function (id, active) {
+			let addPenalty = function (id, active) {
 				penalties[id] = active;
 			};
 			
-			// base: building happiness values
-			var allImprovements = improvementsComponent.getAll(improvementTypes.camp);
+			if (baseValue > 0) {
+				addValue(baseValue, "Tribe milestones");
+			}
+			
+			// luxury resources
+			if (numAvailableLuxuryResources > 0) {
+				addValue(numAvailableLuxuryResources, "Luxury resources");
+			}
+			
+			// building happiness values
+			let allImprovements = improvementsComponent.getAll(improvementTypes.camp);
 			for (let i in allImprovements) {
 				var improvementVO = allImprovements[i];
 				var level = improvementVO.level || 1;
@@ -177,22 +212,33 @@ define([
 						addValue(improvementVO.count * defaultBonus, "Radio");
 						break;
 					case improvementNames.shrine:
-						let levelBonus = (level - 1) * 0.25;
+						let levelBonus = 1 + (level - 1) * 0.25;
 						addValue(improvementVO.count * defaultBonus * levelBonus, "Shrine");
 						break;
+					case improvementNames.sundome:
+						addValue(improvementVO.count * defaultBonus, "Sun Dome");
 					default:
 						addValue(improvementVO.count * defaultBonus, "Buildings");
 						break;
 				}
 			}
 			
-			var resultWithoutPenalties = result;
+			let resultWithoutPenalties = result;
+			let resultForPercentages = result;
+			
+			// factor: level population
+			if (populationFactor != 1) {
+				let levelPopValueFactor = (populationFactor - 1);
+				let levelPopValue = resultForPercentages * levelPopValueFactor;
+				addValue(levelPopValue, "Level population", true, levelPopValueFactor * 100);
+				addPenalty(CampConstants.REPUTATION_PENALTY_TYPE_LEVEL_POP, levelPopValue < 0);
+			}
 			
 			// penalties: food and water
 			if (population >= 1) {
-				var noFood = resourcesVO && resourcesVO.getResource(resourceNames.food) <= 0;
-				var noWater = resourcesVO && resourcesVO.getResource(resourceNames.water) <= 0;
-				var penalty = Math.max(5, Math.ceil(resultWithoutPenalties));
+				let noFood = resourcesVO && resourcesVO.getResource(resourceNames.food) <= 0;
+				let noWater = resourcesVO && resourcesVO.getResource(resourceNames.water) <= 0;
+				let penalty = Math.max(5, Math.ceil(resultWithoutPenalties));
 				if (noFood) {
 					addValue(-penalty, "No food");
 				}
@@ -204,41 +250,42 @@ define([
 			}
 			
 			// penalties: defences
-			var defenceLimit = CampConstants.REPUTATION_PENALTY_DEFENCES_THRESHOLD;
-			var noDefences = danger > defenceLimit;
+			let defenceLimit = CampConstants.REPUTATION_PENALTY_DEFENCES_THRESHOLD;
+			let noDefences = danger > defenceLimit;
 			if (noDefences) {
-				var steppedDanger = Math.ceil((danger - defenceLimit) * 100 / 5) * 5;
-				var penaltyRatio = steppedDanger / (100 - defenceLimit);
-				var defencePenalty = Math.ceil(resultWithoutPenalties * penaltyRatio * 4) / 4;
+				let steppedDanger = Math.ceil((danger - defenceLimit) * 100 / 5) * 5;
+				let penaltyRatio = steppedDanger / (100 - defenceLimit);
+				let defencePenalty = Math.ceil(resultForPercentages * penaltyRatio * 4) / 4;
 				if (penaltyRatio > 0.25) {
-					addValue(-defencePenalty, "Terrible defences");
+					addValue(-defencePenalty, "Terrible defences", true, penaltyRatio * 100);
 				} else if (penaltyRatio > 0.15) {
-					addValue(-defencePenalty, "Poor defences");
+					addValue(-defencePenalty, "Poor defences", true, penaltyRatio * 100);
 				} else {
-					addValue(-defencePenalty, "Inadequate defences");
+					addValue(-defencePenalty, "Inadequate defences", true, penaltyRatio * 100);
 				}
 			}
 			addPenalty(CampConstants.REPUTATION_PENALTY_TYPE_DEFENCES, noDefences);
 			
 			// penalties: over-crowding
-			var housingCap = CampConstants.getHousingCap(improvementsComponent);
-			var population = Math.floor(population);
-			var noHousing = population > housingCap;
+			let housingCap = CampConstants.getHousingCap(improvementsComponent);
+			let populationFullPeople = Math.floor(population);
+			let noHousing = populationFullPeople > housingCap;
 			if (noHousing) {
-				var housingPenaltyRatio = Math.ceil((population - housingCap) / population * 20) / 20;
-				var housingPenalty = Math.ceil(resultWithoutPenalties * housingPenaltyRatio);
-				addValue(-housingPenalty, "Overcrowding");
+				let housingPenaltyRatio = Math.ceil((populationFullPeople - housingCap) / populationFullPeople * 20) / 20;
+				let housingPenalty = Math.ceil(resultForPercentages * housingPenaltyRatio);
+				addValue(-housingPenalty, "Overcrowding", true, housingPenaltyRatio * 100);
 			}
 			addPenalty(CampConstants.REPUTATION_PENALTY_TYPE_HOUSING, noHousing);
 			
-			// penalties: level population
-			if (populationFactor < 1) {
-				var levelPopPenalty = resultWithoutPenalties * (1 - populationFactor);
-				addValue(-levelPopPenalty, "Level population");
+			// penalties: sunlight
+			if (isSunlit && improvementsComponent.getCount(improvementNames.sundome) < 1) {
+				let sunlightPenaltyFactor = -0.75;
+				let sunlightPenaltyValue = resultForPercentages * sunlightPenaltyFactor;
+				addValue(sunlightPenaltyValue, "Sunlight", true, sunlightPenaltyFactor * 100);
+				addPenalty(CampConstants.REPUTATION_PENALTY_TYPE_SUNLIT, isSunlit);
 			}
-			addPenalty(CampConstants.REPUTATION_PENALTY_TYPE_LEVEL_POP, populationFactor < 1);
 			
-			return { value: Math.max(0, result), sources: sources, penalties: penalties };
+			return { value: Math.max(0, result), sources: sources, penalties: penalties, percentages: percentages };
 		},
 		
 		getMaxImprovementActionOrdinal: function (improvementName, actionName) {
@@ -301,17 +348,21 @@ define([
 			let isOutpost = GameGlobals.campBalancingHelper.isOutpost(campOrdinal);
 			let numHouses = GameGlobals.campBalancingHelper.getMaxImprovementsPerCamp(improvementNames.house, totalStorage, isOutpost);
 			let numHouses2 = GameGlobals.campBalancingHelper.getMaxImprovementsPerCamp(improvementNames.house2, totalStorage, isOutpost);
-			return CampConstants.getHousingCap2(numHouses, numHouses2);
+			
+			let house2UpgradeLevel  = GameGlobals.upgradeEffectsHelper.getExpectedBuildingUpgradeLevel(improvementNames.house2, maxCampOrdinal);
+			let levelHouses2 = GameGlobals.campBalancingHelper.getMaxImprovementLevel(improvementNames.house2, house2UpgradeLevel);
+			
+			return CampConstants.getHousingCap2(numHouses, numHouses2, levelHouses2);
 		},
 		
-		getMaxImprovements: function (maxCampOrdinal, campOrdinal, storage) {
-			return this.getDefaultImprovements(maxCampOrdinal, campOrdinal, storage, true);
+		getMaxImprovements: function (maxCampOrdinal, campOrdinal, storage, milestone) {
+			return this.getDefaultImprovements(maxCampOrdinal, campOrdinal, storage, true, milestone);
 		},
 		
 		getDefaultImprovementsCache: {},
 		
-		getDefaultImprovements: function (maxCampOrdinal, campOrdinal, storage, maximize) {
-			let cacheKey = maxCampOrdinal + "-" + campOrdinal + "-" + storage + "-" + (maximize || false);
+		getDefaultImprovements: function (maxCampOrdinal, campOrdinal, storage, maximize, milestone) {
+			let cacheKey = maxCampOrdinal + "-" + campOrdinal + "-" + storage + "-" + (maximize || false) + "-" + milestone;
 			if (this.getDefaultImprovementsCache[cacheKey]) return this.getDefaultImprovementsCache[cacheKey];
 			
 			let isOutpost = this.isOutpost(campOrdinal);
@@ -319,6 +370,7 @@ define([
 			
 			let canBuild = function (improvementName, actionName, ordinal) {
 				if (ordinal >= 100) return false;
+				if (improvementName == improvementNames.sundome) return campOrdinal == 15;
 				
 				let reqs = GameGlobals.playerActionsHelper.getReqs(actionName);
 				
@@ -350,9 +402,9 @@ define([
 				if (reqs && reqs.upgrades) {
 					var upgradeRequirements = reqs.upgrades;
 					for (let upgradeID in upgradeRequirements) {
-						var requirementBoolean = upgradeRequirements[upgradeID];
-						var requiredTechCampOrdinal = UpgradeConstants.getMinimumCampOrdinalForUpgrade(upgradeID);
-						var hasBoolean = requiredTechCampOrdinal <= maxCampOrdinal;
+						let requirementBoolean = upgradeRequirements[upgradeID];
+						let requiredTechCampOrdinal = GameGlobals.upgradeEffectsHelper.getMinimumCampOrdinalForUpgrade(upgradeID, false, milestone);
+						let hasBoolean = requiredTechCampOrdinal <= maxCampOrdinal;
 						if (requirementBoolean != hasBoolean) {
 							return false;
 						}
@@ -400,7 +452,7 @@ define([
 			};
 			
 			let checkBuild = function (improvementName) {
-				let actionName = GameGlobals.playerActionsHelper.getActionNameForImprovement(improvementName);
+				let actionName = PlayerActionConstants.getActionNameForImprovement(improvementName);
 				let ordinal = result.getCount(improvementName) + 1;
 				
 				if (!canBuild(improvementName, actionName, ordinal)) {
@@ -436,16 +488,23 @@ define([
 				return true;
 			};
 			
+			let isRelevantImprovementForCampBalancing = function (improvementName) {
+				if (getImprovementType(improvementName) === improvementTypes.camp) return true;
+				if (improvementName == improvementNames.sundome) return true;
+				return false;
+			}
+			
 			let result = new SectorImprovementsComponent();
 			
 			let builtSomething = true;
 			let improvedSomething = false;
+			
 			while (builtSomething || improvedSomething) {
 				builtSomething = false;
 				improvedSomething = false;
 				for (var improvementID in ImprovementConstants.improvements) {
 					let improvementName = improvementNames[improvementID];
-					if (getImprovementType(improvementName) !== improvementTypes.camp) continue;
+					if (!isRelevantImprovementForCampBalancing(improvementName)) continue;
 					
 					if (checkBuild(improvementName)) {
 						builtSomething = true;
@@ -468,7 +527,7 @@ define([
 		
 		getMaxImprovementsPerCamp: function (improvementName, totalStorage, isOutpost) {
 			let result = 0;
-			let actionName = GameGlobals.playerActionsHelper.getActionNameForImprovement(improvementName);
+			let actionName = PlayerActionConstants.getActionNameForImprovement(improvementName);
 			let getNextCost = function () {
 				let ordinal = result + 1;
 				return GameGlobals.playerActionsHelper.getCostsByOrdinal(actionName, 1, ordinal, isOutpost).resource_metal;
@@ -524,6 +583,19 @@ define([
 			return result;
 		},
 		
+		getMaxCampStorage: function (maxCampOrdinal) {
+			let totalStorage = this.getMaxTotalStorage(maxCampOrdinal);
+			let isOutpost = false;
+			let storageCount = this.getMaxImprovementsPerCamp(improvementNames.storage, totalStorage, isOutpost);
+			let storageUpgradeLevel = GameGlobals.upgradeEffectsHelper.getExpectedBuildingUpgradeLevel(improvementNames.storage, maxCampOrdinal);
+			let storageLevel = GameGlobals.campBalancingHelper.getMaxImprovementLevel(improvementNames.storage, storageUpgradeLevel)
+			return CampConstants.getStorageCapacity(storageCount, storageLevel);
+		},
+		
+		getMaxNumAvailableLuxuryResources: function (maxCampOrdinal) {
+			return TribeConstants.getMaxNumAvailableLuxuryResources(maxCampOrdinal);
+		},
+		
 		isConnectedToTradeNetwork: function (maxCampOrdinal, campOrdinal) {
 			// TODO remove hard-coded levels and check for when The Great Elevator is unlocked
 			if (campOrdinal == 9 && maxCampOrdinal == 9) return false;
@@ -556,8 +628,8 @@ define([
 			var minOrdinal;
 			var minStep;
 			for (let id in UpgradeConstants.upgradeDefinitions) {
-				minOrdinal = UpgradeConstants.getMinimumCampOrdinalForUpgrade(id);
-				minStep = UpgradeConstants.getMinimumCampStepForUpgrade(id);
+				minOrdinal = GameGlobals.upgradeEffectsHelper.getMinimumCampOrdinalForUpgrade(id);
+				minStep = GameGlobals.upgradeEffectsHelper.getMinimumCampStepForUpgrade(id);
 				if (WorldConstants.isHigherOrEqualCampOrdinalAndStep(campOrdinal, step, minOrdinal, minStep)) {
 					result.addUpgrade(id);
 				}
@@ -729,6 +801,8 @@ define([
 					return [ { name: resourceNames.herbs, consumption: CampConstants.CONSUMPTION_HERBS_PER_WORKER_PER_S } ];
 				case "toolsmith":
 					return [ { name: resourceNames.metal, consumption: CampConstants.CONSUMPTION_METAL_PER_TOOLSMITH_PER_S } ];
+				case "robotmaker":
+					return [ { name: resourceNames.tools, consumption: CampConstants.CONSUMPTION_TOOLS_PER_ROBOT_MAKER_PER_S } ];
 				case "concrete":
 					return [ { name: resourceNames.metal, consumption: CampConstants.CONSUMPTION_METAL_PER_CONCRETE_PER_S } ];
 			}
@@ -746,75 +820,106 @@ define([
 				case CampConstants.workerTypes.gardener.id: return this.getHerbsProductionPerSecond(1, improvements, upgrades);
 				case "apothecary": return this.getMedicineProductionPerSecond(1, improvements, upgrades);
 				case "toolsmith": return this.getToolsProductionPerSecond(1, improvements, upgrades);
+				case "robotmaker": return this.getRobotsProductionPerSecond(1, improvements, upgrades);
 				case "concrete": return this.getConcreteProductionPerSecond(1, improvements, upgrades);
 			}
 			return 0;
 		},
 		
-		getMetalProductionPerSecond: function (workers, improvements, upgrades) {
+		getMetalProductionPerSecond: function (workers, improvements, upgrades, robots) {
 			workers = workers || 0;
+			robots = robots || 0;
 			var metalUpgradeBonus = this.getWorkerUpgradeBonus("scavenger", upgrades);
-			return workers * CampConstants.PRODUCTION_METAL_PER_WORKER_PER_S * metalUpgradeBonus;
+			var robotFactor = this.getWorkerRobotFactor(robots);
+			return workers * CampConstants.PRODUCTION_METAL_PER_WORKER_PER_S * metalUpgradeBonus * robotFactor;
 		},
 		
-		getFoodProductionPerSecond: function (workers, improvementsComponent, upgrades) {
+		getFoodProductionPerSecond: function (workers, improvementsComponent, upgrades, robots) {
 			workers = workers || 0;
+			robots = robots || 0;
 			var foodUpgradeBonus = this.getWorkerUpgradeBonus("trapper", upgrades);
-			return workers * CampConstants.PRODUCTION_FOOD_PER_WORKER_PER_S * foodUpgradeBonus;
+			var robotFactor = this.getWorkerRobotFactor(robots);
+			return workers * CampConstants.PRODUCTION_FOOD_PER_WORKER_PER_S * foodUpgradeBonus * robotFactor;
 		},
 		
-		getWaterProductionPerSecond: function (workers, improvementsComponent, upgrades) {
+		getWaterProductionPerSecond: function (workers, improvementsComponent, upgrades, robots) {
 			workers = workers || 0;
-			let acqueductCount = improvementsComponent.getCount(improvementNames.aqueduct);
-			let acqueductLevel = improvementsComponent.getLevel(improvementNames.aqueduct);
-			var waterUpgradeBonus = this.getWorkerUpgradeBonus("water", upgrades);
-			var waterImprovementBonus = 1 + (acqueductCount / 4) + (acqueductLevel / 10);
-			return CampConstants.PRODUCTION_WATER_PER_WORKER_PER_S * workers * waterUpgradeBonus * waterImprovementBonus;
+			robots = robots || 0;
+			let waterUpgradeBonus = this.getWorkerUpgradeBonus("water", upgrades);
+			let robotFactor = this.getWorkerRobotFactor(robots);
+			return CampConstants.PRODUCTION_WATER_PER_WORKER_PER_S * workers * waterUpgradeBonus * robotFactor;
 		},
 		
-		getRopeProductionPerSecond: function (workers, improvementsComponent, upgrades) {
+		getRopeProductionPerSecond: function (workers, improvementsComponent, upgrades, robots) {
 			workers = workers || 0;
+			robots = robots || 0;
 			var ropeUpgradeBonus = this.getWorkerUpgradeBonus("weaver", upgrades);
-			return workers * CampConstants.PRODUCTION_ROPE_PER_WORKER_PER_S * ropeUpgradeBonus;
+			var robotFactor = this.getWorkerRobotFactor(robots);
+			return workers * CampConstants.PRODUCTION_ROPE_PER_WORKER_PER_S * ropeUpgradeBonus * robotFactor;
 		},
 		
-		getFuelProductionPerSecond: function (workers, improvementsComponent, upgrades) {
+		getFuelProductionPerSecond: function (workers, improvementsComponent, upgrades, robots) {
 			workers = workers || 0;
+			robots = robots || 0;
 			var fuelUpgradeBonus = this.getWorkerUpgradeBonus("chemist", upgrades);
-			return workers * CampConstants.PRODUCTION_FUEL_PER_WORKER_PER_S * fuelUpgradeBonus;
+			var robotFactor = this.getWorkerRobotFactor(robots);
+			return workers * CampConstants.PRODUCTION_FUEL_PER_WORKER_PER_S * fuelUpgradeBonus * robotFactor;
 		},
 		
-		getRubberProductionPerSecond: function (workers, improvementsComponent, upgrades) {
+		getRubberProductionPerSecond: function (workers, improvementsComponent, upgrades, robots) {
 			workers = workers || 0;
+			robots = robots || 0;
 			var upgradeBonus = this.getWorkerUpgradeBonus("rubbermaker", upgrades);
-			return workers * CampConstants.PRODUCTION_RUBBER_PER_WORKER_PER_S * upgradeBonus;
+			var robotFactor = this.getWorkerRobotFactor(robots);
+			return workers * CampConstants.PRODUCTION_RUBBER_PER_WORKER_PER_S * upgradeBonus * robotFactor;
 		},
 		
-		getHerbsProductionPerSecond: function (workers, improvementsComponent, upgrades) {
+		getHerbsProductionPerSecond: function (workers, improvementsComponent, upgrades, robots) {
 			workers = workers || 0;
+			robots = robots || 0;
 			var upgradeBonus = this.getWorkerUpgradeBonus(CampConstants.workerTypes.gardener.id, upgrades) || 1;
-			return workers * CampConstants.PRODUCTION_HERBS_PER_WORKER_PER_S * upgradeBonus;
+			var robotFactor = this.getWorkerRobotFactor(robots);
+			return workers * CampConstants.PRODUCTION_HERBS_PER_WORKER_PER_S * upgradeBonus * robotFactor;
 		},
 		
-		getMedicineProductionPerSecond: function (workers, improvementsComponent, upgrades) {
+		getMedicineProductionPerSecond: function (workers, improvementsComponent, upgrades, robots) {
 			workers = workers || 0;
-			var medicineUpgradeBonus = this.getWorkerUpgradeBonus("apothecary", upgrades);
-			var levelBonus = 1 + improvementsComponent.getLevel(improvementNames.apothecary) / 10;
-			return workers * CampConstants.PRODUCTION_MEDICINE_PER_WORKER_PER_S * medicineUpgradeBonus * levelBonus;
+			robots = robots || 0;
+			let medicineUpgradeBonus = this.getWorkerUpgradeBonus("apothecary", upgrades);
+			let levelBonus = this.getWorkerImprovementBonus(improvementsComponent, improvementNames.apothecary);
+			let damagedBuildingsFactor = this.getDamagedBuildingsProductionFactor(improvementsComponent, improvementNames.apothecary);
+			let robotFactor = this.getWorkerRobotFactor(robots);
+			return workers * CampConstants.PRODUCTION_MEDICINE_PER_WORKER_PER_S * medicineUpgradeBonus * levelBonus * damagedBuildingsFactor * robotFactor;
 		},
 		
-		getToolsProductionPerSecond: function (workers, improvementsComponent, upgrades) {
+		getToolsProductionPerSecond: function (workers, improvementsComponent, upgrades, robots) {
 			workers = workers || 0;
-			var toolsUpgradeBonus = this.getWorkerUpgradeBonus("smith", upgrades);
-			var levelBonus = 1 + improvementsComponent.getLevel(improvementNames.smithy) / 10;
-			return workers * CampConstants.PRODUCTION_TOOLS_PER_WORKER_PER_S * toolsUpgradeBonus * levelBonus;
+			robots = robots || 0;
+			let toolsUpgradeBonus = this.getWorkerUpgradeBonus("smith", upgrades);
+			let levelBonus = this.getWorkerImprovementBonus(improvementsComponent, improvementNames.smithy);
+			let damagedBuildingsFactor = this.getDamagedBuildingsProductionFactor(improvementsComponent, improvementNames.smithy);
+			let robotFactor = this.getWorkerRobotFactor(robots);
+			return workers * CampConstants.PRODUCTION_TOOLS_PER_WORKER_PER_S * toolsUpgradeBonus * levelBonus * damagedBuildingsFactor * robotFactor;
 		},
 		
-		getConcreteProductionPerSecond: function (workers, improvementsComponent, upgrades) {
+		getConcreteProductionPerSecond: function (workers, improvementsComponent, upgrades, robots) {
 			workers = workers || 0;
-			var concreteUpgradeBonus = this.getWorkerUpgradeBonus("concrete", upgrades);
-			var levelBonus = 1 + improvementsComponent.getLevel(improvementNames.cementmill) / 10;
-			return workers * CampConstants.PRODUCTION_CONCRETE_PER_WORKER_PER_S * concreteUpgradeBonus * levelBonus;
+			robots = robots || 0;
+			let concreteUpgradeBonus = this.getWorkerUpgradeBonus("concrete", upgrades);
+			let levelBonus = this.getWorkerImprovementBonus(improvementsComponent, improvementNames.cementmill);
+			let damagedBuildingsFactor = this.getDamagedBuildingsProductionFactor(improvementsComponent, improvementNames.cementmill);
+			let robotFactor = this.getWorkerRobotFactor(robots);
+			return workers * CampConstants.PRODUCTION_CONCRETE_PER_WORKER_PER_S * concreteUpgradeBonus * levelBonus * damagedBuildingsFactor * robotFactor;
+		},
+		
+		getRobotsProductionPerSecond: function (workers, improvementsComponent, upgrades, robots) {
+			workers = workers || 0;
+			robots = robots || 0;
+			let robotsUpgradeConus = this.getWorkerUpgradeBonus("robotmaker", upgrades);
+			let levelBonus = this.getWorkerImprovementBonus(improvementsComponent, improvementNames.robotFactory);
+			let damagedBuildingsFactor = this.getDamagedBuildingsProductionFactor(improvementsComponent, improvementNames.cementmill);
+			let robotFactor = this.getWorkerRobotFactor(robots);
+			return workers * CampConstants.PRODUCTION_ROBOTS_PER_WORKER_PER_S * robotsUpgradeConus * levelBonus * damagedBuildingsFactor * robotFactor;
 		},
 		
 		getMeditationSuccessRate: function (shrineLevel) {
@@ -838,15 +943,45 @@ define([
 			return CampConstants.getRumoursPerVisitMarket(marketLevel, majorLevel);
 		},
 		
+		getEvidencePerUseLibrary: function (libraryLevel) {
+			libraryLevel = libraryLevel || 1;
+			let id = ImprovementConstants.getImprovementID(improvementNames.library);
+			let majorLevel = ImprovementConstants.getMajorLevel(id, libraryLevel);
+			return CampConstants.getEvidencePerUseLibrary(libraryLevel, majorLevel);
+		},
+		
 		getWorkerUpgradeBonus: function (workerID, upgrades) {
 			var upgradeBonus = 1;
 			var workerUpgrades = GameGlobals.upgradeEffectsHelper.getImprovingUpgradeIdsForWorker(workerID);
 			var workerUpgrade;
 			for (let i in workerUpgrades) {
 				workerUpgrade = workerUpgrades[i];
-				if (upgrades.hasUpgrade(workerUpgrade)) upgradeBonus += 0.15;
+				if (upgrades.hasUpgrade(workerUpgrade)) upgradeBonus += 0.2;
 			}
 			return upgradeBonus;
+		},
+		
+		getWorkerImprovementBonus: function (improvementsComponent, improvementName) {
+			return 1 + (improvementsComponent.getLevel(improvementName) - 1) / 5;
+		},
+		
+		getDamagedBuildingsProductionFactor: function (improvementsComponent, improvementName) {
+			let num = improvementsComponent.getCount(improvementName);
+			if (num < 1) return 1;
+			
+			let numDamaged = improvementsComponent.getNumDamaged(improvementName);
+			let numUndamaged = num - numDamaged;
+			let percentUndamaged = numUndamaged / num;
+			
+			return 0.5 + percentUndamaged * 0.5;
+		},
+		
+		getWorkerRobotBonus: function (robots) {
+			return Math.floor(robots) * CampConstants.PRODUCTION_BONUS_PER_ROBOT_PER_SEC;
+		},
+		
+		getWorkerRobotFactor: function (robots) {
+			return 1 + this.getWorkerRobotBonus(robots);
 		},
 		
 		isOutpost: function (campOrdinal) {

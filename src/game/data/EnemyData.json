@@ -122,9 +122,15 @@
 		"environment": "cold",
 		"campOrdinal": 13
 	},
+	"bandit__surface": {
+		"name": "burned bandit",
+		"environment": "sunlit",
+		"campOrdinal": 15
+	},
 	"black_bear": {
 		"name": "black bear",
 		"environment": "sunlit",
+		"requiredTags": [ "ground" ],
 		"enemyType": "big_animal",
 		"campOrdinal": 8,
 		"difficulty": 6,
@@ -530,6 +536,7 @@
 		"droppedResources": ["metal"]
 	},
 	"fire_salamander__template": {
+		"causedInjuryTypes": [ "FIRE" ],
 		"environment": "nohazard",
 		"enemyType": "small_animal",
 		"attackRatio": 0.6,
@@ -611,6 +618,10 @@
 		"name": "Vengeful ghost",
 		"campOrdinal": 7
 	},
+	"ghost__surface": {
+		"name": "Remorseful ghost",
+		"campOrdinal": 15
+	},
 	"ghost_bat": {
 		"name": "ghost bat",
 		"environment": "dark",
@@ -686,6 +697,7 @@
 	"great_black_pelican": {
 		"name": "great black pelican",
 		"environment": "sparse",
+		"requiredTags": [ "ground" ],
 		"enemyType": "bird",
 		"campOrdinal": 15,
 		"difficulty": 4,
@@ -857,6 +869,7 @@
 		"droppedResources": ["food"]
 	},
 	"industrial_robot__template": {
+		"causedInjuryTypes": [ "CHEMICAL" ],
 		"name": "Industrial robot",
 		"environment": "toxic",
 		"enemyType": "robot",
@@ -906,6 +919,7 @@
 		"droppedResources": ["food"]
 	},
 	"leaking_gas_pipe": {
+		"causedInjuryTypes": [ "CHEMICAL" ],
 		"name": "leaking gas pipe",
 		"environment": "toxic",
 		"enemyType": "structure",
@@ -1069,6 +1083,7 @@
 	"porcupine": {
 		"name": "Porcupine",
 		"environment": "nohazard",
+		"requiredTags": [ "ground" ],
 		"enemyType": "small_animal",
 		"campOrdinal": 8,
 		"attackRatio": 0.45,
@@ -1349,6 +1364,7 @@
 		"droppedResources": ["food"]
 	},
 	"slug__template": {
+		"causedInjuryTypes": [ "CHEMICAL" ],
 		"enemyType": "small_animal",
 		"attackRatio": 0.42,
 		"difficulty": 1,
@@ -1558,6 +1574,7 @@
 		"droppedResources": ["food"]
 	},
 	"turret__template": {
+		"causedInjuryTypes": [ "FIRE" ],
 		"environment": "global",
 		"enemyType": "robot",
 		"attackRatio": 0.65,

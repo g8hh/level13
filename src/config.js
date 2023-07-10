@@ -2,14 +2,14 @@ require.config({
 
 	deps: ["level13-app"],
 
-	waitSeconds: 10,
+	waitSeconds: 30,
 
 	baseUrl: 'src',
 
 	paths: {
 		brejep: "../lib/brejep",
 		ash: "../lib/ash/ash.min",
-		jquery: "../lib/jquery/",
+		jquery: "../lib/jquery",
 		lzstring: "../lib/lzstring",
         json: "../lib/requirejs/json",
 		utils: "utils",
@@ -22,9 +22,10 @@ require.config({
 			'isCheatsEnabled': false,
 			'isDebugOutputEnabled': false,
 			'isAutosaveEnabled': true,
+			'isAnalyticsEnabled': true,
 		}
 	},
 	
-	urlArgs: "v=0.4.3",
+	urlArgs: "v=0.5.1",
 
 });

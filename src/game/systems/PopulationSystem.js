@@ -48,6 +48,7 @@ define([
 		updateCampsPopulation: function (time) {
 			for (var node = this.campNodes.head; node; node = node.next) {
 				this.updateCampPopulation(node, time);
+				this.updateCampPopulationDecreaseCooldown(node, time);
 			}
 		},
 		
@@ -58,21 +59,27 @@ define([
 		},
 		
 		updateCampPopulation: function (node, time) {
-			var camp = node.camp;
+			let camp = node.camp;
 			camp.population = camp.population || 0;
 			
-			var improvements = node.entity.get(SectorImprovementsComponent);
-			var maxPopulation = CampConstants.getHousingCap(improvements);
+			let improvements = node.entity.get(SectorImprovementsComponent);
+			let maxPopulation = CampConstants.getHousingCap(improvements);
 			
-			var changePerSec = camp.populationChangePerSecRaw || 0;
-			var change = time * changePerSec * GameConstants.gameSpeedCamp;
-			var oldPopulation = camp.population;
-			var newPopulation = oldPopulation + change;
+			let oldPopulation = camp.population;
+			let change = 0;
+			let changePerSec = camp.populationChangePerSecRaw || 0;
 			
-			newPopulation = Math.max(newPopulation, 0);
-			newPopulation = Math.min(newPopulation, maxPopulation);
-			change = newPopulation - oldPopulation;
-			changePerSec = change / time / GameConstants.gameSpeedCamp;
+			if (time > 0) {
+				change = time * changePerSec * GameConstants.gameSpeedCamp;
+				let newPopulation = oldPopulation + change;
+				
+				newPopulation = Math.max(newPopulation, 0);
+				newPopulation = Math.min(newPopulation, maxPopulation);
+				change = newPopulation - oldPopulation;
+				
+				changePerSec = change / time / GameConstants.gameSpeedCamp;
+			}
+			
 			camp.populationChangePerSec = changePerSec;
 			
 			if (camp.pendingPopulation > 0) {
@@ -83,56 +90,97 @@ define([
 
 			if (Math.floor(camp.population) !== Math.floor(oldPopulation)) {
 				this.handlePopulationChanged(node, camp.population > oldPopulation);
+				if (camp.population >= 1) {
+					GameGlobals.playerActionFunctions.unlockFeature("milestones");
+				}
+			}
+		},
+		
+		updateCampPopulationDecreaseCooldown: function (node, time) {
+			let camp = node.camp;
+			if (camp.populationDecreaseCooldown && camp.populationDecreaseCooldown > 0) {
+				camp.populationDecreaseCooldown -= time * GameConstants.gameSpeedCamp;
+				if (camp.populationDecreaseCooldown <= 0) {
+					this.updateCampPopulationChange(node);
+				}
 			}
 		},
 		
 		updateCampPopulationChange: function (node) {
-			var camp = node.camp;
-			camp.populationChangePerSecRaw = this.getPopulationChangePerSec(node);
-		},
-		
-		getPopulationChangePerSec: function (node) {
-			var camp = node.camp;
-			var population = camp.population || 0;
-			var reputation = node.reputation.value || 0;
-			var levelComponent = GameGlobals.levelHelper.getLevelEntityForSector(node.entity).get(LevelComponent);
-			var reqRepCurPop = CampConstants.getRequiredReputation(Math.floor(population));
-			var reqRepNextPop = CampConstants.getRequiredReputation(Math.floor(population) + 1);
+			let camp = node.camp;
+			let population = camp.population || 0;
+			let reputation = node.reputation.value || 0;
 			
-			var changePerSec = 0;
+			let levelComponent = GameGlobals.levelHelper.getLevelEntityForSector(node.entity).get(LevelComponent);
+			let reqRepCurPop = CampConstants.getRequiredReputation(Math.floor(population));
+			let reqRepNextPop = CampConstants.getRequiredReputation(Math.floor(population) + 1);
+			
+			let changePerSec = 0;
+			let changePerSecWithoutCooldown = 0;
+			let populationDecreaseCooldown = camp.populationDecreaseCooldown;
+			
 			if (reputation >= reqRepCurPop && reputation < reqRepNextPop) {
+				// no change
 				changePerSec = 0;
+				changePerSecWithoutCooldown = 0;
+				populationDecreaseCooldown = null;
 			} else if (reputation >= reqRepNextPop) {
-				var repDiffValue = (reputation - reqRepNextPop) / 100 / 50;
-				var popValue = 1 / Math.floor(population+1) / 100;
+				// growing
+				let repDiffValue = (reputation - reqRepNextPop) / 100 / 50;
+				let popValue = 1 / Math.floor(population+1) / 100;
 				changePerSec = repDiffValue + popValue;
+				changePerSecWithoutCooldown = changePerSec;
+				populationDecreaseCooldown = null;
 			} else {
-				changePerSec = MathUtils.clamp((reputation - reqRepCurPop)/60/60, -1/60/5, -1/60/30);
+				// decreasing
+				let repMissing = reputation - reqRepCurPop;
+				changePerSecWithoutCooldown = -MathUtils.clamp((repMissing + 1)/(repMissing + 60), 0.01, 0.5);
+				if (populationDecreaseCooldown == null) {
+					// - cooldown not set
+					changePerSec = 0;
+					populationDecreaseCooldown = CampConstants.POPULATION_DECREASE_COOLDOWN;
+				} else if (populationDecreaseCooldown > 0) {
+					// - cooldown ongoing
+					changePerSec = 0;
+				} else {
+					// - cooldown over
+					changePerSec = changePerSecWithoutCooldown;
+				}
 			}
 
 			if (changePerSec > 0) {
 				changePerSec *= levelComponent.populationFactor;
 			}
 
-			var improvements = node.entity.get(SectorImprovementsComponent);
-			var housingCap = CampConstants.getHousingCap(improvements);
+			let improvements = node.entity.get(SectorImprovementsComponent);
+			let housingCap = CampConstants.getHousingCap(improvements);
+			
 			if (population >= housingCap) {
 				changePerSec = Math.min(changePerSec, 0);
+				changePerSecWithoutCooldown = Math.min(changePerSec, 0);
 			}
 			
-			return changePerSec;
+			camp.populationChangePerSecRaw = changePerSec;
+			camp.populationChangePerSecWithoutCooldown = changePerSecWithoutCooldown;
+			camp.populationDecreaseCooldown = populationDecreaseCooldown;
 		},
 		
 		handlePopulationChanged: function (node, isIncrease) {
-			var campPosition = node.entity.get(PositionComponent);
+			let campPosition = node.entity.get(PositionComponent);
+			
+			node.camp.populationDecreaseCooldown = null;
+			
 			if (isIncrease) {
 				node.camp.population = Math.floor(node.camp.population);
 				node.camp.rumourpoolchecked = false;
 			} else {
 				this.reassignWorkers(node);
 			}
+			
 			GlobalSignals.populationChangedSignal.dispatch(node.entity);
 			this.logChangePopulation(campPosition, isIncrease);
+			
+			this.updateCampPopulationChange(node);
 		},
 		
 		reassignWorkers: function (node) {

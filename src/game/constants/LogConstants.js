@@ -9,6 +9,7 @@ define(['ash', 'text/Text', 'game/constants/TextConstants', 'game/constants/Item
 		MSG_ID_SCAVENGE: "SCAVENGE",
 		MSG_ID_SCOUT: "SCOUT",
 		MSG_ID_SCOUT_FOUND_SOMETHING: "MSG_ID_SCOUT_FOUND_SOMETHING",
+		MSG_ID_INVESTIGATE: "MSG_ID_INVESTIGATE",
 		MSG_ID_USE_SPRING: "MSG_ID_USE_SPRING",
 		MSG_ID_CLEAR_WASTE: "MSG_ID_CLEAR_WASTE",
 		MSG_ID_CLEAR_DEBRIS: "MSG_ID_CLEAR_DEBRIS",
@@ -21,10 +22,9 @@ define(['ash', 'text/Text', 'game/constants/TextConstants', 'game/constants/Item
 		MSG_ID_WAIT: "MAS_ID_WAIT",
 
 		// in actions
-		MSG_ID_ENTER_CAMP: "ENTER_CAMP",
-		MSG_ID_LEAVE_CAMP: "LEAVE_CAMP",
 		MSG_ID_USE_CAMPFIRE_SUCC: "USE_CAMPFIRE_SUCC",
 		MSG_ID_USE_CAMPFIRE_FAIL: "USE_CAMPFIRE_FAIL",
+		MSG_ID_USE_LIBRARY: "MSG_ID_USE_LIBRARY",
 		MSG_ID_USE_MARKET: "USE_MARKET",
 		MSG_ID_USE_HOSPITAL: "USE_HOSPITAL",
 		MSG_ID_USE_HOSPITAL2: "USE_HOSPITAL2",
@@ -42,14 +42,17 @@ define(['ash', 'text/Text', 'game/constants/TextConstants', 'game/constants/Item
 		MSG_ID_REMOVE_HAZARD_PERK: "MSG_ID_REMOVE_HAZARD_PERK",
 		MSG_ID_REMOVE_STAMINA_PERK: "MSG_ID_REMOVE_STAMINA_PERK",
 		MSG_ID_FOUND_BLUEPRINT_FIRST: "MSG_ID_FOUND_BLUEPRINT_FIRST",
+		MSG_ID_FOUND_BLUEPRINT_CONSECUTIVE: "MSG_ID_FOUND_BLUEPRINT_CONSECUTIVE",
 		MSG_ID_FOUND_ITEM_FIRST: "MSG_ID_FOUND_ITEM_FIRST",
 		MSG_ID_LOST_ITEM: "MSG_ID_LOST_ITEM",
+		MSG_ID_BROKE_ITEM: "MSG_ID_BROKE_ITEM",
 		MSG_ID_LOST_FOLLOWER: "MSG_ID_LOST_FOLLOWER",
 		MSG_ID_GOT_INJURED: "MSG_ID_GOT_INJURED",
 		MSG_ID_FAINTED: "MSG_ID_FAINTED",
 		MSG_ID_DESPAIR_AVAILABLE: "MSG_ID_DESPAIR_AVAILABLE",
 		MSG_ID_STAMINA_WARNING: "MSG_ID_STAMINA_WARNING",
 		MSG_ID_VISION_RESET: "MSG_ID_VISION_RESET",
+		MSG_ID_ENTER_OUTSKIRTS: "MSG_ID_ENTER_OUTSKIRTS",
 
 		// in atmospheric and results
 		MSG_ID_POPULATION_NATURAL: "POPULATION_NATURAL",
@@ -67,7 +70,6 @@ define(['ash', 'text/Text', 'game/constants/TextConstants', 'game/constants/Item
 		MSG_ID_BUILT_HOUSE: "BUILT_HOUSE",
 		MSG_ID_BUILT_GENERATOR: "BUILT_GENERATOR",
 		MSG_ID_BUILT_LIGHTS: "BUILT_LIGHTS",
-		MSG_ID_BUILT_CEILING: "BUILT_CEILING",
 		MSG_ID_BUILT_STORAGE: "BUILT_STORAGE",
 		MSG_ID_BUILT_FORTIFICATION: "BUILT_FORTIFICATION",
 		MSG_ID_BUILT_AQUEDUCT: "BUILT_AQUEDUCT",
@@ -113,6 +115,9 @@ define(['ash', 'text/Text', 'game/constants/TextConstants', 'game/constants/Item
 		MSG_ID_USE_STAMINA_POTION: "MSG_ID_USE_STAMINA",
 		MSG_ID_USE_METAL_CACHE: "MSG_ID_USE_METAL_CACHE",
 		MSG_ID_USE_BOOK: "MSG_ID_USE_BOOK",
+		MSG_ID_USE_NEWSPAPER: "MSG_ID_USE_NEWSPAPER",
+		MSG_ID_USE_SEED: "MSG_ID_USE_SEED",
+		MSG_ID_USE_RESEARCHPAPER: "MSG_ID_USE_RESEARCHPAPER",
 		MSG_ID_USE_MAP_PIECE: "MSG_ID_USE_MAP_PIECE",
 
 		mergedMessages: [
@@ -167,7 +172,7 @@ define(['ash', 'text/Text', 'game/constants/TextConstants', 'game/constants/Item
 			var intros = [];
 			switch (resultVO.action) {
 				default:
-					intros.push("Almost fell into a crack in the street");
+					intros.push("Nearly fell into an unexpected crack in the street");
 					intros.push("Fell through a rotten floor");
 					intros.push("Dropped an item while climbing a fence");
 					intros.push("Stumbled on some wrecked pipes");
@@ -182,8 +187,25 @@ define(['ash', 'text/Text', 'game/constants/TextConstants', 'game/constants/Item
 			return { msg: template.msg, replacements: template.replacements, values: template.values };
 		},
 
-		getInjuredMessage: function (resultVO) {
-			return "Got injured.";
+		getBrokeItemMessage: function (resultVO) {
+			var template = TextConstants.getLogItemsText(resultVO.brokenItems);
+			template.msg = "Broke " + template.msg + ". ";
+
+			var intros = [];
+			switch (resultVO.action) {
+				default:
+					intros.push("Nearly fell into an unexpected crack in the street");
+					intros.push("Fell through a rotten floor");
+					intros.push("Dropped an item while climbing a fence");
+					intros.push("Stumbled on some wrecked pipes");
+					intros.push("Fell while climbings");
+					break;
+			}
+			var intro = intros[Math.floor(Math.random() * intros.length)];
+			intro = intro + ". ";
+			template.msg = intro + template.msg;
+
+			return { msg: template.msg, replacements: template.replacements, values: template.values };
 		},
 
 		getLostPerksMessage: function (resultVO) {
@@ -192,10 +214,12 @@ define(['ash', 'text/Text', 'game/constants/TextConstants', 'game/constants/Item
 
 		getDespairMessage: function (isValidDespairHunger, isValidDespairThirst, isValidDespairStamina, isValidDespairMove) {
 			if (isValidDespairThirst) {
-				return "Too thirsty to go on.";
+				// NOTE: thirst perk will trigger message
+				return null;
 			}
 			if (isValidDespairHunger) {
-				return "Too hungry to go on.";
+				// NOTE: hunger perk will trigger message
+				return null;
 			}
 			if (isValidDespairMove) {
 				return "There is nowhere to go.";

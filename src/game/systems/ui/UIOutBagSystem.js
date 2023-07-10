@@ -1,6 +1,7 @@
 define([
 	'ash',
 	'utils/UIState',
+	'utils/UIList',
 	'game/GameGlobals',
 	'game/GlobalSignals',
 	'game/constants/UIConstants',
@@ -8,7 +9,7 @@ define([
 	'game/constants/PlayerActionConstants',
 	'game/nodes/player/ItemsNode',
 	'game/components/common/PositionComponent',
-], function (Ash, UIState, GameGlobals, GlobalSignals, UIConstants, ItemConstants, PlayerActionConstants, ItemsNode, PositionComponent) {
+], function (Ash, UIState, UIList, GameGlobals, GlobalSignals, UIConstants, ItemConstants, PlayerActionConstants, ItemsNode, PositionComponent) {
 
 	var UIOutBagSystem = Ash.System.extend({
 
@@ -26,8 +27,7 @@ define([
 				sys.onObsoleteToggled();
 			});
 			
-			this.initItemSlots();
-			this.initCraftingButtons();
+			this.initElements();
 
 			return this;
 		},
@@ -45,6 +45,16 @@ define([
 		removeFromEngine: function (engine) {
 			this.itemNodes = null;
 			GlobalSignals.removeAll(this);
+		},
+		
+		initElements: function () {
+			this.initItemSlots();
+			this.initCraftingButtons();
+			this.initUseItemButtons();
+			this.initRepairItemButtons();
+			
+			$("#btn-self-manage-inventory").click($.proxy(this.showInventoryManageemntPopup, this));
+			$("#btn-bag-autoequip").click($.proxy(this.autoEquip, this));
 		},
 				
 		initItemSlots: function () {
@@ -95,6 +105,47 @@ define([
 			var actionName = "craft_" + itemDefinition.id;
 			return "<button class='action tabbutton multiline' action='" + actionName + "' data-tab='switch-bag'>" + itemDefinition.name + "</button>";
 		},
+		
+		initUseItemButtons: function () {
+			let container = $("#self-use-items table");
+			let fnCreateItem = function () {
+				var li = {};
+				li.$root = $("<tr><td><button class='action multiline' action=''></button></td></tr>");
+				return li;
+			};
+			let fnUpdateItem = function (li, data) {
+				let actionName = "use_item_" + data.id;
+				let actionVerb = ItemConstants.getUseItemVerb(data);
+				let buttonLabel = actionVerb + " " + ItemConstants.getItemDisplayName(data, true);
+				li.$root.find("button.action").attr("action", actionName);
+				li.$root.find("button.action").html(buttonLabel);
+			};
+			let fnIsDataEqual = function (a, b) {
+				return a.id == b.id;
+			};
+			this.useItemButtonList = UIList.create(container, fnCreateItem, fnUpdateItem, fnIsDataEqual);
+		},
+		
+		initRepairItemButtons: function () {
+			let container = $("#self-repair-items table");
+			let fnCreateItem = function () {
+				var li = {};
+				li.$root = $("<tr><td><button class='action multiline' action=''></button></td></tr>");
+				return li;
+			};
+			let fnUpdateItem = function (li, data) {
+				let actionName = "repair_item_" + data.itemID;
+				let actionVerb = "Repair";
+				let buttonLabel = actionVerb + " " + ItemConstants.getItemDisplayName(data, false);
+				let $btn = li.$root.find("button.action");
+				$btn.attr("action", actionName);
+				$btn.html(buttonLabel);
+			};
+			let fnIsDataEqual = function (a, b) {
+				return a.itemID == b.itemID;
+			};
+			this.repairItemButtonList = UIList.create(container, fnCreateItem, fnUpdateItem, fnIsDataEqual);
+		},
 
 		update: function (time) {
 			if (GameGlobals.gameState.uiStatus.isHidden) return;
@@ -139,9 +190,12 @@ define([
 				GameGlobals.uiFunctions.toggleCollapsibleContainer("#" + containerID + " .collapsible-header", !firstFound && numVisible > 0);
 				if (numVisible > 0) firstFound = true;
 			}
-
+			
+			this.updateAutoEquip();
 			this.updateItems();
+			this.updateBagActions();
 			this.updateUseItems();
+			this.updateRepairItems();
 			this.updateCrafting();
 		},
 
@@ -164,6 +218,12 @@ define([
 				}
 				GameGlobals.uiFunctions.toggle("#switch-bag .bubble", bubbleNumber > 0 || isStatIncreaseAvailable);
 			});
+		},
+		
+		updateBagActions: function () {
+			let inCamp = this.itemNodes.head.entity.get(PositionComponent).inCamp;
+			
+			GameGlobals.uiFunctions.toggle("#self-bag-actions", !inCamp);
 		},
 
 		updateItems: function () {
@@ -231,30 +291,37 @@ define([
 		updateUseItems: function () {
 			var items = this.getOwnedItems();
 
-			$("#self-use-items table").empty();
+			items = items.sort(UIConstants.sortItemsByType);
+			items = items.filter(item => this.isUsable(item));
+
+			let numNewItems = UIList.update(this.useItemButtonList, items);
+			
+			GameGlobals.uiFunctions.toggle("#header-self-use-items", items.length > 0);
+
+			if (numNewItems > 0) {
+				GameGlobals.uiFunctions.registerActionButtonListeners("#self-use-items");
+				GameGlobals.uiFunctions.generateButtonOverlays("#self-use-items");
+				GameGlobals.uiFunctions.generateCallouts("#self-use-items");
+				GlobalSignals.elementCreatedSignal.dispatch();
+			}
+		},
+
+		updateRepairItems: function () {
+			let items = this.getCarriedItems();
 
 			items = items.sort(UIConstants.sortItemsByType);
+			items = items.filter(item => this.isRepairable(item));
 
-			let numUsableItems = 0;
-			for (let j = 0; j < items.length; j++) {
-				var item = items[j];
-				
-				if (!this.isUsable(item)) continue;
-					
-				let actionName = "use_item_" + item.id;
-				let actionVerb = item.id.startsWith("cache_metal") ? "Disassemble" : "Use";
-				let tr = "<tr><td><button class='action multiline' action='" + actionName + "'>" + actionVerb + " " + ItemConstants.getItemDisplayName(item, true) + "</button></td></tr>";
-				$("#self-use-items table").append(tr);
-				
-				numUsableItems++;
-			}
+			let numNewItems = UIList.update(this.repairItemButtonList, items);
 			
-			GameGlobals.uiFunctions.toggle("#header-self-use-items", numUsableItems > 0);
+			GameGlobals.uiFunctions.toggle("#header-self-repair-items", items.length > 0);
 
-			GameGlobals.uiFunctions.registerActionButtonListeners("#self-use-items");
-			GameGlobals.uiFunctions.generateButtonOverlays("#self-use-items");
-			GameGlobals.uiFunctions.generateCallouts("#self-use-items");
-			GlobalSignals.elementCreatedSignal.dispatch();
+			if (numNewItems > 0) {
+				GameGlobals.uiFunctions.registerActionButtonListeners("#self-repair-items");
+				GameGlobals.uiFunctions.generateButtonOverlays("#self-repair-items");
+				GameGlobals.uiFunctions.generateCallouts("#self-repair-items");
+				GlobalSignals.elementCreatedSignal.dispatch();
+			}
 		},
 
 		updateSeenItems: function (isActive) {
@@ -274,7 +341,7 @@ define([
 		updateSeenItem: function (isActive, item) {
 			if (!(isActive || this.bubbleCleared)) return;
 			
-			if (item.id !== "equipment_map") {
+			if (this.isHiddenItem(item)) {
 				if (!GameGlobals.gameState.uiBagStatus.itemsOwnedSeen) GameGlobals.gameState.uiBagStatus.itemsOwnedSeen = [];
 				if (GameGlobals.gameState.uiBagStatus.itemsOwnedSeen.indexOf(item.id) < 0) {
 					GameGlobals.gameState.uiBagStatus.itemsOwnedSeen.push(item.id);
@@ -287,6 +354,10 @@ define([
 					GameGlobals.gameState.uiBagStatus.itemsUsableSeen.push(item.id);
 				}
 			}
+		},
+		
+		isHiddenItem: function (item) {
+			return item.type == ItemConstants.itemTypes.uniqueEquipment;
 		},
 		
 		updateSeenItemDefinition: function (isActive, itemDefinition) {
@@ -308,7 +379,8 @@ define([
 			if (GameGlobals.gameState.uiBagStatus.itemsUsableSeen) {
 				for (let i = 0; i < GameGlobals.gameState.uiBagStatus.itemsUsableSeen.length; i++) {
 					let id = GameGlobals.gameState.uiBagStatus.itemsUsableSeen[i];
-					if (this.isOwned(id)) {
+					let itemDefinition = ItemConstants.getItemByID(id);
+					if (this.isOwned(itemDefinition)) {
 						newList.push(id);
 					}
 				}
@@ -326,7 +398,7 @@ define([
 				
 				let equippedItems = itemsComponent.getEquipped(item.type);
 				let comparison = itemsComponent.getEquipmentComparison(item);
-				let isEquipped = equippedItems.length > 0 && equippedItems[0].id == item.id;
+				let isEquipped = equippedItems.length > 0 && equippedItems[0].id == item.id && equippedItems[0].broken == item.broken;
 				
 				$(indicator).toggleClass("indicator-equipped", isEquipped);
 				$(indicator).toggleClass("indicator-increase", !isEquipped && comparison > 0);
@@ -356,11 +428,11 @@ define([
 
 			$("#bag-items").empty();
 			for (let i = 0; i < items.length; i++) {
-				var item = items[i];
+				let item = items[i];
 				// TODO less hacky fix for the fact that getUnique doesn't prefer equipped items (could return unequipped instance even when an equipped one exists)
-				var equipped = itemsComponent.getEquipped(item.type);
-				var isEquipped = equipped && equipped.length > 0 && equipped[0].id == item.id;
-				var count = itemsComponent.getCount(item, inCamp);
+				let equipped = itemsComponent.getEquipped(item.type);
+				let isEquipped = equipped && equipped.length > 0 && equipped[0].id == item.id && equipped[0].broken == item.broken;
+				let count = itemsComponent.getCount(item, inCamp);
 				switch (item.type) {
 					case ItemConstants.itemTypes.light:
 					case ItemConstants.itemTypes.weapon:
@@ -410,8 +482,10 @@ define([
 
 			GameGlobals.uiFunctions.toggle($("#bag-items-empty"), this.inventoryItemsBag.length === 0);
 
-			GameGlobals.uiFunctions.generateCallouts("#container-tab-two-bag .three-quarters");
-			GameGlobals.uiFunctions.generateButtonOverlays("#container-tab-two-bag .three-quarters");
+			GameGlobals.uiFunctions.generateCallouts("#bag-items");
+			GameGlobals.uiFunctions.generateCallouts("#container-equipment-slots");
+			GameGlobals.uiFunctions.generateButtonOverlays("#bag-items");
+			GameGlobals.uiFunctions.generateButtonOverlays("#container-equipment-slots");
 			GameGlobals.uiFunctions.registerActionButtonListeners("#bag-items");
 			GameGlobals.uiFunctions.registerActionButtonListeners("#container-equipment-slots");
 		},
@@ -448,6 +522,63 @@ define([
 			$(slot).toggleClass("item-slot-equipped", itemVO !== null);
 		},
 		
+		updateAutoEquip: function () {
+			$("#select-bag-autoequip-type").empty();
+			
+			let bonusTypes = [
+				ItemConstants.itemBonusTypes.res_cold,
+				ItemConstants.itemBonusTypes.res_radiation,
+				ItemConstants.itemBonusTypes.res_poison,
+				ItemConstants.itemBonusTypes.fight_def,
+			];
+			
+			let items = this.getCarriedItems();
+			
+			// cache available options
+			let itemsBySlot = {}; // itemType => []
+			for (let i = 0; i < items.length; i++) {
+				let item = items[i];
+				if (!item.equippable) continue;
+				if (!itemsBySlot[item.type]) itemsBySlot[item.type] = [];
+				itemsBySlot[item.type].push(item);
+			}
+			
+			let hasBonus = function (itemBonusType) {
+				for (let i = 0; i < items.length; i++) {
+					if (!items[i].equippable) continue;
+					if (items[i].getCurrentBonus(itemBonusType) > 0) return true;
+				}
+				return false;
+			}
+			
+			let hasAlternativesForBonus = function (itemBonusType) {
+				for (let itemType in itemsBySlot) {
+					if (itemsBySlot[itemType].length < 2) continue;
+					for (let i = 0; i < itemsBySlot[itemType].length; i++) {
+						if (itemsBySlot[itemType][i].getCurrentBonus(itemBonusType)) {
+							// has at least 2 items for slot and at least one of them has matching bonus
+							return true;
+						}
+					}
+				}
+				return false;
+			}
+			
+			let numShown = 0;
+			
+			for (let i = 0; i < bonusTypes.length; i++) {
+				let bonusType = bonusTypes[i];
+				if (!hasBonus(bonusType)) continue;
+				if (!hasAlternativesForBonus(bonusType)) continue;
+				
+				let displayName = UIConstants.getItemBonusName(bonusType);
+				$("#select-bag-autoequip-type").append("<option value='" + bonusType +  "'>" + displayName + "</option>");
+				numShown++;
+			}
+			
+			GameGlobals.uiFunctions.toggle($("#bag-autoequip-container"), numShown > 0);
+		},
+		
 		highlightItemType: function (itemType) {
 			$("#bag-items .item").each(function () {
 				var id = $(this).attr("data-itemid");
@@ -469,6 +600,20 @@ define([
 			});
 		},
 
+		showInventoryManageemntPopup: function () {
+			GameGlobals.playerActionFunctions.startInventoryManagement();
+		},
+		
+		autoEquip: function () {
+			let itemBonusType = $("#select-bag-autoequip-type").val();
+			if (!itemBonusType) return;
+			log.i("auto equip best " + itemBonusType);
+			let inCamp = this.itemNodes.head.entity.get(PositionComponent).inCamp;
+			this.itemNodes.head.items.autoEquipByBonusType(itemBonusType, inCamp);
+			
+			GlobalSignals.equipmentChangedSignal.dispatch();
+		},
+
 		onObsoleteToggled: function () {
 			this.updateCrafting();
 		},
@@ -482,8 +627,10 @@ define([
 		onInventoryChanged: function () {
 			if (GameGlobals.gameState.uiStatus.isHidden) return;
 			if (GameGlobals.gameState.uiStatus.currentTab !== GameGlobals.uiFunctions.elementIDs.tabs.bag) return;
+			this.updateAutoEquip();
 			this.updateItems();
 			this.updateUseItems();
+			this.updateRepairItems();
 			this.updateCrafting();
 			this.pruneSeenItems();
 			this.updateBubble();
@@ -491,8 +638,10 @@ define([
 
 		onEquipmentChanged: function () {
 			if (GameGlobals.gameState.uiStatus.isHidden) return;
+			this.updateAutoEquip();
 			this.updateItems();
 			this.updateUseItems();
+			this.updateRepairItems();
 			this.highlightItemType(null);
 			this.updateBubble();
 		},
@@ -506,11 +655,13 @@ define([
 			let reqsCheck = GameGlobals.playerActionsHelper.checkRequirements(actionName, false);
 			if (reqsCheck.value >= 1)
 				return true;
-			if (reqsCheck.reason === PlayerActionConstants.UNAVAILABLE_REASON_BAG_FULL)
+			if (reqsCheck.baseReason === PlayerActionConstants.DISABLED_REASON_IN_PROGRESS)
 				return true;
-			if (reqsCheck.reason === PlayerActionConstants.UNAVAILABLE_REASON_LOCKED_RESOURCES) {
+			if (reqsCheck.baseReason === PlayerActionConstants.DISABLED_REASON_BAG_FULL)
+				return true;
+			if (reqsCheck.baseReason === PlayerActionConstants.DISABLED_REASON_LOCKED_RESOURCES) {
 				let reqs = GameGlobals.playerActionsHelper.getReqs(actionName);
-				return reqs.upgrades && reqs.upgrades.length > 0;
+				return reqs.upgrades && Object.keys(reqs.upgrades).length > 0;
 			}
 			return false;
 		},
@@ -528,11 +679,6 @@ define([
 			let isAvailable = GameGlobals.playerActionsHelper.checkAvailability(actionName, false);
 			
 			switch (item.id) {
-				case "stamina_potion_1":
-					let currentStamina = GameGlobals.playerHelper.getCurrentStamina();
-					let staminaWarningLimit = GameGlobals.playerHelper.getCurrentStaminaWarningLimit();
-					if (currentStamina > staminaWarningLimit) return false;
-					break;
 				case "glowstick_1":
 					return false;
 				case "first_aid_kit_1":
@@ -552,7 +698,8 @@ define([
 			let actionName = "use_item_" + item.id;
 			let reqsCheck = GameGlobals.playerActionsHelper.checkRequirements(actionName, false);
 			let costsCheck = GameGlobals.playerActionsHelper.checkCosts(actionName);
-			let isVisibleDisabledReason = reqsCheck.reason == PlayerActionConstants.UNAVAILABLE_REASON_NOT_IN_CAMP || reqsCheck.reason.indexOf(PlayerActionConstants.UNAVAILABLE_REASON_BUSY) >= 0;
+			// TODO use PlayerActionsHelper.isVisible
+			let isVisibleDisabledReason = reqsCheck.reason == PlayerActionConstants.DISABLED_REASON_NOT_IN_CAMP || reqsCheck.baseReason == PlayerActionConstants.DISABLED_REASON_BUSY;
 			
 			return costsCheck >= 1 && isVisibleDisabledReason;
 		},
@@ -593,10 +740,17 @@ define([
 				var item = items[i];
 				if (item.equipped) continue;
 				if (!item.equippable) continue;
-				var comparison = itemsComponent.getEquipmentComparison(item);
+				let comparison = itemsComponent.getEquipmentComparison(item);
 				if (comparison > 0) return true;
 			}
 			return false;
+		},
+		
+		isRepairable: function (itemVO) {
+			if (!itemVO) return false;
+			if (!itemVO.repairable) return false;
+			if (!itemVO.broken) return false;
+			return true;
 		},
 		
 		// this.getMatchingUnseenItemCount(this.getCraftableItemDefinitionsList, this.isCraftableUnlocked, GameGlobals.gameState.uiBagStatus.itemsCraftableUnlockedSeen);

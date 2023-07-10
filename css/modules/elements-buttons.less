@@ -18,6 +18,11 @@ button {
 button:hover {
 	color: @color-text-highlight !important;
 	border-color: @color-border-button-highlight;
+	background-color: @color-bg-clickable-button;
+}
+
+button.btn-disabled:hover {
+	background-color: @color-bg-button !important;
 }
 
 button:active {
@@ -82,8 +87,15 @@ button.btn-glyph {
 	font-size: 1em;
 	vertical-align: middle;
 	text-align: center;
+    line-height: 1em;
 	border-width: 1px;
 	border-radius: 1px;
+}
+
+button.btn-glyph img {
+    max-width: 1em;
+    max-height: 1em;
+	margin: auto;
 }
 
 button.btn-glyph-big {
@@ -95,7 +107,7 @@ button.btn-glyph-big {
 
 button.btn-meta {
 	width: auto;
-	padding: 2px 7px;
+	padding: 0px 7px;
 	border-radius: 0px !important;
 	-webkit-box-shadow: none;
 	-moz-box-shadow: none;
@@ -103,6 +115,7 @@ button.btn-meta {
 	background: none;
 	border-width: 0px;
 	text-transform: lowercase;
+	z-index: inherit;
 }
 
 button.btn-meta-float {

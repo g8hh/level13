@@ -12,7 +12,7 @@
 	-->
 	
 	<meta charset="utf-8" />
-	<title>13层 - Level 13</title>
+	<title>Level 13</title>
 	<meta itemprop="description" name="description" property="og:description" content="A text-based science fiction adventure game.">
 	<meta itemprop="image" property="og:image" content="favicon.png" />
 	<meta itemprop="name" property="og:title" content="Level 13" />
@@ -27,50 +27,50 @@
 </head>
 
 <body class="wrap wider dark" style="height:100%">
-<!--	<script src="zh/core.js"></script>-->
-<script src="zh/chs.js"></script>
-<script src="zh/core.js"></script>
-	<div class="sticky-footer-wrapper">
+	
+	<div class="sticky-footer-wrapper game-opacity-controller">
 		<div class="grid" id="grid-main">
-			<div class="unit one-quarter" style="visibility:hidden; padding:1px; height:1px"></div><!-- filler for log -->
-			<div class="unit three-quarters" id="unit-main" style="display: none">
+			<div class="unit four-fifths" id="unit-main" style="display: none">
 
-				<div id="header-self-bar" class="lvl13-box-2">
+				<div id="header-side">
+					<div id="header-self-bar" class="lvl13-box-2">
+						<ul class="itemlist" id="list-items-perks"></ul>
+						<ul class="itemlist" id="list-items-statuses"></ul>
+						
+						<div id="stats-vision" class="stats-indicator">
+							<span class="label">Vision</span>
+							<div class="stats-value-container"><span class="value">0</span><span id="vision-change-indicator" class="change-indicator"></span></div>
+						</div>
+						<div id="stats-health" class="stats-indicator">
+							<span class="label">Health</span>
+							<div class="stats-value-container"><span class="value">0</span><span id="health-change-indicator" class="change-indicator"></span></div>
+						</div>
+						<div id="stats-stamina" class="stats-indicator">
+							<span class="label">Stamina</span>
+							<div class="stats-value-container"><span class="value">0</span><span id="stamina-change-indicator" class="change-indicator"></span></div>
+						</div>
+						<div id="stats-scavenge" class="stats-indicator">
+							<span class="label">Scavenge<br/>efficiency</span>
+							<div class="stats-value-container"><span class="value">0</span><span id="scavenge-change-indicator" class="change-indicator"></span></div>
+						</div>
+						<div id="stats-scavenge-bonus" class="stats-indicator">
+							<span class="label">Scavenge<br/>bonus</span>
+						</div>
+						
+						<hr/>
+						<div id="container-equipment-stats"></div>
+					</div>
+					
 					<div id="notification-player" class="unit whole notification">
 						<div id="notification-player-bar" class="progress-wrap progress">
 							<div class="progress-bar progress"></div>
 							<span class="progress-label progress"></span>
 						</div>
 					</div>
-					<ul class="itemlist" id="list-items-perks"></ul>
-					<ul class="itemlist" id="list-items-statuses"></ul>
-					
-					<div id="stats-vision" class="stats-indicator">
-						<span class="label">Vision</span>
-						<div class="stats-value-container"><span class="value">0</span><span id="vision-change-indicator" class="change-indicator"></span></div>
-					</div>
-					<div id="stats-health" class="stats-indicator">
-						<span class="label">Health</span>
-						<div class="stats-value-container"><span class="value">0</span><span id="health-change-indicator" class="change-indicator"></span></div>
-					</div>
-					<div id="stats-stamina" class="stats-indicator">
-						<span class="label">Stamina</span>
-						<div class="stats-value-container"><span class="value">0</span><span id="stamina-change-indicator" class="change-indicator"></span></div>
-					</div>
-					<div id="stats-scavenge" class="stats-indicator">
-						<span class="label">Scavenge<br/>efficiency</span>
-						<div class="stats-value-container"><span class="value">0</span><span id="scavenge-change-indicator" class="change-indicator"></span></div>
-					</div>
-					<div id="stats-scavenge-bonus" class="stats-indicator">
-						<span class="label">Scavenge<br/>bonus</span>
-					</div>
-					
-					<hr/>
-					<div id="container-equipment-stats"></div>
 				</div>
 				
-				<div class="grid" id="grid-main-header">
-					<div class="unit whole lvl13-box-1 header-section" id="header-tribe-container">
+				<div class="grid" id="grid-main-header" class="vision-container">
+					<div class="unit whole lvl13-box-1 header-row" id="header-tribe-container">
 						<div id="statsbar-self" class="statsbar">
 							<div id="stats-evidence" class="stats-indicator">
 								<span class="label">Evidence</span>
@@ -87,71 +87,71 @@
 								<span class="value">0</span>
 								<span id="favour-change-indicator" class="change-indicator"></span>
 							</span>
+							<span id="stats-insight" class="stats-indicator">
+								<span class="label">Insight</span>
+								<span class="value">0</span>
+								<span id="insight-change-indicator" class="change-indicator"></span>
+							</span>
 							<span id="statsbar-deity" class="statsbar">
 								Deity: <span id="deity-name">Name</span>
 							</span>
 						</div>
 					</div>
 					
-				<div class="unit whole lvl13-box-1" id="header-camp-container">
-					
-					<div class="header-section" id="main-header-bag">
-						<div id="header-bag-storage" class="stats-indicator">
-							<span class="label">Bag capacity</span>
-							<span class="value">0</span>
-							/
-							<span class="value-total">0</span>
-						</div>
-						<div id="header-bag-currency" class="stats-indicator">
-							<span class="label">Silver</span>
-							<span class="value">0</span>
-						</div>
-						<div id="bag-resources" class="statsbar"></div>
-					</div>
-					
-					<div class="header-section" id="main-header-equipment">
-						<ul class="itemlist" id="list-header-equipment"></ul>
-					</div>
-					
-					<div class="header-section" id="main-header-items">
-						<ul class="itemlist" id="list-header-followers"></ul>
-						<ul class="itemlist" id="list-header-items"></ul>
-					</div>
+					<div class="unit whole lvl13-box-1 header-row" id="header-camp-container">
 						
-					<div class="header-section" id="main-header-camp">
-						<div class="header-section" style="width: 22%">
-						<div id="header-camp-storage" class="stats-indicator">
-							<span class="label">Storage</span>
-							<span class="value">0</span>
+						<div class="header-section" id="main-header-bag">
+							<div id="header-bag-storage" class="stats-indicator">
+								<span class="label">Bag capacity</span>
+								<span class="value">0</span>
+								/
+								<span class="value-total">0</span>
+							</div>
+							<div id="header-bag-currency" class="stats-indicator">
+								<span class="label">Silver</span>
+								<span class="value">0</span>
+							</div>
+							<div id="bag-resources" class="statsbar"></div>
+							<ul class="itemlist" id="list-header-items"></ul>
 						</div>
-						<div id="header-camp-reputation" class="stats-indicator">
-							<span class="label">Reputation</span>
-							<span class="value">0</span>
-							<span id="reputation-change-indicator" class="change-indicator"></span>
-						</div>
-						<div id="header-camp-population" class="stats-indicator">
-							<span class="label">Population</span>
-							<span class="value">0</span>
-							<span id="population-change-indicator" class="change-indicator"></span>
-						</div>
-						<div id="header-camp-currency" class="stats-indicator">
-							<span class="label">Silver</span>
-							<span class="value">0</span>
-						</div>
-						</div>
-						<div class="header-section" style="width: 75%; float: right;">
-						<div id="statsbar-resources" class="statsbar">
-						</div>
-						</div>
-					</div>
 						
-				</div>
+						<div class="header-section" id="main-header-items">
+							<ul class="itemlist" id="list-header-followers"></ul>
+						</div>
+							
+						<div class="header-section" id="main-header-camp">
+							<div class="header-section" id="main-header-camp-overview">
+							<div id="header-camp-storage" class="stats-indicator">
+								<span class="label">Storage</span>
+								<span class="value">0</span>
+							</div>
+							<div id="header-camp-reputation" class="stats-indicator">
+								<span class="label">Reputation</span>
+								<span class="value">0</span>
+								<span id="reputation-change-indicator" class="change-indicator"></span>
+							</div>
+							<div id="header-camp-population" class="stats-indicator">
+								<span class="label">Population</span>
+								<span class="value">0</span>
+								<span id="population-change-indicator" class="change-indicator"></span>
+							</div>
+							<div id="header-camp-currency" class="stats-indicator">
+								<span class="label">Silver</span>
+								<span class="value">0</span>
+							</div>
+							</div>
+							<div class="header-section" id="main-header-camp-resources">
+							<div id="statsbar-resources" class="statsbar">
+							</div>
+							</div>
+						</div>
+							
+					</div>
 				</div><!-- grid for the whole stats bar -->
 				
 				<div class="grid">
-					<div id="grid-location-header" class="unit whole">
-						<img id="level-icon" />
-						<h3 id="in-game-date">Y783</h3>
+					<div id="grid-location-header" class="unit whole vision-container">
+						<div class='info-callout-target info-callout-target-side'><img id="level-icon" /></div>
 						<h1>Camp</h1>
 					</div>
 				</div>
@@ -169,6 +169,7 @@
 							<li id="switch-projects"><span class="name vision-text">Projects</span></li>
 							<li id="switch-upgrades"><span class="name vision-text">Upgrades</span></li>
 							<li id="switch-world"><span class="name vision-text">Tribe</span></li>
+							<li id="switch-milestones"><span class="name vision-text">Milestones</span></li>
 						</ul>
 					</div>
 				</div><!-- grid for the switch -->
@@ -180,9 +181,11 @@
 						<button id="btn-header-rename" class="context btn-meta tabelement tab-options" data-tab="switch-in" style="display:none">Rename</button>
 						<div class="tabelement" data-tab="switch-map" style="display:none;">
 							<select id="select-header-mapstyle" class="context tab-options"></select>
+							<select id="select-header-mapmode" class="context tab-options"></select>
 							<select id="select-header-level" class="context tab-options"></select>
+							<button id="btn-download-map" class="btn-meta context tab-options">download</button>
 						</div>
-						<h2>&nbsp;</h2>
+						<h2 class="noninteractive">&nbsp;</h2>
 						</div>
 					</div><!-- grid for the header" -->
 			
@@ -209,7 +212,13 @@
 						<div class="unit unit golden-small">
 							<div id="in-population" class="infobox">
 								<h3>Population</h3>
-								<p style="display:none" id="in-population-status">free / diseased</p>
+								<div id="in-population-details" class="infobox" style='display:none'>
+									<div id="in-population-status">free / diseased</div>
+									<div id="in-population-autoassigned" class="info-callout-target" description="Roles that any unassigned workers will be assigned to (when you are not in this camp). If multiple selected, roles with fewest workers get assigned first.">Auto-assigned</div>
+									<div class="info-callout-target">
+										<div style="display: none" id="in-population-robots">Robots: <span class="stats-value-container"><span class="value">0</span><span id="robots-change-indicator" class="change-indicator"></span></span></div>
+									</div>
+								</div>
 								<table class="full-width" id="in-assign-workers">
 								</table>
 								<p style="display:none" id="in-population-next">Next worker:</p>
@@ -221,6 +230,8 @@
 							</div>
 							<div id="in-occurrences" class="infobox">
 								<h3>Events</h3>
+								<div id="in-occurrences-building-container">
+								</div>
 								<div id="in-occurrences-trader" class="progress-wrap progress">
 									<div class="progress-bar progress"></div>
 									<span class="progress progress-label">Trader</span>
@@ -241,6 +252,7 @@
 								<h3>Details</h3>
 								<div id="in-demographics-general">
 									<p id="in-demographics-general-age">Founded: <span class="value">-</span></p>
+									<p id="in-demographics-general-luxuries">Luxury resources available: <span class="value">-</span></p>
 								</div>
 								<div id="in-demographics-raid">
 									<div class='info-callout-target'>
@@ -294,11 +306,16 @@
 					<!-- level: minimap and header -->
 					<div class="grid tabelement" id="container-tab-two-out" data-tab="switch-out">
 						<div class="unit unit-compass" id="out-container-compass">
-							<div id="minimap-container" class="canvas-container" style="width: 208px; height: 208px">
-								<canvas id="minimap" width="208" height="208" role="img" aria-label="area map">
-								</canvas>
+							<div id="minimap-background-container" class="canvas-container">
+								<canvas id="minimap-background" width="224" height="224"></canvas>
+								<div id="minimap-container" class="canvas-container" style="width: 198px; height: 198px">
+									<canvas id="minimap" width="198" height="198" role="img" aria-label="area map"></canvas>
+								</div>
 							</div>
-							<span id="out-position-indicator" class="vision-text"></span>
+							<div class="infobox">
+								<span id="out-position-indicator" class="info-detail vision-text"></span>
+								<span id="out-distance-indicator" class="info-detail vision-text"></span>
+							</div>
 						</div>
 						<div class="unit unit-rest">
 							<h2 id="header-sector">Sector header</h2>
@@ -402,6 +419,11 @@
 								<div id="item-slot-clothing_hands" class="item-slot item-slot-big lvl13-box-1"></div>
 								<div id="item-slot-shoes" class="item-slot item-slot-big lvl13-box-1"></div>
 							</div>
+							<div class="select-container" id="bag-autoequip-container">
+								<span class="label">Equip best:</span>
+								<select id="select-bag-autoequip-type"></select>
+								<button id="btn-bag-autoequip" class="action btn-mini" action="auto_equip">Equip</button>
+							</div>
 							<div class="subheader" id="header-bag-items"><h3>Other items</h3></div>
 							<div class="infobox">
 								<ul id="bag-items" style="padding:0px; margin: 0px"></ul>
@@ -409,8 +431,16 @@
 							</div>
 						</div>
 						<div class="unit one-quarter">
+							<div id="self-bag-actions" class="actionbox">
+								<button id="btn-self-manage-inventory">Manage inventory</button>
+							</div>
 							<div class="subheader" id="header-self-use-items"><h3>Use</h3></div>
 							<div id="self-use-items" class="actionbox">
+								<table>
+								</table>
+							</div>
+							<div class="subheader" id="header-self-repair-items"><h3>Repair</h3></div>
+							<div id="self-repair-items" class="actionbox">
 								<table>
 								</table>
 							</div>
@@ -463,9 +493,27 @@
 								<div id="mainmap-ascii-legend" class="lvl13-box-1"></div>
 							</div>
 							<div id="mainmap-sector-details" class="lvl13-box-1" style="margin: 5px; padding: 5px;">
-								<button id="btn-mainmap-sector-details-next" class="context btn-meta">Next</button>
-								<button id="btn-mainmap-sector-details-previous" class="context btn-meta">Previous</button>
-								<button id="btn-mainmap-sector-details-camp" class="context btn-meta">Camp</button>
+								<button id="btn-mainmap-sector-details-next" aria-label="Next sector" class="context btn-glyph">
+									<img src="img/eldorado/icon-next-dark.png" class="img-themed" data-src-sunlit="img/eldorado/icon-next.png" />
+								</button>
+								<button id="btn-mainmap-sector-details-previous" aria-label="Previous sector" class="context btn-glyph">
+									<img src="img/eldorado/icon-previous-dark.png" class="img-themed" data-src-sunlit="img/eldorado/icon-previous.png" />
+								</button>
+								<button id="btn-mainmap-sector-details-camp" aria-label="Camp sector" class="context btn-glyph">
+									<img src="img/map/map-camp-sunlit.png" class="img-themed" data-src-sunlit="img/map/map-camp.png" />
+								</button>
+								<button id="btn-mainmap-sector-details-unknown" aria-label="Unvisited sectors" class="context btn-glyph">
+									<img src="img/map/map-unvisited-sunlit.png" class="img-themed" data-src-sunlit="img/map/map-unvisited.png" />
+								</button>
+								<button id="btn-mainmap-sector-details-unscouted" aria-label="Unscouted sectors" class="context btn-glyph">
+									<img src="img/map/map-interest-sunlit.png" class="img-themed" data-src-sunlit="img/map/map-interest.png" />
+								</button>
+								<button id="btn-mainmap-sector-details-investigate" aria-label="Sectors which can be investigated" class="context btn-glyph">
+									<img src="img/map/map-investigate-sunlit.png" class="img-themed" data-src-sunlit="img/map/map-investigate.png" />
+								</button>
+								<button id="btn-mainmap-sector-details-ingredients" aria-label="Sectors with ingredients" class="context btn-glyph">
+									<img src="img/map/map-ingredient-sunlit.png" class="img-themed" data-src-sunlit="img/map/map-ingredient.png" />
+								</button>
 								<div id="mainmap-sector-details-content-empty">
 									<h3>Sector details</h3>
 									<p class="meta" id="mainmap-sector-details-empty-text-canvas">Click on a sector to see details.</p>
@@ -473,14 +521,16 @@
 								</div>
 								<div id="mainmap-sector-details-content">
 									<h3><span id="mainmap-sector-details-name">Sector</span> <span id="mainmap-sector-details-pos"/></h3>
-									<table class="spacious">
-										<tr><td>Points of interest:</td><td><span id="mainmap-sector-details-poi"></span></td></tr>
-										<tr><td>Scavenging:</td><td><span id="mainmap-sector-details-res-sca"></span></td></tr>
-										<tr><td>Collectors:</td><td><span id="mainmap-sector-details-res-col"></span></td></tr>
-										<tr><td>Threats:</td><td><span id="mainmap-sector-details-threats"></span></td></tr>
-										<tr><td>Blockers:</td><td><span id="mainmap-sector-details-blockers"></span></td></tr>
-										<tr><td>Environment:</td><td><span id="mainmap-sector-details-env"></span></td></tr>
-										<tr><td>Distance:</td><td><span id="mainmap-sector-details-distance"></span></td></tr>
+									<table class="spacious full-width">
+										<tr><td class="textwidth">District:</td><td><span id="mainmap-sector-details-district"></span></td></tr>
+										<tr><td class="textwidth">Distance:</td><td><span id="mainmap-sector-details-distance"></span> <button id="btn-mainmap-sector-path" class="btn-meta">(directions)</button></td></tr>
+										<tr><td class="textwidth">Points of interest:</td><td><span id="mainmap-sector-details-poi"></span></td></tr>
+										<tr><td class="textwidth">Scavenging:</td><td><span id="mainmap-sector-details-res-sca"></span></td></tr>
+										<tr><td class="textwidth">Collectors:</td><td><span id="mainmap-sector-details-res-col"></span></td></tr>
+										<tr><td class="textwidth">Threats:</td><td><span id="mainmap-sector-details-threats"></span></td></tr>
+										<tr><td class="textwidth">Blockers:</td><td><span id="mainmap-sector-details-blockers"></span></td></tr>
+										<tr><td class="textwidth">Environment:</td><td><span id="mainmap-sector-details-env"></span></td></tr>
+										<tr><td class="textwidth">Other:</td><td><span id="mainmap-sector-details-misc"></span></td></tr>
 									</table>
 								</div>
 								<div id="mainmap-sector-details-content-debug">
@@ -496,7 +546,7 @@
 							<div class="subheader"><h3>Incoming caravans</h3></div>
 							<p id="trade-caravans-incoming-empty-message">No traders here at the moment.</p>
 							<div id="trade-caravans-incoming-container" class="actionbox">
-								<table></table>
+								<table class="fullwidth"></table>
 							</div>
 							<div class="subheader"><h3>Trade partners</h3></div>
 							<p id="trade-caravans-outgoing-empty-message">No trade partners discovered yet.</p>
@@ -512,6 +562,10 @@
 							<div class="actionbox" id="container-in-improvements-colony">
 								<div class="subheader"><h3>Colony projects</h3></div>
 								<div id="in-improvements-colony" class="actionbox">
+									<table class="fullwidth"></table>
+								</div>
+								<div class="subheader" id="header-in-improvements-colony-built"><h3>Built colony projects</h3></div>
+								<div id="in-improvements-colony-built" class="actionbox">
 									<table class="fullwidth"></table>
 								</div>
 								<button id="in-action-launch" class="action" action="launch">Launch</button>
@@ -532,11 +586,6 @@
 							<div id="in-improvements-level-built" class="actionbox">
 								<table class="fullwidth"></table>
 							</div>
-						</div>
-					</div>
-					
-					<div class="grid tabelement" id="container-tab-two-blueprints" data-tab="switch-blueprints" style="display:none;">
-						<div class="unit whole">
 						</div>
 					</div>
 					
@@ -588,13 +637,12 @@
 								<div class="subheader"><h3>Camp overview</h3></div>
 								<table id="camp-overview" class="full-width dense">
 									<tr id="camp-overview-header" class="lvl13-box-1 header-mini">
-										<th class="th-text" colspan="2"></th>
-										<th class="th-number">pop</th>
+										<th class="th-text" colspan="2">camp</th>
+										<th class="th-number" colspan="2">pop</th>
 										<th class="th-number">rep</th>
 										<th class="th-number">raid</th>
 										<th class="th-number">storage</th>
-										<th class="th-text">production</th>
-										<th class="th-text">stats</th>
+										<th class="th-text" colspan="2">production</th>
 										<th class="th-number"></th>
 										<th class="th-number"></th>
 									</tr>
@@ -602,13 +650,39 @@
 							</div>
 						</div>
 					</div>
+					
+					<div class="grid tabelement" id="container-tab-two-milestones" data-tab="switch-milestones" style="display:none">
+						<div class="unit whole">
+							<div class="milestone-container" id="milestone-container-current">
+								<h3>Current: <span id='milestone-current-name' class="hl-functionality"></span></h3>
+								<p id="milestone-current-description"></p>
+							</div>
+							<div class="milestone-container" id="milestone-container-next">
+								<h3>Next: <span id='milestone-next-name' class="hl-functionality"></span></h3>
+								<p id="milestone-next-description"></p>
+								<div id="milestone-next-unlocks"></div>
+								<div id="milestone-population-bar" class="progress-wrap progress full-width">
+									<div class="progress-bar progress"></div>
+									<span class="progress progress-label"></span>
+								</div>
+								<div class="columns-container">
+									<div id="milestone-next-reqs" class="columns-child infobox">
+									</div>
+									<div id="milestone-next-button-container" class="columns-child columns-child-small"></div>
+								</div>
+							</div>
+						</div>
+					</div>
+					
 			</div><!-- main switch content grid -->
 			
-			</div><!-- main unit: the whole 3/4 right of the log -->
+			</div><!-- excluding lig -->
 			
-			<div id="log" class="unit one-quarter limit-height">
-				<div id="log-overlay" class="lvl13-fade-down"></div>
-				<ul></ul>
+			<div class="unit one-fifth" class="div-horizontal-space-filler">
+				<div id="log" class="limit-height">
+					<div id="log-overlay" class="lvl13-fade-down"></div>
+					<ul></ul>
+				</div>
 			</div>
 			
 		</div><!-- main grid -->
@@ -618,24 +692,25 @@
 	</div><!-- sticky footer wrap -->
 	
 	<div class="grid sticky-footer">
-		<div class="unit one-quarter" style="visibility:hidden"></div>
-		<div class="unit three-quarters" id="footer">
+		<div class="unit unit four-fifths" id="footer">
 			<span id="game-version" class="p-meta"></span>
 			<span id="game-msg" class="p-meta"></span>
-			<ul id="game-options">
-				<li><button class="btn-meta" id="btn-more">More</button>
-				<li><button class="btn-meta" id="btn-restart">Restart</button></li>
-				<li><button class="btn-meta" id="btn-save">Save</button></li>
-				<li><a class="btn-meta" target="_blank" style="color: red;" href="https://shimo.im/sheets/SMMm2z4CNecrpzZb/6m385">萌新指导</a></li>
-			</ul>
 			<ul id="game-options-extended" style="display:none">
 				<li><button class="btn-meta" id="btn-info">Info</button></li>
 				<li><button class="btn-meta" id="btn-importexport">Import/export</button></li>
 				<li><span>:</span></li>
 			</ul>
+			<ul id="game-options">
+				<li><button class="btn-meta" id="btn-more">More</button>
+				<li><button class="btn-meta" id="btn-restart">Restart</button></li>
+				<li><button class="btn-meta" id="btn-save">Save</button></li>
+			</ul>
 		</div>
+		<div class="unit one-fifth" class="div-horizontal-space-filler"></div>
 	</div><!-- sticky footer -->
-						
+	
+	<!-- popups -->
+	
 	<div id="fight-popup" class="popup fill-on-mobiles hidden-by-default popup-ingame" style="display:none">
 		<h3 id="fight-title"></h3>
 		<p id="fight-desc"></p>
@@ -743,6 +818,9 @@
 		<div class="buttonbox" id="load-import-container">
 			<button id="load-import">Load</button>
 		</div>
+		<div class="buttonbox" id="export-download-container">
+			<button id="btn-download-export">Download</button>
+		</div>
 		<div class="buttonbox">
 			<button id="open-export">Export</button>
 			<button id="open-import">Import</button>
@@ -758,7 +836,7 @@
 		<div class="buttonbox"></div>
 	</div>
 	
-	<div id="vision-overlay"></div>
+	<!-- whole page overlays -->
 	
 	<div class="thinking-content">
 		<div class="loading-spinner">
@@ -776,6 +854,8 @@
 		</div>
 	</div>
 	
+	<div id="theme-transition-overlay" style="display:none"></div>
+	
 	<!-- Google Analytics -->
 	<script async src="https://www.googletagmanager.com/gtag/js?id=UA-118652515-1"></script>
 	<script>
@@ -789,23 +869,7 @@
 	</script>
 
 	<!-- RequireJS -->
-    <script data-main="src/config" src="lib/requirejs/require.min.js"></script>
-<!--客服 开始-->
-<script src="//g8hh.com/static/js/jquery.min.js"></script>
-<link rel="stylesheet" href="//g8hh.com/static/css/kf.css" type="text/css" media="screen" charset="utf-8">
-<script src="//g8hh.com/static/js/kf.js"></script>
-<!-- 客服 结束 -->
-<!--站长统计-->
-<div style="display: none">
-	<script>
-	var _hmt = _hmt || [];
-	(function() {
-	  var hm = document.createElement("script");
-	  hm.src = "https://hm.baidu.com/hm.js?dbb7ff142f4d4b68546c93b9cd6e9328";
-	  var s = document.getElementsByTagName("script")[0]; 
-	  s.parentNode.insertBefore(hm, s);
-	})();
-	</script>
-		</div>
+	<script data-main="src/config" src="lib/requirejs/require.min.js"></script>
+
 </body>
 </html>

@@ -49,7 +49,8 @@ define([
 			this.visionNodes = engine.getNodeList(VisionNode);
 			this.locationNodes = engine.getNodeList(PlayerLocationNode);
 			
-			GlobalSignals.add(this, GlobalSignals.playerMovedSignal, this.onPlayerMoved, GlobalSignals.PRIORITY_HIGH);
+			GlobalSignals.add(this, GlobalSignals.playerPositionChangedSignal, this.onPlayerPositionChanged, GlobalSignals.PRIORITY_HIGH);
+			GlobalSignals.add(this, GlobalSignals.perksChangedSignal, this.onPerksChanged, GlobalSignals.PRIORITY_HIGH);
 		},
 
 		removeFromEngine: function (engine) {
@@ -87,6 +88,8 @@ define([
 			var maxValue = 0;
 			var visionPerSec = 0;
 			var accSpeedFactor = Math.max(100 - oldValue, 10) / 200;
+			let shadeBonus = itemsComponent.getCurrentBonus(ItemConstants.itemBonusTypes.shade);
+			let lightBonus = itemsComponent.getCurrentBonus(ItemConstants.itemBonusTypes.light);
 			
 			vision.accSources = [];
 			var addAccumulation = function (sourceName, value) {
@@ -96,7 +99,8 @@ define([
 			};
 			
 			// Check max value and accumulation
-			var maxValueBase = sunlit ? PlayerStatConstants.VISION_BASE_SUNLIT : PlayerStatConstants.VISION_BASE;
+			let maxValueBaseDefault =  PlayerStatConstants.VISION_BASE;
+			let maxValueBase = sunlit ? PlayerStatConstants.VISION_BASE_SUNLIT : PlayerStatConstants.VISION_BASE;
 			maxValue = maxValueBase;
 			addAccumulation("Base", (sunlit ? 75 : 25) / maxValueBase);
 			
@@ -110,34 +114,29 @@ define([
 						maxValue = Math.max(maxValue, 100);
 						addAccumulation("Lights", 100 / maxValueBase);
 					}
-				} else {
-					if (improvements.getCount(improvementNames.ceiling) > 0) {
-						maxValue = Math.max(maxValue, 100);
-						addAccumulation("Ceiling", 100 / maxValueBase);
-					}
 				}
 			}
 			
 			if (sunlit) {
-				var shadeBonus = itemsComponent.getCurrentBonus(ItemConstants.itemBonusTypes.shade);
 				if (shadeBonus + maxValueBase > maxValue) {
-					maxValue = shadeBonus + maxValueBase;
+					maxValue += shadeBonus;
 					addAccumulation("Sunglasses", shadeBonus / maxValueBase);
 				}
 			} else {
 				// equipment
-				var lightItem = itemsComponent.getEquipped(ItemConstants.itemTypes.light)[0];
-				if (lightItem && lightItem.getBonus(ItemConstants.itemBonusTypes.light) + maxValueBase > maxValue) {
-					maxValue = lightItem.getBonus(ItemConstants.itemBonusTypes.light) + maxValueBase;
-					addAccumulation(lightItem.name, lightItem.getBonus(ItemConstants.itemBonusTypes.light) / maxValueBase);
+				let lightItem = itemsComponent.getEquipped(ItemConstants.itemTypes.light)[0];
+				if (lightItem && lightBonus + maxValueBase > maxValue) {
+					maxValue += lightBonus;
+					addAccumulation(lightItem.name, lightBonus / maxValueBase);
 				}
 				// consumable items
 				if (statusComponent.glowStickSeconds > 0) {
 					// TODO remove hardcoded glowstick vision value
-					maxValue = 30 + maxValueBase;
-					addAccumulation("Glowstick", 30 / maxValueBase);
+					let glowstickValue = 30;
+					maxValue = Math.max(maxValue, maxValueBase + glowstickValue);
+					addAccumulation("Glowstick", glowstickValue / maxValueBase);
+					statusComponent.glowStickSeconds -= time * GameConstants.gameSpeedExploration;
 				}
-				statusComponent.glowStickSeconds -= time * GameConstants.gameSpeedExploration;
 				// pekrs
 				var perkBonus = perksComponent.getTotalEffect(PerkConstants.perkTypes.light);
 				if (perkBonus > 0) {
@@ -146,38 +145,50 @@ define([
 				}
 			}
 			
+			if (GameGlobals.gameState.isLaunchStarted) {
+				visionPerSec = 0;
+				vision.accSources = [];
+				visionPerSec = -maxValue/5;
+			}
+			
 			// Set final values
 			vision.value += time * visionPerSec;
 			vision.accumulation = visionPerSec;
 			vision.maximum = maxValue;
 			
 			// Effects of moving from different light environments
-			var logComponent = node.entity.get(LogMessagesComponent);
+			let logComponent = node.entity.get(LogMessagesComponent);
 			if (oldMaximum > 0 && this.wasSunlit !== null) {
 				if (this.wasSunlit !== sunlit) {
 					// switching between darkness and sunlight
-					var isTotalReset = maxValue === maxValueBase;
-					vision.value = isTotalReset ? 0 : maxValueBase;
-					if (sunlit) {
-						if (isTotalReset) {
-							logComponent.addMessage(LogConstants.MSG_ID_VISION_RESET, "Blinded by sunlight.");
+					let isTotalReset = maxValue === maxValueBase;
+					let maxValueExtra = maxValue - maxValueBaseDefault;
+					let newValue = isTotalReset ? 0 : (maxValueBaseDefault + maxValueExtra / 2);
+					vision.value = newValue;
+					if (!inCamp) {
+						if (sunlit) {
+							if (isTotalReset) {
+								logComponent.addMessage(LogConstants.MSG_ID_VISION_RESET, "Blinded by sunlight.");
+							} else {
+								logComponent.addMessage(LogConstants.MSG_ID_VISION_RESET, "Engulfed by sunlight.");
+							}
 						} else {
-							logComponent.addMessage(LogConstants.MSG_ID_VISION_RESET, "Engulfed sunlight.");
-						}
-					} else {
-						if (isTotalReset) {
-							logComponent.addMessage(LogConstants.MSG_ID_VISION_RESET, "The darkness is like a wall.");
-						} else {
-							logComponent.addMessage(LogConstants.MSG_ID_VISION_RESET, "Back into the darkness.");
+							if (isTotalReset) {
+								logComponent.addMessage(LogConstants.MSG_ID_VISION_RESET, "The darkness is like a wall.");
+							} else {
+								logComponent.addMessage(LogConstants.MSG_ID_VISION_RESET, "Back into the darkness.");
+							}
 						}
 					}
 				} else if (oldMaximum > maxValue && oldValue - 10 > maxValue && maxValue === maxValueBase) {
 					// being reset back to base value (losing equipment, not having equipment and leaving camp)
 					vision.value = 0;
-					if (sunlit) {
-						logComponent.addMessage(LogConstants.MSG_ID_VISION_RESET, "Blinded by sunlight.");
-					} else {
-						logComponent.addMessage(LogConstants.MSG_ID_VISION_RESET, "The darkness is like a wall.");
+					if (!inCamp) {
+						if (sunlit) {
+							logComponent.addMessage(LogConstants.MSG_ID_VISION_RESET, "Blinded by sunlight.");
+						} else {
+							logComponent.addMessage(LogConstants.MSG_ID_VISION_RESET, "The darkness is like a wall.");
+						}
 					}
 				}
 			}
@@ -193,10 +204,7 @@ define([
 			
 			// check unlocked features
 			if (vision.value > maxValueBase) {
-				if (!GameGlobals.gameState.unlockedFeatures.vision) {
-					GameGlobals.gameState.unlockedFeatures.vision = true;
-					GlobalSignals.featureUnlockedSignal.dispatch();
-				}
+				GameGlobals.playerActionFunctions.unlockFeature("vision");
 			}
 			
 			// dispatch update
@@ -206,7 +214,11 @@ define([
 			}
 		},
 		
-		onPlayerMoved: function () {
+		onPerksChanged: function () {
+			this.update(0);
+		},
+		
+		onPlayerPositionChanged: function () {
 			this.update(0);
 		}
 	});

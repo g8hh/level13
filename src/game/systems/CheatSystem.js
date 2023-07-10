@@ -8,6 +8,7 @@ define(['ash',
 	'game/constants/LocaleConstants',
 	'game/constants/PerkConstants',
 	'game/constants/FightConstants',
+	'game/constants/FollowerConstants',
 	'game/constants/TradeConstants',
 	'game/constants/UpgradeConstants',
 	'game/constants/WorldConstants',
@@ -37,6 +38,7 @@ define(['ash',
 	LocaleConstants,
 	PerkConstants,
 	FightConstants,
+	FollowerConstants,
 	TradeConstants,
 	UpgradeConstants,
 	WorldConstants,
@@ -99,6 +101,7 @@ define(['ash',
 			});
 			this.registerCheat(CheatConstants.CHEAT_NAME_VISION, "Set vision.", ["value"], function (params) {
 				this.playerStatsNodes.head.vision.value = Math.min(200, Math.max(0, parseInt(params[0])));
+				GlobalSignals.visionChangedSignal.dispatch();
 			});
 			this.registerCheat(CheatConstants.CHEAT_NAME_EVIDENCE, "Set evidence.", ["value"], function (params) {
 				this.setEvidence(parseInt(params[0]));
@@ -109,6 +112,9 @@ define(['ash',
 			this.registerCheat(CheatConstants.CHEAT_NAME_FAVOUR, "Set favour.", ["value"], function (params) {
 				var value = parseInt(params[0]);
 				this.setFavour(value);
+			});
+			this.registerCheat(CheatConstants.CHEAT_NAME_INSIGHT, "Set insight.", ["value"], function (params) {
+				this.setInsight(parseInt(params[0]));
 			});
 			this.registerCheat(CheatConstants.CHEAT_NAME_POPULATION, "Add population to nearest camp.", ["value (1-n)"], function (params) {
 				this.addPopulation(Math.max(1, parseInt(params[0])));
@@ -169,8 +175,14 @@ define(['ash',
 			this.registerCheat(CheatConstants.CHEAT_NAME_ITEM, "Add the given item to inventory.", ["item id"], function (params) {
 				this.addItem(params[0]);
 			});
+			this.registerCheat(CheatConstants.CHEAT_NAME_FOLLOWER, "Add a random follower.", [], function (params) {
+				this.addFollower();
+			});
 			this.registerCheat(CheatConstants.CHEAT_NAME_EQUIP_BEST, "Auto-equip best items available.", [], function (params) {
 				this.equipBest();
+			});
+			this.registerCheat(CheatConstants.CHEAT_NAME_BREAK_ITEM, "Break a random item.", [], function () {
+				this.breakItem();
 			});
 			this.registerCheat(CheatConstants.CHEAT_NAME_PERK, "Add the given perk to the player.", ["perk id"], function (params) {
 				this.addPerk(params[0]);
@@ -341,7 +353,7 @@ define(['ash',
 					if (isExpedition) {
 						component.isPendingExploring = true;
 						component.isExpedition = true;
-						component.autoExploratioVO.limitToCurrentLevel = true;
+						component.explorationVO.limitToCurrentLevel = true;
 					}
 					this.playerStatsNodes.head.entity.add(component);
 				}
@@ -368,13 +380,17 @@ define(['ash',
 
 		setFavour: function (value) {
 			if (value > 0) {
-				GameGlobals.gameState.unlockedFeatures.favour = true;
+				GameGlobals.playerActionFunctions.unlockFeature("favour");
 			}
 			if (!this.playerStatsNodes.head.entity.has(DeityComponent)) {
 				this.playerStatsNodes.head.entity.add(new DeityComponent("Hoodwinker"))
 			}
 
 			this.playerStatsNodes.head.entity.get(DeityComponent).favour = Math.max(0, value);
+		},
+		
+		setInsight: function (value) {
+			this.playerStatsNodes.head.insight.value = Math.max(0, value);
 		},
 		
 		addSupplies: function () {
@@ -388,9 +404,9 @@ define(['ash',
 			var playerResources = playerStorage.resources;
 			playerResources.setResource("metal", playerStorage.storageCapacity);
 			playerResources.setResource("rope", playerStorage.storageCapacity / 2);
-			if (GameGlobals.gameState.unlockedFeatures.resources.concrete)
+			if (GameGlobals.gameState.unlockedFeatures["resource_concrete"])
 				playerResources.setResource("concrete", playerStorage.storageCapacity / 4);
-			if (GameGlobals.gameState.unlockedFeatures.resources.tools)
+			if (GameGlobals.gameState.unlockedFeatures["resource_tools"])
 				playerResources.setResource("tools", playerStorage.storageCapacity / 4);
 		},
 
@@ -421,11 +437,7 @@ define(['ash',
 		},
 
 		setPlayerPosition: function (lvl, x, y, inCamp) {
-			var playerPos = this.playerPositionNodes.head.position;
-			playerPos.level = lvl;
-			playerPos.sectorX = x;
-			playerPos.sectorY = y;
-			playerPos.inCamp = inCamp || false;
+			GameGlobals.playerHelper.moveTo(lvl, x, y, inCamp || false);
 		},
 
 		goToLevel: function (level) {
@@ -464,8 +476,8 @@ define(['ash',
 			var minStep;
 			for (var id in UpgradeConstants.upgradeDefinitions) {
 				if (this.tribeUpgradesNodes.head.upgrades.hasUpgrade(id)) continue;
-				minOrdinal = UpgradeConstants.getMinimumCampOrdinalForUpgrade(id);
-				minStep = UpgradeConstants.getMinimumCampStepForUpgrade(id);
+				minOrdinal = GameGlobals.upgradeEffectsHelper.getMinimumCampOrdinalForUpgrade(id);
+				minStep = GameGlobals.upgradeEffectsHelper.getMinimumCampStepForUpgrade(id);
 				if (WorldConstants.isHigherOrEqualCampOrdinalAndStep(campOrdinal, step, minOrdinal, minStep)) {
 					this.addTech(id);
 				}
@@ -479,7 +491,7 @@ define(['ash',
 			for (let i = 0; i < amount; i++) {
 				this.tribeUpgradesNodes.head.upgrades.addNewBlueprintPiece(name);
 			}
-			GameGlobals.gameState.unlockedFeatures.blueprints = true;
+			GameGlobals.playerActionFunctions.unlockFeature("blueprints");
 		},
 
 		addBlueprintsForLevel: function (campOrdinal) {
@@ -541,10 +553,31 @@ define(['ash',
 				log.w("No such item: " + itemID);
 			}
 		},
+		
+		addFollower: function () {
+			let followersComponent = this.playerStatsNodes.head.followers;
+			let playerPos = this.playerPositionNodes.head.position;
+			let follower = FollowerConstants.getNewRandomFollower(FollowerConstants.followerSource.SCOUT, GameGlobals.gameState.numCamps, playerPos.level);
+			followersComponent.addFollower(follower);
+		},
 
 		equipBest: function () {
-			var itemsComponent = this.playerPositionNodes.head.entity.get(ItemsComponent);
+			let itemsComponent = this.playerPositionNodes.head.entity.get(ItemsComponent);
 			itemsComponent.autoEquipAll();
+		},
+		
+		breakItem: function () {
+			let itemsComponent = this.playerPositionNodes.head.entity.get(ItemsComponent);
+			let playerPos = this.playerPositionNodes.head.position;
+			let breakable = itemsComponent.getAll(playerPos.inCamp).filter(item => !item.broken && item.repairable);
+			if (breakable.length == 0) {
+				log.w("no breakable items");
+				return;
+			}
+			let item = breakable[Math.floor(Math.random() * breakable.length)];
+			item.broken = true;
+			log.i("broke item: " + item.id + " " + item.itemID);
+			GlobalSignals.inventoryChangedSignal.dispatch();
 		},
 
 		addPerk: function () {
@@ -581,6 +614,7 @@ define(['ash',
 
 		scoutLevel: function () {
 			GameGlobals.playerActionFunctions.leaveCamp();
+			// TODO fix this, probably not working after PlayerMovementSystem was added and leaveCamp is not instant
 			var startSector = this.playerLocationNodes.head.entity;
 			var originalPos = this.playerPositionNodes.head.position.getPosition();
 			var itemsComponent = this.playerPositionNodes.head.entity.get(ItemsComponent);

@@ -12,6 +12,7 @@ define([
 	'game/helpers/FightHelper',
 	'game/helpers/ItemsHelper',
 	'game/helpers/LevelHelper',
+	'game/helpers/MilestoneEffectsHelper',
 	'game/helpers/MovementHelper',
 	'game/helpers/PlayerHelper',
 	'game/helpers/PlayerActionsHelper',
@@ -19,6 +20,7 @@ define([
 	'game/helpers/ResourcesHelper',
 	'game/helpers/SaveHelper',
 	'game/helpers/SectorHelper',
+	'game/helpers/TribeBalancingHelper',
 	'game/helpers/TribeHelper',
 	'game/helpers/UpgradeEffectsHelper',
 	'game/helpers/ButtonHelper',
@@ -39,6 +41,7 @@ define([
 	FightHelper,
 	ItemsHelper,
 	LevelHelper,
+	MilestoneEffectsHelper,
 	MovementHelper,
 	PlayerHelper,
 	PlayerActionsHelper,
@@ -46,6 +49,7 @@ define([
 	ResourcesHelper,
 	SaveHelper,
 	SectorHelper,
+	TribeBalancingHelper,
 	TribeHelper,
 	UpgradeEffectsHelper,
 	ButtonHelper,
@@ -63,9 +67,12 @@ define([
 			}
 			
 			GameGlobals.upgradeEffectsHelper = new UpgradeEffectsHelper();
+			GameGlobals.milestoneEffectsHelper = new MilestoneEffectsHelper();
 			GameGlobals.itemsHelper = new ItemsHelper();
 			GameGlobals.campHelper = new CampHelper(engine);
 			GameGlobals.campBalancingHelper = new CampBalancingHelper();
+			GameGlobals.tribeBalancingHelper = new TribeBalancingHelper();
+			
 			if (engine) {
 				GameGlobals.resourcesHelper = new ResourcesHelper(engine);
 				GameGlobals.levelHelper = new LevelHelper(engine);

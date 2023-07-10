@@ -11,6 +11,10 @@
 	display: none;
 }
 
+.container-disabled {
+	pointer-events: none;
+}
+
 .nowrap {
 	white-space: nowrap;
 }
@@ -22,8 +26,8 @@
 	user-select: none; /* Standard */
 }
 
-.full-width {
-	width: 100%;
+.noninteractive {
+	pointer-events: none;
 }
 
 .centered {
@@ -41,12 +45,16 @@
 }
 
 span.icon {
-	padding: 2px;
 }
 
 img.icon-ui-generic {
 	height: 1.5em;
 	width: 1.5em;
+}
+
+img.icon-centered, .block-centered {
+	display: block;
+	margin: auto;
 }
 
 .shadowed-basic {
@@ -81,6 +89,8 @@ span.hl-functionality {
 
 .columns-container {
 	display: flex;
+	gap: 5px;
+    margin: 0.5em 0;
 }
 
 .columns-container-vcenter {
@@ -89,16 +99,6 @@ span.hl-functionality {
 
 .columns-child {
 	flex: 1;
-	padding-left: 5px;
-	padding-right: 5px;
-}
-
-.columns-child:first-child {
-	padding-left: 0px;
-}
-
-.columns-child:last-child {
-	padding-right: 0px;
 }
 
 .columns-child-small {
@@ -107,8 +107,14 @@ span.hl-functionality {
 
 // TABLE UTILITY CLASSES
 
-table.fullwidth {
+.fullwidth {
 	width: 100%;
+	margin: 0.5em 0;
+}
+
+.full-width {
+	width: 100%;
+	margin: 0.5em 0;
 }
 
 td, th {
@@ -116,7 +122,7 @@ td, th {
 }
 
 .balancing-tab table {
-	font-size: 80%;
+	font-size: @font-size-small;
 }
 
 table.spacious {
@@ -211,6 +217,11 @@ td.maxwidth {
 	width: 95%;
 }
 
+td.textwidth {
+	width: 5%;
+	white-space: nowrap;
+}
+
 td.list-amount, td.list-storage {
 	min-width: 30pt;
 	text-align: center;
@@ -258,7 +269,7 @@ td.bg-reset {
 	background: @color-bg-box-1;
 }
 
-tr.current {
+tr.current, div.current {
 	background: @color-bg-element-1;
 	border-color: @color-bg-element-1;
 }

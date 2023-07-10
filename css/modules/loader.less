@@ -16,6 +16,7 @@
 	position: relative;
 	top: 50%;
 	left: 0;
+    user-select: none;
 }
 
 .loading-spinner .loading-dot {
@@ -27,6 +28,7 @@
 	display: inline-block;
 	-webkit-animation: sk-bouncedelay 1.3s infinite ease-in-out both;
 	animation: sk-bouncedelay 1.3s infinite ease-in-out both;
+    user-select: none;
 }
 
 .loading-spinner .loading-dot1 {
@@ -57,4 +59,18 @@
 	-webkit-transform: scale(1.0);
 	transform: scale(1.0);
 	}
+}
+
+// transition overlay (when switching between dark/light theme)
+
+#theme-transition-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 20;
+    width: 100%;
+    height: 100%;
+    background: #8E8F8E;
+	transition: opacity 0s;
+	opacity: 0;
 }

@@ -306,8 +306,8 @@ define([
 			var items = itemsComponent.getEquipped();
 			for (let i = 0; i < items.length; i++) {
 				var item = items[i];
-				var bonusatt = item.getBonus(ItemConstants.itemBonusTypes.fight_att) > 0;
-				var bonusDef = item.getBonus(ItemConstants.itemBonusTypes.fight_def) > 0;
+				var bonusatt = item.getCurrentBonus(ItemConstants.itemBonusTypes.fight_att) > 0;
+				var bonusDef = item.getCurrentBonus(ItemConstants.itemBonusTypes.fight_def) > 0;
 				if (bonusatt || bonusDef) {
 					this.numItems++;
 					$("ul#list-fight-items").append("<li>" + UIConstants.getItemDiv(null, item, null, UIConstants.getItemCallout(item, true), true) + "</li>");
@@ -353,7 +353,8 @@ define([
 			GameGlobals.uiFunctions.toggle("#fight-results-lose-header", !isWon && false);
 			GameGlobals.uiFunctions.toggle("#fight-results-lose-items", !isWon && false);
 			
-			$("#fight-popup-results").html(GameGlobals.playerActionResultsHelper.getRewardDiv(resultVO, true));
+			GameGlobals.playerActionResultsHelper.preCollectRewards(resultVO);
+			$("#fight-popup-results").html(GameGlobals.playerActionResultsHelper.getRewardDiv(resultVO, true, false));
 			GameGlobals.uiFunctions.generateCallouts("#fight-popup-results");
 		},
 		
@@ -431,11 +432,13 @@ define([
 		},
 		
 		getDescriptionByContext: function (context, enemy) {
-			var enemyNoun = TextConstants.getEnemyNoun([enemy]);
+			var enemyNoun = TextConstants.getEnemyNoun([enemy], false, false);
 			var baseActionID = GameGlobals.playerActionsHelper.getBaseActionID(context);
 			switch (baseActionID) {
 				case "scavenge":
 					return "surprised by " + Text.addArticle(enemyNoun) + " while scavenging";
+				case "investigate":
+					return "surprised by " + Text.addArticle(enemyNoun) + " while investigating";
 				case "scout_locale_u":
 					return "surprised by " + Text.addArticle(enemyNoun) + " while scouting";
 				case "scout_locale_i":
@@ -478,6 +481,7 @@ define([
 			var baseActionID = GameGlobals.playerActionsHelper.getBaseActionID(context);
 			switch (baseActionID) {
 				case "scavenge":
+				case "investigate":
 				case "scout":
 				case "use_spring":
 					return "Intruder defeated.";
