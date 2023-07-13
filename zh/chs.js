@@ -1204,7 +1204,7 @@ var cnItems = {
     'Camp inventory': '营地存储',
     'leather': '皮革',
     'Leave': '离开',
-    'level': '等级',
+    'level': '层级',
     'Level': '层',
     'Info here': '这里的信息',
     'Increases reputation.': '增加声望。',
