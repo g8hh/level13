@@ -327,29 +327,31 @@ define([
 			
 			let result = this.checkGeneralRequirementaInternal(requirements, action, sector, checksToSkip);
 			
-			let featuresComponent = sector.get(SectorFeaturesComponent);
-			let statusComponent = sector.get(SectorStatusComponent);
-			let itemsComponent = this.playerStatsNodes.head.items;
-			let isAffectedByHazard = GameGlobals.sectorHelper.isAffectedByHazard(featuresComponent, statusComponent, itemsComponent)
-			if (isAffectedByHazard && !this.isActionIndependentOfHazards(action)) {
-				return { value: 0, reason: GameGlobals.sectorHelper.getHazardDisabledReason(featuresComponent, statusComponent, itemsComponent) };
-			}
-			
-			let item = this.getItemForCraftAction(action);
-			if (item && baseActionID == "craft") {
-				if (!inCamp) {
-					let bagComponent = this.playerResourcesNodes.head.entity.get(BagComponent);
-					let spaceNow = bagComponent.totalCapacity - bagComponent.usedCapacity;
-					let spaceRequired = BagConstants.getItemCapacity(item);
-					let spaceFreed = BagConstants.getResourcesCapacity(this.getCostResourcesVO(action));
-					if (spaceNow - spaceRequired + spaceFreed < 0) {
-						return { value: 0, reason: PlayerActionConstants.DISABLED_REASON_BAG_FULL };
+			if (result.value > 0) {
+				let featuresComponent = sector.get(SectorFeaturesComponent);
+				let statusComponent = sector.get(SectorStatusComponent);
+				let itemsComponent = this.playerStatsNodes.head.items;
+				let isAffectedByHazard = GameGlobals.sectorHelper.isAffectedByHazard(featuresComponent, statusComponent, itemsComponent)
+				if (isAffectedByHazard && !this.isActionIndependentOfHazards(action)) {
+					return { value: 0, reason: GameGlobals.sectorHelper.getHazardDisabledReason(featuresComponent, statusComponent, itemsComponent) };
+				}
+				
+				let item = this.getItemForCraftAction(action);
+				if (item && baseActionID == "craft") {
+					if (!inCamp) {
+						let bagComponent = this.playerResourcesNodes.head.entity.get(BagComponent);
+						let spaceNow = bagComponent.totalCapacity - bagComponent.usedCapacity;
+						let spaceRequired = BagConstants.getItemCapacity(item);
+						let spaceFreed = BagConstants.getResourcesCapacity(this.getCostResourcesVO(action));
+						if (spaceNow - spaceRequired + spaceFreed < 0) {
+							return { value: 0, reason: PlayerActionConstants.DISABLED_REASON_BAG_FULL };
+						}
 					}
 				}
-			}
-			
-			if (action == "build_out_camp" && !statusComponent.canBuildCamp) {
-				return { value: 0, reason: "Can't build camp here"};
+				
+				if (action == "build_out_camp" && !statusComponent.canBuildCamp) {
+					return { value: 0, reason: "Can't build camp here"};
+				}
 			}
 			
 			return result;
@@ -740,7 +742,7 @@ define([
 				if (requirements.playerInventory) {
 					for (let key in requirements.playerInventory) {
 						let range = requirements.playerInventory[key];
-						let currentVal = this.getCostAmountOwned(key);
+						let currentVal = this.getCostAmountOwned(sector, key);
 						let result = this.checkRequirementsRange(range, currentVal, "Not enough " + key, "Too  much " + key);
 						if (result) {
 							return result;
@@ -749,9 +751,9 @@ define([
 				}
 				
 				if (requirements.campInventory) {
-					for (let key in requirements.playerInventory) {
-						let range = requirements.playerInventory[key];
-						let currentVal = this.getCostAmountOwned(key);
+					for (let key in requirements.campInventory) {
+						let range = requirements.campInventory[key];
+						let currentVal = this.getCostAmountOwned(sector, key);
 						let result = this.checkRequirementsRange(range, currentVal, "Not enough " + key, "Too  much " + key);
 						if (result) {
 							return result;
@@ -828,11 +830,13 @@ define([
 							}
 							
 							for (let itemID in caravan.campSelectedItems) {
-								let amount = caravan.campSelectedItems[itemID];
 								let item = ItemConstants.getItemByID(itemID);
-								if (amount > TradeConstants.MAX_ITEMS_TO_TRADE_PER_CARAVAN && item.type != ItemConstants.itemTypes.ingredient) {
+								if (!item) continue;
+								if (item.type == ItemConstants.itemTypes.ingredient) continue;
+								let amount = caravan.campSelectedItems[itemID] + caravan.getSellItemCount(itemID);
+								if (amount > TradeConstants.MAX_ITEMS_TO_TRADE_PER_CARAVAN) {
 									let itemName = ItemConstants.getItemDisplayName(item);
-									return {value: 0, reason: "The trader doesn't want that many " + TextConstants.pluralify(itemName)  + "."};
+									return { value: 0, reason: "The trader doesn't want that many " + TextConstants.pluralify(itemName)  + "." };
 								}
 							}
 						} else {
@@ -913,7 +917,7 @@ define([
 					}
 					if (typeof requirements.sector.investigatable != "undefined") {
 						var requiredValue = requirements.sector.investigatable;
-						var currentValue = featuresComponent.isInvestigatable;
+						var currentValue = featuresComponent.isInvestigatable || statusComponent.isFallbackInvestigateSector;
 						if (currentValue !== requiredValue) {
 							var reason = requiredValue ? "There is nothing to investigate." : "This sector can be investigated";
 							return { value: 0, reason: reason };
@@ -1141,12 +1145,24 @@ define([
 					if (requirements.tribe.improvements) {
 						for (var improvementID in requirements.tribe.improvements) {
 							var amount = this.getCurrentImprovementCountTotal(improvementID);
-							var requiredAmount = requirements.tribe.improvements[improvementID];
+							var range = requirements.tribe.improvements[improvementID];
 							
-							if (amount < requiredAmount) {
-								var requiredImprovementDisplayName = this.getImprovementDisplayName(improvementID);
-								var displayName = requiredImprovementDisplayName;
-								return { value: amount / requiredAmount, reason: requiredAmount + "x " + displayName + " required" };
+							var requiredImprovementDisplayName = this.getImprovementDisplayName(improvementID);
+							
+							let result = this.checkRequirementsRange(
+								range,
+								amount,
+								"{min}x " + displayName + " required",
+								"max " + displayName + " built",
+								displayName + " required",
+								displayName + " already built",
+								PlayerActionConstants.DISABLED_REASON_MIN_IMPROVEMENTS,
+								PlayerActionConstants.DISABLED_REASON_MAX_IMPROVEMENTS
+							);
+							
+							if (result) {
+								result.reason.trim();
+								return result;
 							}
 						}
 					}
@@ -1236,7 +1252,9 @@ define([
 						var min = def[0];
 						var max = def[1];
 						var current = fightComponent ? fightComponent.itemsUsed[itemID] || 0 : 0;
-						var itemName = ItemConstants.getItemByID(itemID).name;
+						var item = ItemConstants.getItemByID(itemID);
+						if (!item) continue;
+						var itemName = item.name;
 						if (min > current) {
 							return { value: 0, reason: "Must use " + itemName + " first" };
 						} else if (max <= current) {
@@ -1267,11 +1285,11 @@ define([
 				}
 
 				if (typeof requirements.busy !== "undefined" && !shouldSkipCheck(PlayerActionConstants.DISABLED_REASON_BUSY)) {
-					var currentValue = playerActionComponent.isBusy();
+					var currentValue = GameGlobals.playerHelper.isBusy();
 					var requiredValue = requirements.busy;
 					if (currentValue !== requiredValue) {
-						var timeLeft = Math.ceil(playerActionComponent.getBusyTimeLeft());
-						if (currentValue) reason = "Busy " + playerActionComponent.getBusyDescription() + " (" + timeLeft + "s)";
+						var timeLeft = Math.ceil(GameGlobals.playerHelper.getBusyTimeLeft());
+						if (currentValue) reason = "Busy " + GameGlobals.playerHelper.getBusyDescription() + " (" + timeLeft + "s)";
 						else reason = "Need to be busy to do this.";
 						return { value: 0, reason: reason, baseReason: PlayerActionConstants.DISABLED_REASON_BUSY };
 					}
@@ -1343,20 +1361,26 @@ define([
 			let costs = this.getCosts(action);
 
 			let costAmount = costs[name];
-			let costAmountOwned = this.getCostAmountOwned(name);
+			let costAmountOwned = this.getCostAmountOwned(sector, name);
 			
 			return costAmountOwned / costAmount;
 		},
 		
-		getCostAmountOwned: function (name) {
+		getCostAmountOwned: function (sector, name) {
 			let itemsComponent = this.playerStatsNodes.head.entity.get(ItemsComponent);
 			let inCamp = this.playerStatsNodes.head.entity.get(PositionComponent).inCamp;
 			let playerResources = GameGlobals.resourcesHelper.getCurrentStorage();
+			let campStorage = GameGlobals.resourcesHelper.getCampStorage(sector);
 			
 			let costNameParts = name.split("_");
 			
 			if (costNameParts[0] === "resource") {
-				return playerResources.resources.getResource(costNameParts[1]);
+				let resourceName = costNameParts[1];
+				if (resourceName == resourceNames.robots) {
+					return campStorage.resources.getResource(resourceName);
+				} else {
+					return playerResources.resources.getResource(resourceName);
+				}
 			} else if (costNameParts[0] === "item") {
 				let itemId = name.replace(costNameParts[0] + "_", "");
 				return itemsComponent.getCountById(itemId, inCamp);
@@ -1418,7 +1442,9 @@ define([
 			let costs = this.getCosts(action);
 
 			let costNameParts = name.split("_");
-			let costAmount = costs[name];
+			let costAmount = costs[name] || 0;
+			
+			if (costAmount <= 0) return 1;
 
 			if (costNameParts[0] === "resource") {
 				return playerResources.storageCapacity / costAmount;
@@ -2015,6 +2041,16 @@ define([
 			}
 		},
 
+		getTotalCosts: function (actions) {
+			let result = {};
+			
+			for (let i in actions) {
+				this.addCosts(result, this.getCosts(actions[i]));
+			}
+			
+			return result;
+		},
+
 		getDescription: function (action) {
 			if (!action) return "";
 			
@@ -2044,10 +2080,12 @@ define([
 				switch(baseAction) {
 					case "craft":
 						var item = this.getItemForCraftAction(action);
+						if (!item) return "";
 						return item.description + (item.getBaseTotalBonus() === 0 ? "" : "<hr/>" + UIConstants.getItemBonusDescription(item, true));
 					case "use_item":
 					case "use_item_fight":
 						var item = this.getItemForCraftAction(action);
+						if (!item) return "";
 						return item.description;
 					case "improve_in":
 						return this.getImproveActionDescription(action);
@@ -2100,9 +2138,7 @@ define([
 		},
 
 		getActionIDParam: function (action) {
-			var remainder = action.replace(this.getBaseActionID(action) + "_", "");
-			if (remainder && remainder !== action) return remainder;
-			return "";
+			return PlayerActionConstants.getActionIDParam(action);
 		},
 		
 		getActionDefaultParam: function () {

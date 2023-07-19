@@ -64,6 +64,7 @@ define(['ash'], function (Ash) {
 		},
 		
 		addResource: function (res, amount) {
+			if (isNaN(amount)) return;
 			if (amount == 0) return;
 			this.cleanUp();
 			switch(res) {
@@ -84,6 +85,7 @@ define(['ash'], function (Ash) {
 		},
 		
 		setResource: function(res, amount) {
+			if (isNaN(amount)) return;
 			switch(res) {
 				case resourceNames.water: this.water = amount; break;
 				case resourceNames.food: this.food = amount; break;
@@ -152,7 +154,7 @@ define(['ash'], function (Ash) {
 		
 		limitAll: function (min, max) {
 			for (let key in resourceNames) {
-				var name = resourceNames[key];
+				let name = resourceNames[key];
 				this.limit(name, min, max);
 			}
 		},
@@ -162,7 +164,7 @@ define(['ash'], function (Ash) {
 				max = Math.floor(max) + 0.9999;
 			}
 			
-			var amount = this.getResource(name);
+			let amount = this.getResource(name);
 			if (amount == 0) return;
 			if (amount < min)
 				this.setResource(name, min);
@@ -172,9 +174,10 @@ define(['ash'], function (Ash) {
 	
 		cleanUp: function() {
 			for (let key in resourceNames) {
-				var name = resourceNames[key];
-				var amount = this.getResource(name);
+				let name = resourceNames[key];
+				let amount = this.getResource(name);
 				if (isNaN(amount)) {
+					log.e("resource value was NaN, setting to 0 (" + name + ")");
 					this.setResource(name, 0);
 				}
 			}
@@ -227,6 +230,19 @@ define(['ash'], function (Ash) {
 
 		customLoadFromSave: function (componentValues) {
 			if (!componentValues) return;
+			
+			if (componentValues.water) this.water = componentValues.water;
+			if (componentValues.food) this.food = componentValues.food;
+			if (componentValues.metal) this.metal = componentValues.metal;
+			if (componentValues.rope) this.rope = componentValues.rope;
+			if (componentValues.herbs) this.herbs = componentValues.herbs;
+			if (componentValues.fuel) this.fuel = componentValues.fuel;
+			if (componentValues.rubber) this.rubber = componentValues.rubber;
+			if (componentValues.tools) this.tools = componentValuestoolst;
+			if (componentValues.medicine) this.medicine = componentValues.medicine;
+			if (componentValues.concrete) this.concrete = componentValues.concrete;
+			if (componentValues.robots) this.robots = componentValues.robots;
+			
 			if (componentValues.w) this.water = componentValues.w;
 			if (componentValues.f) this.food = componentValues.f;
 			if (componentValues.m) this.metal = componentValues.m;

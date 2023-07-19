@@ -293,7 +293,7 @@ define([
 			rowHTML += "</tr>";
 			$("#camp-overview").append(rowHTML);
 			$("#" + btnID).click(function(e) {
-				GameGlobals.uiFunctions.onTabClicked(GameGlobals.uiFunctions.elementIDs.tabs.in, GameGlobals.gameState, GameGlobals.uiFunctions);
+				GameGlobals.uiFunctions.onTabClicked(GameGlobals.uiFunctions.elementIDs.tabs.in);
 			});
 			
 			var row = $("#camp-overview tr#" + rowID);
@@ -340,6 +340,8 @@ define([
 			this.updateChangeIndicator($("#camp-overview tr#" + rowID + " .camp-overview-population .change-indicator"), camp.populationChangePerSecWithoutCooldown);
 			
 			let showRobots = GameGlobals.gameState.unlockedFeatures.resource_robots || false;
+			$("#camp-overview tr#" + rowID + " .camp-overview-robots").toggleClass("list-amount", showRobots);
+			$("#camp-overview tr#" + rowID + " .camp-overview-robots").toggleClass("nowidth", !showRobots);
 			if (showRobots) {
 				let robots = resources.resources.robots || 0;
 				let maxRobots = GameGlobals.campHelper.getRobotStorageCapacity(node.entity);
@@ -347,6 +349,8 @@ define([
 				let robotsAccumulation = robots <= maxRobots || robotsAccumulationRaw < 0 ? robotsAccumulationRaw : 0;
 				$("#camp-overview tr#" + rowID + " .camp-overview-robots .value").text(maxRobots > 0 ? Math.floor(robots) + "/" + maxRobots : "-");
 				this.updateChangeIndicator($("#camp-overview tr#" + rowID + " .camp-overview-robots .change-indicator"), robotsAccumulation, false, robots <= 0);
+			} else {
+				this.updateChangeIndicator($("#camp-overview tr#" + rowID + " .camp-overview-robots .change-indicator"), false, false, true);
 			}
 
 			var reputationComponent = node.reputation;
@@ -355,7 +359,7 @@ define([
 			$("#camp-overview tr#" + rowID + " .camp-overview-reputation .value").toggleClass("warning", reputationComponent.targetValue < 1);
 			this.updateChangeIndicator($("#camp-overview tr#" + rowID + " .camp-overview-reputation .change-indicator"), reputationComponent.accumulation);
 			
-			var soldiers = camp.assignedWorkers.soldier;
+			var soldiers = camp.assignedWorkers.soldier || 0;
 			var soldierLevel = GameGlobals.upgradeEffectsHelper.getWorkerLevel("soldier", this.tribeUpgradesNodes.head.upgrades);
 			var raidDanger = OccurrenceConstants.getRaidDanger(improvements, soldiers, soldierLevel, levelComponent.raidDangerFactor);
 			var raidWarning = raidDanger > CampConstants.REPUTATION_PENALTY_DEFENCES_THRESHOLD;

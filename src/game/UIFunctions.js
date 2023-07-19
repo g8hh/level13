@@ -61,7 +61,7 @@ define(['ash',
 				$.each($("#switch-tabs li"), function () {
 					$(this).click(function () {
 						if (!($(this).hasClass("disabled"))) {
-							onTabClicked(this.id, GameGlobals.gameState, uiFunctions);
+							onTabClicked(this.id);
 						}
 					});
 				});
@@ -182,7 +182,7 @@ define(['ash',
 						}
 
 						var baseId = GameGlobals.playerActionsHelper.getBaseActionID(action);
-						var duration = PlayerActionConstants.getDuration(baseId);
+						var duration = PlayerActionConstants.getDuration(action, baseId);
 						if (duration > 0) {
 							GameGlobals.gameState.setActionDuration(action, locationKey, duration);
 							uiFunctions.startButtonDuration($(this), duration);
@@ -408,7 +408,7 @@ define(['ash',
 					enabledContent += costsSpans;
 				}
 
-				var duration = PlayerActionConstants.getDuration(baseActionId);
+				var duration = PlayerActionConstants.getDuration(action, baseActionId);
 				if (duration > 0) {
 					if (content.length > 0 || enabledContent.length) enabledContent += "<hr/>";
 					enabledContent += "<span class='action-duration'>duration: " + Math.round(duration * 100) / 100 + "s</span>";
@@ -548,7 +548,7 @@ define(['ash',
 				var startTab = this.elementIDs.tabs.out;
 				var playerPos = GameGlobals.playerActionFunctions.playerPositionNodes.head.position;
 				if (playerPos.inCamp) startTab = this.elementIDs.tabs.in;
-				this.showTab(startTab);
+				this.selectTab(startTab);
 			},
 
 			/**
@@ -628,7 +628,7 @@ define(['ash',
 
 			restart: function () {
 				$("#log ul").empty();
-				this.onTabClicked(this.elementIDs.tabs.out, GameGlobals.gameState, this);
+				this.onTabClicked(this.elementIDs.tabs.out);
 				GlobalSignals.restartGameSignal.dispatch(true);
 			},
 
@@ -645,10 +645,14 @@ define(['ash',
 				return html;
 			},
 
-			onTabClicked: function (tabID, gameState, uiFunctions, tabProps) {
+			onTabClicked: function (tabID, tabProps) {
 				if (GameGlobals.gameState.isLaunchStarted) return;
 				if (GameGlobals.gameState.isLaunched) return;
 				
+				GameGlobals.uiFunctions.selectTab(tabID, tabProps);
+			},
+			
+			selectTab: function (tabID, tabProps) {
 				$("#switch-tabs li").removeClass("selected");
 				$("#switch-tabs li#" + tabID).addClass("selected");
 				$("#tab-header h2").text(tabID);
@@ -657,15 +661,15 @@ define(['ash',
 					'screen_name': tabID
 				});
 
-				var transition = !(gameState.uiStatus.currentTab === tabID);
+				var transition = !(GameGlobals.gameState.uiStatus.currentTab === tabID);
 				var transitionTime = transition ? 200 : 0;
-				gameState.uiStatus.currentTab = tabID;
+				GameGlobals.gameState.uiStatus.currentTab = tabID;
 
 				$.each($(".tabelement"), function () {
-					uiFunctions.slideToggleIf($(this), null, $(this).attr("data-tab") === tabID, transitionTime, 200);
+					GameGlobals.uiFunctions.slideToggleIf($(this), null, $(this).attr("data-tab") === tabID, transitionTime, 200);
 				});
 				$.each($(".tabbutton"), function () {
-					uiFunctions.slideToggleIf($(this), null, $(this).attr("data-tab") === tabID, transitionTime, 200);
+					GameGlobals.uiFunctions.slideToggleIf($(this), null, $(this).attr("data-tab") === tabID, transitionTime, 200);
 				});
 				
 				log.i("tabChanged: " + tabID, "ui");
@@ -990,7 +994,7 @@ define(['ash',
 				var locationKey = this.getLocationKey(action);
 				cooldownTotal = PlayerActionConstants.getCooldown(baseId);
 				cooldownLeft = Math.min(cooldownTotal, GameGlobals.gameState.getActionCooldown(action, locationKey, cooldownTotal));
-				durationTotal = PlayerActionConstants.getDuration(baseId);
+				durationTotal = PlayerActionConstants.getDuration(action, baseId);
 				durationLeft = Math.min(durationTotal, GameGlobals.gameState.getActionDuration(action, locationKey, durationTotal));
 				if (cooldownLeft > 0) this.startButtonCooldown(button, cooldownTotal, cooldownLeft);
 				else this.stopButtonCooldown(button);
@@ -1192,7 +1196,7 @@ define(['ash',
 
 			showTab: function (tabID, tabProps) {
 				if (GameGlobals.gameState.isLaunched) return;
-				this.onTabClicked(tabID, GameGlobals.gameState, this, tabProps);
+				this.onTabClicked(tabID, tabProps);
 			},
 
 			showFight: function () {

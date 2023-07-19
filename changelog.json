@@ -1,6 +1,19 @@
 {
 	"versions": [
 		{
+			"version": "0.5.2",
+			"requiredVersion": "0.5.1",
+			"released": "2023-07-18",
+			"phase": "alpha",
+			"final": true,
+			"changes": [
+				{
+					"type": "Dev",
+					"summary": "Bugfixes and text corrections"
+				}
+			]
+		},
+		{
 			"version": "0.5.1",
 			"released": "2023-07-06",
 			"phase": "alpha",
