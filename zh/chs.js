@@ -3096,7 +3096,7 @@ var cnRegReplace = new Map([
 	[/^(.+)Deity:(.+)$/, '$1神：$2'],
 	[/^(.+) projects hidden$/, '隐藏了$1个项目'],
 	[/^Population is increasing on level (.+).$/, '人口在第$1层增加。'],
-	[/^at (.+) on level 5 (used by 1 Gardeners at camp on level$/, '在 $1 在 5 层（由 1 名园丁在该层营地使用'],
+	[/^at (.+) on level 5 \(used by 1 Gardeners at camp on level$/, '在 $1 在 5 层（由 1 名园丁在该层营地使用'],
 	[/^at (.+) on level$/, '在 $1 在层'],
 	[/^at (.+)$/, '在 $1'],
 	[/^Used an Emergency rations. Gained (.+) food.$/, '使用了紧急口粮。 获得 $1 食物。'],
