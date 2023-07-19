@@ -588,7 +588,7 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 					topics.push("travel between different planets");
 					topics.push("a famous actress");
 					topics.push("life in the Slums");
-					topics.push("life of a crime detecive on the Surface");
+					topics.push("life of a crime detective on the Surface");
 					topics.push("ghosts in the uninhabited levels of the City");
 					topics.push("an ancient volcano");
 					topics.push("undersea travel");
@@ -803,7 +803,7 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 			
 			let events = [];
 			events.push("a worker strike");
-			events.push("a celebration");
+			events.push("a local celebration");
 			events.push("the arrival of a group of refugees");
 			events.push("the birth of triplets");
 			events.push("a disease outbreak");
@@ -1258,7 +1258,9 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 			for (let i = 0; i < itemsScavengeable.length; i++) {
 				let id = itemsScavengeable[i];
 				if (knownItems.indexOf(id) < 0) continue;
-				validItems.push(ItemConstants.getItemByID(id).name);
+				let item = ItemConstants.getItemByID(id);
+				if (!item) continue;
+				validItems.push(item.name);
 			}
 			
 			if (validItems.length == 0) {
@@ -1508,7 +1510,7 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 		DescriptionMapper.add("sector-vision", { isSurfaceLevel: true, buildingDensity: b33 }, "[a] [a-street] [n-street] between tall, ornate [n-buildings]");
 		DescriptionMapper.add("sector-vision", { isSurfaceLevel: true, buildingDensity: b33 }, "[a] [a-street] passage between what used to be two shopping centers");
 		DescriptionMapper.add("sector-vision", { isSurfaceLevel: true, buildingDensity: b33 }, "[a] [a-street] [n-street] where the wind is constantly howling in the narrow passages");
-		DescriptionMapper.add("sector-vision", { isSurfaceLevel: true, sectorType: t_C }, "[a] [a-street] between what used to be two shopping centers");
+		DescriptionMapper.add("sector-vision", { isSurfaceLevel: true, sectorType: t_C }, "[a] [a-street] [n-street] between what used to be two shopping centers");
 		DescriptionMapper.add("sector-vision", { isSurfaceLevel: true, sectorType: t_C }, "An imposing shopping center which seems to have been full of shops selling luxury goods");
 		DescriptionMapper.add("sector-vision", { isSurfaceLevel: true, sectorType: t_I }, "[a] [a-street] with grand office buildings");
 		DescriptionMapper.add("sector-vision", { debris: b22 }, "A [n-street] full of debris");
@@ -1593,7 +1595,7 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 		DescriptionMapper.add("book-description", { bookType: wildcard }, "A passage describing [n-topic] catches your eye.");
 		DescriptionMapper.add("book-description", { bookType: wildcard }, "A section describing [n-topic] seems interesting.");
 		DescriptionMapper.add("book-description", { bookType: wildcard }, "You learn something about [n-topic].");
-		DescriptionMapper.add("book-description", { bookType: wildcard }, "Tt's rather [a-bad], but you learn something anyway.");
+		DescriptionMapper.add("book-description", { bookType: wildcard }, "It's rather [a-bad], but you learn something anyway.");
 		
 		DescriptionMapper.add("book-description", { bookLevel: l_1 }, "It gives you some insights into [n-topic].");
 		DescriptionMapper.add("book-description", { bookLevel: l_2 }, "It seems like a good source on [n-topic].");
@@ -1613,7 +1615,7 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 		DescriptionMapper.add("book-description", { bookType: t_S, bookLevel: l_1 }, "It is [a] [a-bad] book on [n-topic].");
 		DescriptionMapper.add("book-description", { bookType: t_S, bookLevel: l_1 }, "It contains some basic information about [n-topic].");
 		DescriptionMapper.add("book-description", { bookType: t_S, bookLevel: l_1 }, "A description of a refining process offers clues to the kind of building materials used commonly before the Fall.");
-		DescriptionMapper.add("book-description", { bookType: t_S, bookLevel: l_1 }, "It contains a catalog of known animal life in the \"Dark Levels\". You recognize several.");
+		DescriptionMapper.add("book-description", { bookType: t_S, bookLevel: l_1 }, "It contains a catalog of known animal life in the 'Dark Levels'. You recognize several.");
 		DescriptionMapper.add("book-description", { bookType: t_S, bookLevel: l_2 }, "You notice old census data about people who are exposed daily to sunlight versus those who are not.");
 		DescriptionMapper.add("book-description", { bookType: t_S, bookLevel: l_2 }, "It contains a detailed description of a sun-based calendar system you are unfamiliar with.");
 		DescriptionMapper.add("book-description", { bookType: t_S, bookLevel: l_2 }, "You find details about [n-topic].");

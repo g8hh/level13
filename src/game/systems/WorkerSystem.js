@@ -69,9 +69,10 @@ define([
 
 		update: function (time) {
 			if (GameGlobals.gameState.isPaused) return;
+			if (GameGlobals.gameState.isLaunched) return;
 			
 			for (var node = this.campNodes.head; node; node = node.next) {
-				this.updateWorkerAssignment(node);
+				this.updateWorkerAutoAssignment(node);
 				if (this.isPendingProductionRateUpdate) {
 					this.updateWorkerProductionRate(node);
 				}
@@ -87,7 +88,7 @@ define([
 			this.logAmbient();
 		},
 		
-		updateWorkerAssignment: function (node) {
+		updateWorkerAutoAssignment: function (node) {
 			if (!GameGlobals.gameState.unlockedFeatures.workerAutoAssignment) return;
 			
 			let freePopulation = node.camp.getFreePopulation();
@@ -105,7 +106,7 @@ define([
 				for (let i = 0; i < autoAssignedWorkers.length; i++) {
 					let workerType = autoAssignedWorkers[i];
 					let max = GameGlobals.campHelper.getMaxWorkers(node.entity, workerType);
-					let current = node.camp.assignedWorkers[workerType];
+					let current = node.camp.assignedWorkers[workerType] || 0;
 					if (max > 0 && current >= max) continue;
 					if (result == null || resultCurrentAssigned > current) {
 						result = workerType;
@@ -119,7 +120,7 @@ define([
 			while (numToAssign > 0) {
 				let assignType = getAssignType();
 				if (assignType == null) break;
-				node.camp.assignedWorkers[assignType] = node.camp.assignedWorkers[assignType] + 1;
+				node.camp.assignedWorkers[assignType] = (node.camp.assignedWorkers[assignType] || 0) + 1;
 				numToAssign--;
 				this.log("A previously unassigned worker has started working as " + CampConstants.getWorkerDisplayName(assignType), false, node);
 			}
@@ -128,6 +129,9 @@ define([
 		},
 		
 		updateWorkerProduction: function (node, time) {
+			time = time || 0;
+			if (time <= 0) return;
+			
 			var camp = node.camp;
 			var campResources = node.entity.get(ResourcesComponent).resources;
 			var availableResources = GameGlobals.resourcesHelper.getCurrentCampStorage(node.entity).resources;
@@ -234,22 +238,22 @@ define([
 				
 			let robots = campResources.resources.robots;
 			
-			camp.metalProductionPerSecond = GameGlobals.campHelper.getMetalProductionPerSecond(camp.assignedWorkers.scavenger, improvementsComponent, robots);
-			camp.foodProductionPerSecond = GameGlobals.campHelper.getFoodProductionPerSecond(camp.assignedWorkers.trapper, improvementsComponent, robots);
-			camp.waterProductionPerSecond = GameGlobals.campHelper.getWaterProductionPerSecond(camp.assignedWorkers.water, improvementsComponent, robots);
-			camp.ropeProductionPerSecond = GameGlobals.campHelper.getRopeProductionPerSecond(camp.assignedWorkers.ropemaker, improvementsComponent, robots);
-			camp.fuelProductionPerSecond = GameGlobals.campHelper.getFuelProductionPerSecond(camp.assignedWorkers.chemist, improvementsComponent, robots);
-			camp.rubberProductionPerSecond = GameGlobals.campHelper.getRubberProductionPerSecond(camp.assignedWorkers.rubbermaker, improvementsComponent, robots);
-			camp.herbsProductionPerSecond = GameGlobals.campHelper.getHerbsProductionPerSecond(camp.assignedWorkers.gardener, improvementsComponent, robots);
-			camp.medicineProductionPerSecond = GameGlobals.campHelper.getMedicineProductionPerSecond(camp.assignedWorkers.apothecary, improvementsComponent, robots);
-			camp.toolsProductionPerSecond = GameGlobals.campHelper.getToolsProductionPerSecond(camp.assignedWorkers.toolsmith, improvementsComponent, robots);
-			camp.concreteProductionPerSecond = GameGlobals.campHelper.getConcreteProductionPerSecond(camp.assignedWorkers.concrete, improvementsComponent, robots);
-			camp.robotsProductionPerSecond = GameGlobals.campHelper.getRobotsProductionPerSecond(camp.assignedWorkers.robotmaker, improvementsComponent, robots);
+			camp.metalProductionPerSecond = GameGlobals.campHelper.getMetalProductionPerSecond(camp.assignedWorkers.scavenger, improvementsComponent, robots) || 0;
+			camp.foodProductionPerSecond = GameGlobals.campHelper.getFoodProductionPerSecond(camp.assignedWorkers.trapper, improvementsComponent, robots) || 0;
+			camp.waterProductionPerSecond = GameGlobals.campHelper.getWaterProductionPerSecond(camp.assignedWorkers.water, improvementsComponent, robots) || 0;
+			camp.ropeProductionPerSecond = GameGlobals.campHelper.getRopeProductionPerSecond(camp.assignedWorkers.ropemaker, improvementsComponent, robots) || 0;
+			camp.fuelProductionPerSecond = GameGlobals.campHelper.getFuelProductionPerSecond(camp.assignedWorkers.chemist, improvementsComponent, robots) || 0;
+			camp.rubberProductionPerSecond = GameGlobals.campHelper.getRubberProductionPerSecond(camp.assignedWorkers.rubbermaker, improvementsComponent, robots) || 0;
+			camp.herbsProductionPerSecond = GameGlobals.campHelper.getHerbsProductionPerSecond(camp.assignedWorkers.gardener, improvementsComponent, robots) || 0;
+			camp.medicineProductionPerSecond = GameGlobals.campHelper.getMedicineProductionPerSecond(camp.assignedWorkers.apothecary, improvementsComponent, robots) || 0;
+			camp.toolsProductionPerSecond = GameGlobals.campHelper.getToolsProductionPerSecond(camp.assignedWorkers.toolsmith, improvementsComponent, robots) || 0;
+			camp.concreteProductionPerSecond = GameGlobals.campHelper.getConcreteProductionPerSecond(camp.assignedWorkers.concrete, improvementsComponent, robots) || 0;
+			camp.robotsProductionPerSecond = GameGlobals.campHelper.getRobotsProductionPerSecond(camp.assignedWorkers.robotmaker, improvementsComponent, robots) || 0;
 			
-			camp.herbConsumptionPerSecond = GameGlobals.campHelper.getHerbsConsumptionPerSecond(camp.assignedWorkers.apothecary);
-			camp.metalConsumptionPerSecondConcrete = GameGlobals.campHelper.getMetalConsumptionPerSecondConcrete(camp.assignedWorkers.concrete);
-			camp.metalConsumptionPerSecondSmith = GameGlobals.campHelper.getMetalConsumptionPerSecondSmith(camp.assignedWorkers.toolsmith);
-			camp.toolsConsumptionPerSecondRobots = GameGlobals.campHelper.getToolsConsumptionPerSecondRobots(camp.assignedWorkers.robotmaker);
+			camp.herbConsumptionPerSecond = GameGlobals.campHelper.getHerbsConsumptionPerSecond(camp.assignedWorkers.apothecary) || 0;
+			camp.metalConsumptionPerSecondConcrete = GameGlobals.campHelper.getMetalConsumptionPerSecondConcrete(camp.assignedWorkers.concrete) || 0;
+			camp.metalConsumptionPerSecondSmith = GameGlobals.campHelper.getMetalConsumptionPerSecondSmith(camp.assignedWorkers.toolsmith) || 0;
+			camp.toolsConsumptionPerSecondRobots = GameGlobals.campHelper.getToolsConsumptionPerSecondRobots(camp.assignedWorkers.robotmaker) || 0;
 		},
 		
 		updateWorkerHunger: function (node, time) {
@@ -388,6 +392,9 @@ define([
 		},
 		
 		updateImprovementProduction: function (node, time) {
+			time = time || 0;
+			if (time <= 0) return;
+			
 			let resources = node.entity.get(ResourcesComponent).resources;
 			let resourceAcc = node.entity.get(ResourceAccumulationComponent);
 			let improvementsComponent = node.entity.get(SectorImprovementsComponent);

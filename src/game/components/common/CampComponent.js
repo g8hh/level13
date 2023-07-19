@@ -45,9 +45,13 @@ define(['ash', 'game/constants/CampConstants', 'game/vos/RaidVO'], function (Ash
 		getAssignedPopulation: function () {
 			var assigned = 0;
 			for(var key in this.assignedWorkers) {
-				assigned += this.assignedWorkers[key];
+				assigned += this.assignedWorkers[key] || 0;
 			}
 			return assigned;
+		},
+		
+		getCurrentWorkerAssignment: function () {
+			return this.assignedWorkers;
 		},
 		
 		getAutoAssignedWorkers: function () {

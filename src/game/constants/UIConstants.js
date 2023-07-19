@@ -73,18 +73,21 @@ define(['ash',
 			if (item && item.equipped) classes += " item-equipped";
 			if (item && item.broken) classes += " item-broken";
 			if (hasCount) classes += " item-with-count";
-			var div = "<div class='" + classes + (item ? "' data-itemid='" + item.id + "' data-iteminstanceid='" + item.itemID + "'>" : ">");
+			
+			let div = "";
 
 			if (item && calloutContent) {
 				div += "<div class='info-callout-target info-callout-target-small' description='" + this.cleanupText(calloutContent) + "'>";
 			}
+			
+			div += "<div class='" + classes + (item ? "' data-itemid='" + item.id + "' data-iteminstanceid='" + item.itemID + "'>" : ">");
 
 			if (item) div += "<img src='" + url + "' alt='" + item.name + "'/>";
 
 			if (hasCount)
 				div += "<div class='item-count lvl13-box-1 vision-text'>" + count + "x </div>";
 
-			if (!hideComparisonIndicator && item.equippable) {
+			if (!hideComparisonIndicator && item && item.equippable) {
 				var comparisonClass = "indicator-even";
 				if (item.equipped) {
 					comparisonClass = "indicator-equipped";
@@ -128,6 +131,7 @@ define(['ash',
 		},
 
 		getItemCallout: function (item, smallCallout, showBagOptions, bagOptions, tab) {
+			if (!item) return "";
 			var detail = " (" + this.getItemBonusDescription(item, false) + ")";
 			if (detail.length < 5) detail = "";
 			var weight = BagConstants.getItemCapacity(item);
@@ -340,6 +344,7 @@ define(['ash',
 
 		getItemBonusDescription: function (item, useLineBreaks) {
 			let result = "";
+			if (!item) return result;
 			let defaultType = ItemConstants.getItemDefaultBonus(item);
 			for (var bonusKey in ItemConstants.itemBonusTypes) {
 				var bonusType = ItemConstants.itemBonusTypes[bonusKey];

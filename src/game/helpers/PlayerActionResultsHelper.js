@@ -224,10 +224,13 @@ define([
 			let investigatePercentAfter = sectorStatus.getInvestigatedPercent(weightedInvestigateAdded);
 			let isCompletion = investigatePercentAfter >= 100;
 			
+			let playerPos = this.playerLocationNodes.head.position;
+			let campOrdinal = GameGlobals.gameState.getCampOrdinal(playerPos.level);
+			
 			log.i("getInvestigateRewards | isCompletion: " + isCompletion, this);
 			
 			if (isCompletion) {
-				let possibleCompletionRewards = [ "cache_insight_11", "cache_insight_21" ];
+				let possibleCompletionRewards = ItemConstants.getAvailableInsightCaches(campOrdinal);
 	 			rewards.gainedItems = [ this.getSpecificRewardItem(1, possibleCompletionRewards) ];
 			} else {
 				let itemOptions = { rarityKey: "investigateRarity", allowNextCampOrdinal: isCompletion };
@@ -1192,6 +1195,7 @@ define([
 			let index = MathUtils.getWeightedRandom(0, possibleItemIds.length);
 			let itemID = possibleItemIds[index];
 			let item = ItemConstants.getItemByID(itemID);
+			if (!item) return null;
 			return item.clone();
 		},
 
@@ -1281,7 +1285,7 @@ define([
 			let efficiency = this.getCurrentScavengeEfficiency();
 			
 			log.i("applying fixed rewards", this);
-			console.log(fixedRewards);
+			if (GameGlobals.logInfo) console.log(fixedRewards);
 			
 			this.addFixedRewardsResources(rewardsVO, fixedRewards, efficiency, availableResources);
 			this.addFixedRewardsItems(rewardsVO, fixedRewards);

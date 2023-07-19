@@ -121,6 +121,7 @@ define(['ash',
 			
 			var otherSector = this.getActionSector(action, param);
 			if (!GameGlobals.playerActionsHelper.checkAvailability(action, true, otherSector)) {
+				log.w("Tried to start action but it's not available: " + action);
 				return false;
 			}
 			
@@ -132,7 +133,7 @@ define(['ash',
 			var deductedCosts = GameGlobals.playerActionsHelper.deductCosts(action);
 
 			var baseId = GameGlobals.playerActionsHelper.getBaseActionID(action);
-			var duration = PlayerActionConstants.getDuration(baseId);
+			var duration = PlayerActionConstants.getDuration(action, baseId);
 			if (duration > 0) {
 				this.startBusy(action, param, deductedCosts);
 			} else {
@@ -144,7 +145,7 @@ define(['ash',
 
 		startBusy: function (action, param, deductedCosts) {
 			let baseId = GameGlobals.playerActionsHelper.getBaseActionID(action);
-			let duration = PlayerActionConstants.getDuration(baseId);
+			let duration = PlayerActionConstants.getDuration(action, baseId);
 			if (duration > 0) {
 				let playerPos = this.playerPositionNodes.head.position;
 				let isBusy = PlayerActionConstants.isBusyAction(baseId);
@@ -1533,8 +1534,8 @@ define(['ash',
 
 		buildTradingPost: function (sectorPos) {
 			let sector = this.getActionSectorOrCurrent(sectorPos);
-			var improvementName = GameGlobals.playerActionsHelper.getImprovementNameForAction("build_in_tradepost");
-			this.buildImprovement("build_in_tradepost", improvementName);
+			let improvementName = GameGlobals.playerActionsHelper.getImprovementNameForAction("build_in_tradepost");
+			this.buildImprovement("build_in_tradepost", improvementName, sector);
 		},
 
 		buildInn: function (sectorPos) {
@@ -1589,7 +1590,7 @@ define(['ash',
 				var msg = "Colony construction project ready at " + sectorPosVO.getInGameFormat(playerPos.level === sectorPosVO.level);
 				this.buildImprovement(action, GameGlobals.playerActionsHelper.getImprovementNameForAction(action), sector);
 				this.addLogMessage(LogConstants.MSG_ID_BUILT_SPACESHIP, msg);
-				if (GameGlobals.endingHelper.isReadyForLaunch()) {
+				if (GameGlobals.endingHelper.isReadyForLaunch(true)) {
 					this.addLogMessage(LogConstants.getUniqueID(), "The colony ship is ready to launch.");
 				}
 			} else {
@@ -1820,7 +1821,7 @@ define(['ash',
 		equipItem: function (itemInstanceId) {
 			var playerPos = this.playerPositionNodes.head.position;
 			var itemsComponent = this.playerPositionNodes.head.entity.get(ItemsComponent);
-			var item = itemsComponent.getItem(null, itemInstanceId, playerPos.inCamp, false);
+			var item = itemsComponent.getItem(null, itemInstanceId, playerPos.inCamp, false, item => item.equippable);
 			itemsComponent.equip(item);
 			GlobalSignals.equipmentChangedSignal.dispatch();
 		},
@@ -1848,7 +1849,7 @@ define(['ash',
 		
 		repairItem: function (itemInstanceId) {
 			let itemsComponent = this.playerPositionNodes.head.entity.get(ItemsComponent);
-			let itemVO = itemsComponent.getItem(null, itemInstanceId, true, true);
+			let itemVO = itemsComponent.getItem(null, itemInstanceId, true, true, item => item.repairable);
 			if (!itemVO) return;
 			itemVO.broken = false;
 			GlobalSignals.equipmentChangedSignal.dispatch();

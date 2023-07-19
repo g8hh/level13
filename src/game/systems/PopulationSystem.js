@@ -37,12 +37,15 @@ define([
 
 		update: function (time) {
 			if (GameGlobals.gameState.isPaused) return;
+			if (GameGlobals.gameState.isLaunched) return;
 			this.updateCampsPopulation(time);
 		},
 		
 		slowUpdate: function () {
 			if (GameGlobals.gameState.isPaused) return;
+			if (GameGlobals.gameState.isLaunched) return;
 			this.updateCampsPopulationChange();
+			this.unassignInvalidWorkers();
 		},
 		
 		updateCampsPopulation: function (time) {
@@ -212,6 +215,29 @@ define([
 				}
 			}
 			GlobalSignals.workersAssignedSignal.dispatch(node.entity);
+		},
+		
+		unassignInvalidWorkers: function () {
+			for (let node = this.campNodes.head; node; node = node.next) {
+				let changed = false;
+				let currentAssignment = node.camp.getCurrentWorkerAssignment();
+				let newAssignment = {};
+				for (let key in CampConstants.workerTypes) {
+					let numAssigned = currentAssignment[key];
+					let numMax = GameGlobals.campHelper.getMaxWorkers(node.entity, key);
+					if (numMax >= 0 && numMax < numAssigned) {
+						log.i("Unassigning invalid workers: " + key);
+						newAssignment[key] = numMax;
+						changed = true;
+					} else {
+						newAssignment[key] = numAssigned;
+					}
+				}
+				
+				if (changed) {
+					GameGlobals.playerActionFunctions.assignWorkers(node.entity, newAssignment);
+				}
+			}
 		},
 		
 		logChangePopulation: function (campPosition, isIncrease) {

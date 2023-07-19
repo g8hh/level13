@@ -169,13 +169,13 @@ define(['ash'], function (Ash) {
 				triggers: [ "action_build" ],
 				repeats: "NEVER",
 				logMessage: "The trading post is ready, but there is no camp to trade with. Need to build another one.",
-				conditions: { improvements: { tradepost: [ 1, 2 ] }, tribe: { improvements: { tradepost: [ 1, 2 ] } } }
+				conditions: { tribe: { improvements: { tradepost: [ 1, 2 ] } } }
 			},
 			TUTORIAL_BUILT_TRADEPOST_2: {
 				triggers: [ "action_build" ],
 				repeats: "NEVER",
 				logMessage: "Built a trading post. Our two camps now share resources and storage.",
-				conditions: { improvements: { tradepost: [ 2, -1 ] }, tribe: { improvements: { tradepost: [ 2, 3 ] } } }
+				conditions: { tribe: { improvements: { tradepost: [ 2, 3 ] } } }
 			},
 			TUTORIAL_USED_HOSPITAL: {
 				triggers: [ "action_any" ],
@@ -188,8 +188,8 @@ define(['ash'], function (Ash) {
 				triggers: [ "feature_unlocked", "action_any" ],
 				repeats: "NEVER",
 				delay: 1000,
-				logMessage: "Our first worker robot is ready. It will help workers in camp with their tasks.",
-				conditions: { featureUnlocked: { resource_robots: true }, inCamp: true, campInventory: { resource_robots: [1, -1 ] } }
+				logMessage: "Our first worker robot is ready. It will help workers with their tasks.",
+				conditions: { featureUnlocked: { resource_robots: true }, inCamp: true, campInventory: { resource_robots: [ 1, -1 ] } }
 			},
 			TUTORIAL_CAN_MAKE_LIGHT: {
 				triggers: [ "change_inventory" ],
@@ -197,6 +197,13 @@ define(['ash'], function (Ash) {
 				delay: 1500,
 				logMessage: "Collected enough metal to craft a Lantern",
 				conditions: { maxVision: [-1, 50], actionsAvailable: ["craft_light1"], featureUnlocked: { bag: true } }
+			},
+			TUTORIAL_CAN_BUILD_SHRINE: {
+				triggers: [ "change_inventory", "change_position" ],
+				repeats: "NEVER",
+				delay: 1500,
+				logMessage: "We can now build Shrines to the Spirits",
+				conditions: { inCamp: true, deity: true }
 			},
 			TUTORIAL_CAN_BUILD_TEMPLE: {
 				triggers: [ "change_inventory", "change_position" ],
