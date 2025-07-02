@@ -1,49 +1,49 @@
-define(['game/constants/CampConstants'], function (CampConstants) {
+define(['text/Text', 'game/constants/CampConstants'], function (Text, CampConstants) {
 	
 	var ImprovementConstants = {
 
 		improvements: {
 			beacon: {
-				description: "Shines a light over a large area, making scavenging less dangerous.",
+				canBeDismantled: true,
 			},
 			camp: {
 				canBeDismantled: false,
 			},
 			home: {
-				description: "Foundation of a camp.",
 				useActionName: "Rest",
 				improvementLevelsPerTechLevel: 0,
 				sortScore: 10000,
+				canBeDismantled: false,
 			},
 			campfire: {
-				displayNames: [ "Campfire", "Townfire", "Everfire" ],
-				description: "Increases rumour generation and unlocks upgrades.",
+				displayNames: [ "campfire_name_default", "campfire_name_l2", "campfire_name_l3" ],
 				useActionName: "Sit down",
+				useActionName2: "Light",
 				improvementLevelsPerTechLevel: 5,
 				improvementLevelsPerMajorLevel: 5,
-				logMsgImproved: "Made the campfire a bit cozier",
+				logMsgImproved: "ui.log.improved_campfire_message",
+				canBeDismantled: false,
 			},
 			house: {
-				displayNames: [ "Hut", "House" ],
-				description: "A place for " + CampConstants.POPULATION_PER_HOUSE + " people to stay.",
+				canBeDismantled: true,
+				displayNames: [ "house_name_l1", "house_name_default" ],
 				improvementLevelsPerTechLevel: 0,
 				sortScore: 9000,
 			},
 			house2: {
-				description: [ "Houses " + CampConstants.POPULATION_PER_HOUSE2 + " people.", "Houses " + CampConstants.POPULATION_PER_HOUSE2_LEVEL_2 + " people." ],
+				canBeDismantled: true,
 				sortScore: 9000,
 				improvementLevelsPerTechLevel: 1,
 				improvementLevelsPerMajorLevel: 1,
 			},
 			storage: {
-				description: "Increases resource storage.",
+				canBeDismantled: true,
 				improvementLevelsPerTechLevel: 1,
 				sortScore: 8000,
 			},
 			hospital: {
 				canBeDismantled: true,
-				displayNames: [ "Clinic", "Hospital", "Medical Center" ],
-				description: "Enables healing injuries.",
+				displayNames: [ "hospital_name_l1", "hospital_name_default", "hospital_name_l3" ],
 				useActionName: "Treatment",
 				useActionName2: "Augment",
 				improvementLevelsPerTechLevel: 1,
@@ -51,119 +51,104 @@ define(['game/constants/CampConstants'], function (CampConstants) {
 			},
 			market: {
 				canBeDismantled: true,
-				description: "Enables foreign traders to visit.",
 				useActionName: "Visit",
 				improvementLevelsPerTechLevel: 5,
 				improvementLevelsPerMajorLevel: 5,
 			},
 			inn: {
 				canBeDismantled: true,
-				description: "Increases rumours and enables recruiting followers.",
 				improvementLevelsPerTechLevel: 5,
 				improvementLevelsPerMajorLevel: 5,
 			},
 			library: {
 				canBeDismantled: true,
-				description: "Generates evidence.",
 				useActionName: "Study",
 				improvementLevelsPerTechLevel: 5,
-				logMsgImproved: "Upgraded the library",
+				logMsgImproved: "ui.log.improved_library_message",
 			},
 			darkfarm: {
 				canBeDismantled: true,
-				description: "Produces food.",
 				improvementLevelsPerTechLevel: 5,
 				sortScore: 10,
 			},
 			aqueduct: {
-				description: "Produces water.",
 				improvementLevelsPerTechLevel: 1,
 			},
 			temple: {
 				canBeDismantled: true,
-				description: "A central location for religious and cultural activities.",
 				useActionName: "Donate",
 				improvementLevelsPerTechLevel: 5,
 			},
 			shrine: {
 				canBeDismantled: true,
-				description: "A place to connect to the strange spirits.",
 				useActionName: "Meditate",
 				improvementLevelsPerTechLevel: 5,
 				improvementLevelsPerMajorLevel: 5,
 			},
 			barracks: {
 				canBeDismantled: true,
-				description: "Houses soldiers that improve camp defences.",
 				improvementLevelsPerTechLevel: 1,
 			},
 			apothecary: {
 				canBeDismantled: true,
-				description: "Enables production of medicine.",
 				improvementLevelsPerTechLevel: 5,
+				improvementLevelsPerMajorLevel: 5,
 				sortScore: 50,
 			},
 			smithy: {
 				canBeDismantled: true,
-				description: "Workspace for toolsmiths.",
 				improvementLevelsPerTechLevel: 5,
 				sortScore: 50,
 			},
 			cementmill: {
 				canBeDismantled: true,
-				description: "Enables production of a new kind of construction material.",
 				improvementLevelsPerTechLevel: 5,
 				sortScore: 50,
 			},
 			stable: {
 				canBeDismantled: true,
-				description: "Space to set up a trading caravan.",
  				improvementLevelsPerTechLevel: 1,
 			},
 			fortification: {
 				canBeDismantled: true,
-				description: "Increases camp defences.",
 				improvementLevelsPerTechLevel: 5,
 				improvementLevelsPerMajorLevel: 5,
 			},
 			researchcenter: {
 				canBeDismantled: true,
-				description: "Generates evidence.",
 				improvementLevelsPerTechLevel: 5,
+				improvementLevelsPerMajorLevel: 5,
 			},
 			tradepost: {
-				description: "Connect camps to a trade network.",
+				canBeDismantled: false,
+				improvementLevelsPerTechLevel: 1,
+				improvementLevelsPerMajorLevel: 1,
 			},
 			radiotower: {
 				canBeDismantled: true,
-				description: "Increases reputation.",
 				improvementLevelsPerTechLevel: 5,
+				improvementLevelsPerMajorLevel: 5,
 			},
 			robotFactory: {
 				canBeDismantled: true,
-				description: "Enables production and storage of worker robots.",
 				improvementLevelsPerTechLevel: 1,
-				logMsgImproved: "Modernized the robot factory"
+				logMsgImproved: "ui.log.improved_robot_factory_message"
 			},
 			lights: {
 				canBeDismantled: true,
-				description: "Keep the darkness at bay for good.",
 			},
 			square: {
 				canBeDismantled: true,
-				description: "A place to relax and socialize.",
 				improvementLevelsPerTechLevel: 1,
 			},
 			garden: {
 				canBeDismantled: true,
-				description: "A dash of beauty in the concrete desert.",
  				improvementLevelsPerTechLevel: 1,
 			},
 			generator: {
 				canBeDismantled: true,
-				description: "Increases reputation bonus from housing (" + CampConstants.REPUTATION_PER_HOUSE_FROM_GENERATOR + "% per house).",
 				improvementLevelsPerTechLevel: 10,
-				logMsgImproved: "Fixed up the generator",
+				logMsgImproved: "ui.log.improved_generator_message",
 			},
 			collector_water: {
 				improvementLevelsPerTechLevel: 1,
@@ -206,12 +191,15 @@ define(['game/constants/CampConstants'], function (CampConstants) {
 			},
 			spaceship1: {
 				isProject: true,
+				logMsgBuilt: "ui.log.built_spaceship_part_message"
 			},
 			spaceship2: {
 				isProject: true,
+				logMsgBuilt: "ui.log.built_spaceship_part_message"
 			},
 			spaceship3: {
 				isProject: true,
+				logMsgBuilt: "ui.log.built_spaceship_part_message"
 			},
 			sundome: {
 				isProject: true,
@@ -268,21 +256,28 @@ define(['game/constants/CampConstants'], function (CampConstants) {
 		getImprovementID: function (improvementName) {
 			for (var key in improvementNames) {
 				var name = improvementNames[key];
+				if (key == improvementName) return key;
 				if (name == improvementName) return key;
 			}
 			return null;
 		},
 		
 		getImprovementDisplayName: function (improvementID, level) {
+			return Text.t(this.getImprovementDisplayNameKey(improvementID, level));
+		},
+
+		getImprovementDisplayNameKey: function (improvementID, level) {
 			level = level || 1;
-			let def = this.getDef(improvementID);
-			let result = improvementNames[improvementID] || "[" + improvementID + "]";
+			let id = this.getImprovementID(improvementID);
+			let def = this.getDef(id);
+			let result = "game.improvements." + id + "_name_default";
 			if (!def) return result;
 			let names = def.displayNames;
 			if (!names || names.length == 0) return result;
-			let majorLevel = this.getMajorLevel(improvementID, level);
+			if (typeof names === "string") return names;
+			let majorLevel = this.getMajorLevel(id, level);
 			let index = Math.min(majorLevel - 1, names.length - 1);
-			return names[index];
+			return "game.improvements." + names[index];
 		},
 		
 		getImproveActionName: function (improvementName) {
@@ -296,15 +291,30 @@ define(['game/constants/CampConstants'], function (CampConstants) {
 		},
 		
 		getImprovementDescription: function (improvementID, level) {
+			let p = this.getImprovementDescriptionParam(improvementID, level);
+			return Text.t(this.getImprovementDescriptionKey(improvementID, level), p);
+		},
+
+		getImprovementDescriptionKey: function (improvementID, level) {
 			level = level || 1;
 			let def = this.getDef(improvementID);
-			if (!def) return "";
+			let result = "game.improvements." + improvementID + "_description_default";
+			if (!def) return result;
 			let descriptions = def.description;
-			if (!descriptions || descriptions.length == 0) return "";
+			if (!descriptions || descriptions.length == 0) return result;
 			if (typeof descriptions === "string") return descriptions;
 			let majorLevel = this.getMajorLevel(improvementID, level);
 			let index = Math.min(majorLevel - 1, descriptions.length - 1);
-			return descriptions[index];
+			return "game.improvements." + descriptions[index];
+		},
+
+		getImprovementDescriptionParam: function (improvementID, level) {
+			let majorLevel = this.getMajorLevel(improvementID, level);
+
+			if (improvementID == "house") return CampConstants.POPULATION_PER_HOUSE;
+			if (improvementID == "house2") return majorLevel == 1 ? CampConstants.POPULATION_PER_HOUSE2 : CampConstants.POPULATION_PER_HOUSE2_LEVEL_2;
+			if (improvementID == "generator") return CampConstants.REPUTATION_PER_HOUSE_FROM_GENERATOR;
+			return null;
 		},
 		
 		isProject: function (improvementName) {
@@ -317,10 +327,59 @@ define(['game/constants/CampConstants'], function (CampConstants) {
 			return improvementLevel - 1;
 		},
 		
-		getImprovedLogMessage: function (improvementID, level) {
+		getImprovedLogMessageTextVO: function (improvementID, level) {
 			let def = this.getDef(improvementID);
-			return def && def.logMsgImproved ? def.logMsgImproved : "Improved the " + this.getImprovementDisplayName(improvementID, level);
-		}
+			let displayName = this.getImprovementDisplayName(improvementID, level);
+			let msg = def && def.logMsgImproved ? def.logMsgImproved : "ui.log.improved_building_message";
+			return { textKey: msg, textParams: { name: displayName } };
+		},
+		
+		getBuiltLogMessageTextVO: function (improvementID, level) {
+			let def = this.getDef(improvementID);
+			let displayName = this.getImprovementDisplayName(improvementID, level);
+			let msg = def && def.logMsgBuilt ? def.logMsgBuilt : "ui.log.built_building_message";
+			return { textKey: msg, textParams: { name: displayName } };
+		},
+	
+		getDefaultReputationBonus: function (name) {
+			if (getImprovementType(name) == improvementTypes.level) return 0;
+			switch (name) {
+				case improvementNames.home:
+				case improvementNames.apothecary:
+				case improvementNames.smithy:
+				case improvementNames.cementmill:
+				case improvementNames.barracks:
+				case improvementNames.fortification:
+				case improvementNames.storage:
+				case improvementNames.stable:
+					return 0;
+				case improvementNames.house:
+				case improvementNames.house2:
+				case improvementNames.darkfarm:
+				case improvementNames.library:
+				case improvementNames.lights:
+				case improvementNames.generator:
+				case improvementNames.shrine:
+					return 0.5;
+				case improvementNames.inn:
+				case improvementNames.market:
+				case improvementNames.tradepost:
+					return 1;
+				case improvementNames.campfire:
+				case improvementNames.hospital:
+				case improvementNames.sundome:
+					return 2;
+				case improvementNames.temple:
+					return 3;
+				case improvementNames.square:
+				case improvementNames.garden:
+					return 2;
+				case improvementNames.radiotower:
+					return 2;
+				default:
+					return 1;
+			}
+		},
 
 	};
 	return ImprovementConstants;

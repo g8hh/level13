@@ -30,15 +30,25 @@ define([
 		},
 
 		update: function (time) {
-			this.playerNodes.head.resourcesAcc.reset();
-
-			for (var campNode = this.campNodes.head; campNode; campNode = campNode.next) {
-				campNode.entity.get(ResourceAccumulationComponent).reset();
-			}
-
-			this.tribeNodes.head.resources.storageCapacity = 0;
-			this.tribeNodes.head.resourceAccumulation.reset();
+			this.resetPlayerResources();
+			this.resetCampResources();
+			this.resetTribeResources();
 		},
+
+		resetPlayerResources: function () {
+			this.playerNodes.head.resourcesAcc.reset("global-resources-acc-reset");
+		},
+
+		resetCampResources: function () {
+			for (var campNode = this.campNodes.head; campNode; campNode = campNode.next) {
+				campNode.entity.get(ResourceAccumulationComponent).reset("global-resources-acc-reset");
+			}
+		},
+
+		resetTribeResources: function () {
+			this.tribeNodes.head.resources.storageCapacity = 0;
+			this.tribeNodes.head.resourceAccumulation.reset("global-resources-acc-reset");
+		}
 		
 		
 	});

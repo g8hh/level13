@@ -1,5 +1,6 @@
 define([
 	'ash',
+	'text/Text',
 	'game/GameGlobals',
 	'game/GlobalSignals',
 	'game/constants/UIConstants',
@@ -8,7 +9,7 @@ define([
 	'game/vos/TabCountsVO',
 	'utils/StringUtils',
 	'utils/UIList',
-], function (Ash, GameGlobals, GlobalSignals, UIConstants, PositionConstants, PlayerLocationNode, TabCountsVO, StringUtils, UIList) {
+], function (Ash, Text, GameGlobals, GlobalSignals, UIConstants, PositionConstants, PlayerLocationNode, TabCountsVO, StringUtils, UIList) {
 	
 	let UIOutProjectsSystem = Ash.System.extend({
 		
@@ -29,13 +30,14 @@ define([
 			this.elements.bubble = $("#switch-projects .bubble");
 			this.elements.hiddenImprovementsMsg = $("#in-improvements-hidden-message");
 			
-			this.availableLevelProjectList = UIList.create("#in-improvements-level table", this.createProjectListItem, (li, project) => { this.updateProjectListItem(li, project, true) }, this.isProjectListItemDataEqual);
-			this.availableColonyProjectList = UIList.create("#in-improvements-colony table", this.createProjectListItem, (li, project) => { this.updateProjectListItem(li, project, true) }, this.isProjectListItemDataEqual);
-			this.builtLevelProjectList = UIList.create("#in-improvements-level-built table", this.createProjectListItem, (li, project) => { this.updateProjectListItem(li, project, false) }, this.isProjectListItemDataEqual);
-			this.builtColonyProjectList = UIList.create("#in-improvements-colony-built table", this.createProjectListItem, (li, project) => { this.updateProjectListItem(li, project, false) }, this.isProjectListItemDataEqual);
+			this.availableLevelProjectList = UIList.create(this, "#in-improvements-level table", this.createProjectListItem, (li, project) => { this.updateProjectListItem(li, project, true) }, this.isProjectListItemDataSame);
+			this.availableColonyProjectList = UIList.create(this, "#in-improvements-colony table", this.createProjectListItem, (li, project) => { this.updateProjectListItem(li, project, true) }, this.isProjectListItemDataSame);
+			this.builtLevelProjectList = UIList.create(this, "#in-improvements-level-built table", this.createProjectListItem, (li, project) => { this.updateProjectListItem(li, project, false) }, this.isProjectListItemDataSame);
+			this.builtColonyProjectList = UIList.create(this, "#in-improvements-colony-built table", this.createProjectListItem, (li, project) => { this.updateProjectListItem(li, project, false) }, this.isProjectListItemDataSame);
 			
 			let sys = this;
 			$("#in-improvements-reset-hidden").click(function () {
+				GlobalSignals.triggerSoundSignal.dispatch(UIConstants.soundTriggerIDs.buttonClicked);
 				sys.resetHidden();
 			});
 		},
@@ -73,6 +75,7 @@ define([
 		},
 		
 		slowUpdate: function () {
+			if (!GameGlobals.playerHelper.isInCamp()) return;
 			if (GameGlobals.gameState.isLaunchStarted) return;
 			this.updateAvailableProjects(false);
 			this.updateContainers();
@@ -83,25 +86,25 @@ define([
 			let isActive = GameGlobals.gameState.uiStatus.currentTab === GameGlobals.uiFunctions.elementIDs.tabs.projects;
 			
 			if (isActive) {
-				this.elements.tabHeader.text("Building projects");
+				this.elements.tabHeader.text(Text.t("ui.projects.page_header"));
 			}
 			
-			this.updateAvailableProjects(true);
-			this.updateBuiltProjects(true);
+			this.updateAvailableProjects(isActive);
+			this.updateBuiltProjects(isActive);
 			this.updateHiddenMsg();
 			this.updateContainers();
 		},
 		
 		updateBubble: function () {
-			var newBubbleNumber =
+			let newBubbleNumber = Math.max(0,
 				(this.tabCounts.current.available.regular - this.tabCounts.lastShown.available.regular) +
 				(this.tabCounts.current.visible.regular - this.tabCounts.lastShown.visible.regular) +
 				(this.tabCounts.current.available.colony - this.tabCounts.lastShown.available.colony) +
-				(this.tabCounts.current.visible.colony - this.tabCounts.lastShown.visible.colony);
-			if (GameGlobals.endingHelper.isReadyForLaunch())
-				newBubbleNumber = 1;
-			if (this.bubbleNumber === newBubbleNumber)
-				return;
+				(this.tabCounts.current.visible.colony - this.tabCounts.lastShown.visible.colony)
+			);
+			
+			if (!GameGlobals.gameState.hasSeenTab(GameGlobals.uiFunctions.elementIDs.tabs.projects)) newBubbleNumber = "!";
+			if (GameGlobals.storyHelper.isReadyForLaunch()) newBubbleNumber = 1;
 			
 			GameGlobals.uiFunctions.updateBubble("#switch-projects .bubble", this.bubbleNumber, newBubbleNumber);
 			this.bubbleNumber = newBubbleNumber;
@@ -123,30 +126,27 @@ define([
 			
 			let projects = GameGlobals.levelHelper.getAvailableProjectsForCamp(this.playerLocationNodes.head.entity);
 			
+			projects = projects.sort((a, b) => { return b.level - a.level; });
+
 			let isHidden = function (project) {
-				let projectID = project.getID();
+				let projectID = project.projectID;
 				return GameGlobals.gameState.uiStatus.hiddenProjects.indexOf(projectID) >= 0;
 			}
 			
 			if (updateTables) {
-				let numCreated1 = UIList.update(this.availableLevelProjectList, projects.filter(project => !project.isColonyProject() && !isHidden(project)));
-				let numCreated2 = UIList.update(this.availableColonyProjectList, projects.filter(project => project.isColonyProject()));
+				let numCreated1 = UIList.update(this.availableLevelProjectList, projects.filter(project => !project.isColonyProject && !isHidden(project))).length;
+				let numCreated2 = UIList.update(this.availableColonyProjectList, projects.filter(project => project.isColonyProject)).length;
 				
 				if (numCreated1 > 0 || numCreated2 > 0) {
 					GameGlobals.uiFunctions.registerCustomButtonListeners("#in-improvements-level", "navigation", this.onMapLinkButtonClicked);
 					GameGlobals.uiFunctions.registerCustomButtonListeners("#in-improvements-level", "hide-project", this.onHideProjectButtonClicked);
 					
-					GameGlobals.uiFunctions.registerActionButtonListeners("#in-improvements-level");
-					GameGlobals.uiFunctions.generateButtonOverlays("#in-improvements-level");
-					GameGlobals.uiFunctions.generateCallouts("#in-improvements-level");
-					
-					GameGlobals.uiFunctions.registerActionButtonListeners("#in-improvements-colony");
-					GameGlobals.uiFunctions.generateButtonOverlays("#in-improvements-colony");
-					GameGlobals.uiFunctions.generateCallouts("#in-improvements-colony");
+					GameGlobals.uiFunctions.createButtons("#in-improvements-level");
+					GameGlobals.uiFunctions.createButtons("#in-improvements-colony");
 					
 					// TODO fix better, now forcing an update after ovelays generated but build into UIList
-					UIList.update(this.availableLevelProjectList, projects.filter(project => !project.isColonyProject() && !isHidden(project)));
-					UIList.update(this.availableColonyProjectList, projects.filter(project => project.isColonyProject()));
+					UIList.update(this.availableLevelProjectList, projects.filter(project => !project.isColonyProject && !isHidden(project)));
+					UIList.update(this.availableColonyProjectList, projects.filter(project => project.isColonyProject));
 				}
 			}
 			
@@ -155,8 +155,8 @@ define([
 				let action = project.action;
 				let sectorEntity = GameGlobals.levelHelper.getSectorByPosition(project.level, project.position.sectorX, project.position.sectorY);
 				let actionAvailable = GameGlobals.playerActionsHelper.checkAvailability(action, false, sectorEntity);
-				let isColonyProject = project.isColonyProject();
-				let projectID = project.getID();
+				let isColonyProject = project.isColonyProject;
+				let projectID = project.projectID;
 				let isHidden = GameGlobals.gameState.uiStatus.hiddenProjects.indexOf(projectID) >= 0;
 				
 				if (isColonyProject) {
@@ -179,11 +179,11 @@ define([
 			if (!this.playerLocationNodes.head) return;
 			let projects = GameGlobals.levelHelper.getBuiltProjectsForCamp(this.playerLocationNodes.head.entity);
 			
-			projects.sort((a, b) => { return b.level - a.level; });
+			projects = projects.sort((a, b) => { return b.level - a.level; });
 			
 			if (updateTables) {
-				let numCreated1 = UIList.update(this.builtLevelProjectList, projects.filter(project => !project.isColonyProject()));
-				let numCreated2 = UIList.update(this.builtColonyProjectList, projects.filter(project => project.isColonyProject()));
+				let numCreated1 = UIList.update(this.builtLevelProjectList, projects.filter(project => !project.isColonyProject)).length;
+				let numCreated2 = UIList.update(this.builtColonyProjectList, projects.filter(project => project.isColonyProject)).length;
 				
 				if (numCreated1) {
 					GameGlobals.uiFunctions.registerCustomButtonListeners("#in-improvements-level-built", "navigation", this.onMapLinkButtonClicked);
@@ -195,7 +195,7 @@ define([
 			
 			for (let i = 0; i < projects.length; i++) {
 				let project = projects[i];
-				let isColonyProject = project.isColonyProject();
+				let isColonyProject = project.isColonyProject;
 				
 				if (isColonyProject) numProjectsColony++;
 				if (!isColonyProject) numProjectsOther++;
@@ -215,8 +215,9 @@ define([
 		updateContainers: function () {
 			let visibleColonyProjects = this.tabCounts.current.visible.colony + (this.numBuiltColonyProjects || 0);
 				
+			GameGlobals.uiFunctions.toggle("#in-improvements-colony-empty-message", this.tabCounts.lastShown.visible.colony <= 0);
 			GameGlobals.uiFunctions.toggle("#in-improvements-level-empty-message", this.tabCounts.lastShown.visible.regular <= 0);
-			GameGlobals.uiFunctions.toggle("#container-in-improvements-colony", visibleColonyProjects > 0 || GameGlobals.endingHelper.isReadyForLaunch() || GameGlobals.gameState.isLaunched);
+			GameGlobals.uiFunctions.toggle("#container-in-improvements-colony", visibleColonyProjects > 0 || GameGlobals.storyHelper.isReadyForLaunch() || GameGlobals.gameState.isLaunched);
 		},
 		
 		resetHidden: function () {
@@ -232,8 +233,8 @@ define([
 			tr += "<td class='minwidth'><button class='btn-mini btn-meta hide-project'>hide</button></td>";
 			tr += "<td class='minwidth'><button class='btn-mini navigation'>map</button></td>";
 			
-			let btnAction = "<button class='action action-build action-level-project multiline'></button>";
-			tr += "<td style='width:138px;text-align:right;' class='bg-reset'>" + btnAction + "</td>";
+			let btnAction = "<button class='action action-build action-level-project multiline tabbutton' data-tab='switch-projects'></button>";
+			tr += "<td style='width:138px;text-align:right;' class='bg-reset td-button'>" + btnAction + "</td>";
 						
 			tr += "</tr>";
 			
@@ -244,11 +245,14 @@ define([
 			li.$btnHide = li.$root.find("button.hide-project");
 			li.$btnMap = li.$root.find("button.navigation");
 			li.$btnAction = li.$root.find("button.action");
+			li.$tdAction = li.$root.find("td.td-button");
 			return li;
 		},
 		
 		updateProjectListItem: function (li, project, isAvailable) {
-			let projectID = project.getID();
+			let isTabOpen = GameGlobals.gameState.uiStatus.currentTab === GameGlobals.uiFunctions.elementIDs.tabs.projects;
+			let isSmallLayout = $("body").hasClass("layout-small");
+			let projectID = project.projectID;
 			let sector = project.level + "." + project.sector + "." + project.direction;
 			let name = project.name;
 			let actionLabel = project.actionLabel;
@@ -258,11 +262,13 @@ define([
 			name = name.replace(" Up", "");
 			name = name.replace(" Down", "");
 			
-			let info = this.getProjectInfoText(project, isAvailable);
+			let info = this.getProjectInfoText(project, isAvailable, isSmallLayout);
+			let showHideButton = isAvailable && !project.isColonyProject && UIConstants.canHideProject(projectID);
 			
 			li.$tdDescription.attr("colspan", isAvailable ? 1 : 4);
-			li.$btnHide.css("display", isAvailable ? "initial" : "none");
-			li.$btnMap.css("display", isAvailable ? "initial" : "none");
+			li.$btnHide.css("display", showHideButton ? "initial" : "none");
+			li.$btnMap.css("display", isAvailable && !isSmallLayout ? "initial" : "none");
+			li.$tdAction.css("display", isAvailable ? "initial" : "none");
 			li.$btnAction.css("display", isAvailable ? "initial" : "none");
 			
 			li.$root.toggleClass("current", this.isCurrentLevel(project));
@@ -275,35 +281,43 @@ define([
 			li.$btnAction.attr("id", "btn-" + action + "-" + sector);
 			li.$btnAction.find(".btn-label").html(actionLabel);
 			
-			GameGlobals.uiFunctions.toggle(li.$btnHide, isAvailable && !project.isColonyProject() && UIConstants.canHideProject(projectID));
-			GameGlobals.uiFunctions.toggle(li.$btnMap, isAvailable && !project.isColonyProject());
-			GameGlobals.uiFunctions.toggle(li.$btnAction, isAvailable);
+			GameGlobals.uiFunctions.toggle(li.$btnHide, showHideButton);
+			GameGlobals.uiFunctions.toggle(li.$btnMap, isAvailable && !project.isColonyProject);
+			GameGlobals.uiFunctions.toggle(li.$btnAction, isAvailable && isTabOpen);
 		},
 		
-		isProjectListItemDataEqual: function (project1, project2) {
-			return project1.getID() == project2.getID();
+		isProjectListItemDataSame: function (project1, project2) {
+			return project1.projectID == project2.projectID;
 		},
 		
-		getProjectInfoText: function (project, isAvailable) {
-			let position = project.position.getPosition();
-			let location = position.getInGameFormat();
+		getProjectInfoText: function (project, isAvailable, short) {
 			let showLevel = GameGlobals.gameState.unlockedFeatures.levels;
+			let position = project.position.getPosition();
+			let location = position.getInGameFormat(false, short);
+			let levelWord = short ? "lvl" : "level";
+			let levelText = (showLevel ? (" on " + levelWord + " " + project.level) : "");
 			
-			let info = "at " + location + " on level " + project.level;
+			let info = "at " + location + levelText;
 			
 			let isPassage = project.improvement && project.improvement.isPassage();
 			if (isPassage) {
-				var levels = this.getProjectLevels(project);
-				info = "connecting levels <span class='hl-functionality'>" + levels[0] + "</span> and <span class='hl-functionality'>" + levels[1] + "</span> at " + location;
+				let levels = this.getProjectLevels(project);
+				if (short) {
+					info = "connecting levels <span class='hl-functionality'>" + levels[0] + "</span> and <span class='hl-functionality'>" + levels[1] + "</span>";
+				} else {
+					info = "connecting levels <span class='hl-functionality'>" + levels[0] + "</span> and <span class='hl-functionality'>" + levels[1] + "</span> at " + location;
+				}
 			}
 			
-			if (project.action == "clear_debris_e" || project.action == "clear_debris_l" || project.action == "bridge_gap") {
-				let neighbourPosition = PositionConstants.getPositionOnPath(project.position.getPosition(), project.direction, 1);
-				let neighbourLocation = neighbourPosition.getInGameFormat();
-				info = "between " + location + " and " + neighbourLocation + " on level " + project.level;
+			if (project.action) {
+				if (project.action.startsWith("clear_debris_e") || project.action == "bridge_gap" || project.action.startsWith("clear_explosives")) {
+					let neighbourPosition = PositionConstants.getPositionOnPath(project.position.getPosition(), project.direction, 1);
+					let neighbourLocation = neighbourPosition.getInGameFormat();
+					info = "between " + location + " and " + neighbourLocation + levelText;
+				}
 			}
 			
-			if (project.improvement && project.improvement.name == improvementNames.greenhouse && !isAvailable) {
+			if (!short && project.improvement && project.improvement.name == improvementNames.greenhouse && !isAvailable) {
 				let level = position.level;
 				let campOrdinal = GameGlobals.gameState.getCampOrdinal(level);
 				let campLevel = GameGlobals.gameState.getLevelForCamp(campOrdinal);
@@ -343,6 +357,7 @@ define([
 			let projectID = $(this).data("project");
 			if (!projectID) return;
 			if (!UIConstants.canHideProject(projectID)) return;
+			GlobalSignals.triggerSoundSignal.dispatch(UIConstants.soundTriggerIDs.buttonClicked);
 			GameGlobals.gameState.uiStatus.hiddenProjects.push(projectID);
 			GlobalSignals.projectHiddenSignal.dispatch();
 		},
@@ -350,6 +365,7 @@ define([
 		onMapLinkButtonClicked: function () {
 			let sector = $(this).data("sector");
 			if (!sector) return;
+			GlobalSignals.triggerSoundSignal.dispatch(UIConstants.soundTriggerIDs.buttonClicked);
 			let position = StringUtils.getPosition(sector);
 			GameGlobals.uiFunctions.scrollToTabTop();
 			GameGlobals.uiFunctions.showTab(GameGlobals.uiFunctions.elementIDs.tabs.map, position);

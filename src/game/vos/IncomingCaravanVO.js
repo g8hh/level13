@@ -1,6 +1,6 @@
-define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
+define(['ash', 'game/vos/ResourcesVO', 'game/constants/ItemConstants'], function (Ash, ResourcesVO, ItemConstants) {
 
-	var IncomingCaravanVO = Ash.Class.extend({
+	let IncomingCaravanVO = Ash.Class.extend({
 
 		name: "",
 		sellItems: [],
@@ -12,10 +12,13 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 
 		tradesMade: 0,
 
-		traderSelectedItems: {}, // id -> amount
+		 // selected from trader (stuff player wants to buy)
+		traderSelectedItems: [],
 		traderSelectedResources: null,
 		traderSelectedCurrency: 0,
-		campSelectedItems: {}, // id -> amount
+		
+		// selected from camp (stuff player wants to sell)
+		campSelectedItems: [],
 		campSelectedResources: null,
 		campSelectedCurrency: 0,
 
@@ -37,10 +40,10 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 		},
 
 		clearSelection: function () {
-			this.traderSelectedItems = {};
+			this.traderSelectedItems = [];
 			this.traderSelectedResources = new ResourcesVO();
 			this.traderSelectedCurrency = 0;
-			this.campSelectedItems = {};
+			this.campSelectedItems = [];
 			this.campSelectedResources = new ResourcesVO();
 			this.campSelectedCurrency = 0;
 		},
@@ -51,6 +54,37 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 				if (this.sellItems[i].id == itemID) result++;
 			}
 			return result;
+		},
+
+		getCampSelectedItemCount: function (itemID) {
+			let result = 0;
+			for (let i = 0; i < this.campSelectedItems.length; i++) {
+				if (this.campSelectedItems[i].id == itemID) result++;
+			}
+			return result;
+		},
+
+		customLoadFromSave: function (componentValues) {
+			this.name = componentValues.name;
+			this.sellItems = [];
+			for (let i in componentValues.sellItems) {
+				let savedItem =  componentValues.sellItems[i];
+				if (!savedItem || !savedItem.id) continue;
+				let itemID = ItemConstants.getItemIDFromSaved(savedItem.id);
+				let definition = ItemConstants.getItemDefinitionByID(itemID);
+				if (!definition) continue;
+				let item = definition.clone(savedItem);
+				this.sellItems.push(item);
+			}
+			this.sellResources = new ResourcesVO();
+			this.sellResources.customLoadFromSave(componentValues.sellResources);
+			this.buyItemTypes = componentValues.buyItemTypes ? componentValues.buyItemTypes : [];
+			this.buyResources = componentValues.buyResources ? componentValues.buyResources : [];
+
+			this.usesCurrency = componentValues.usesCurrency || false;
+			this.currency = componentValues.currency || 0;
+
+			this.tradesMade = componentValues.tradesMade || 0;
 		},
 	});
 

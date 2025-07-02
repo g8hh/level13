@@ -1,5 +1,6 @@
 define(['ash', 'game/vos/ItemVO', 'game/constants/ItemConstants'],
 function (Ash, ItemVO, ItemConstants) {
+
 	var ItemsComponent = Ash.Class.extend({
 
 		items: {},
@@ -30,19 +31,28 @@ function (Ash, ItemVO, ItemConstants) {
 			item.carried = isCarried;
 		},
 
-		discardItem: function (item, autoEquip) {
-			if (!item) log.w("Trying to discard null item.");
-			if (!this.isItemDiscardable(item)) {
-				log.w("Trying to discard un-discardable item.");
+		removeItem: function (item, autoEquip) {
+			if (!item) {
+				log.w("Trying to remove null item.");
 				return;
 			}
-			
 
+			let longID = ItemConstants.getLongItemID(item);
+
+			// for ingredients itemID alone isn't a perfect guarantee it's the right kind of item
+			let isMatchingItem = function (i) {
+				if (i.itemID !== item.itemID) return false;
+				if (i.equipped !== item.equipped) return false;
+				if (i.broken !== item.broken) return false;
+				if (ItemConstants.getLongItemID(i) != longID) return false;
+				return true;
+			}
+			
 			if (typeof this.items[item.type] !== 'undefined') {
 				var typeItems = this.items[item.type];
 				var splicei = -1;
 				for (let i = 0; i < typeItems.length; i++) {
-					if (typeItems[i].id === item.id && typeItems[i].equipped == item.equipped) {
+					if (isMatchingItem(typeItems[i])) {
 						splicei = i;
 						if (typeItems[i].carried) {
 							break;
@@ -56,27 +66,48 @@ function (Ash, ItemVO, ItemConstants) {
 						var nextItem = this.getSimilar(item);
 						if (nextItem) this.equip(nextItem);
 					}
-				} else {
-					log.w("Item to discard not found.");
+					return;
 				}
 			}
+
+			log.w("Item to remove not found.");
 		},
 
-		isItemDiscardable: function (item) {
-			return this.isItemsDiscardable(item) || this.getCount(item, true) > 1;
+		discardItem: function (item, isInCamp, autoEquip) {
+			if (!item) {
+				log.w("Trying to discard null item.");
+				return;
+			}
+			
+			if (!this.isItemDiscardable(item, isInCamp)) {
+				log.w("Trying to discard un-discardable item.");
+				return;
+			}
+			
+			if (!ItemConstants.isUnselectable(item)) {
+				log.w("Trying to discard non unselectable item.");
+				return;
+			}	
+
+			this.removeItem(item, autoEquip);
 		},
 
-		isItemsDiscardable: function (item) {
+		isItemDiscardable: function (item, isInCamp) {
 			if (!item) return false;
+			if (!ItemConstants.isUnselectable(item)) return false;
 			switch (item.type) {
 				case ItemConstants.itemTypes.bag:
-					return this.getStrongestByType(item.type).id !== item.id;
+					if (this.getStrongestByType(item.type).id === item.id && this.getCountById(item.id, isInCamp) === 1) return false;
+					return true;
 
+				case ItemConstants.itemTypes.voucher:
+				case ItemConstants.itemTypes.note:
+				case ItemConstants.itemTypes.ingredient:
 				case ItemConstants.itemTypes.uniqueEquipment:
 					return false;
-
-				default: return true;
 			}
+
+			return true;
 		},
 		
 		getEquipmentComparison: function (item) {
@@ -120,7 +151,7 @@ function (Ash, ItemVO, ItemConstants) {
 					var existingItem = this.items[item.type][i];
 					if (existingItem.itemID === item.itemID) continue;
 					if (existingItem.equipped && !(this.isItemMultiEquippable(existingItem) && this.isItemMultiEquippable(item))) {
-						let isExistingBonusBetter = existingItem.getCurrentTotalBonus() >= item.getCurrentTotalBonus();
+						let isExistingBonusBetter = ItemConstants.getCurrentTotalBonus(existingItem) >= ItemConstants.getCurrentTotalBonus(item);
 						if (!isExistingBonusBetter) {
 							this.unequip(existingItem);
 						}
@@ -146,7 +177,7 @@ function (Ash, ItemVO, ItemConstants) {
 			for (let i = 0; i < this.items[itemType].length; i++) {
 				var item = this.items[itemType][i];
 				if (!item.equippable) continue;
-				if (best === null || best.getCurrentTotalBonus() < item.getCurrentTotalBonus()) {
+				if (best === null || ItemConstants.getCurrentTotalBonus(best) < ItemConstants.getCurrentTotalBonus(item)) {
 					 best = item;
 				}
 			}
@@ -232,7 +263,7 @@ function (Ash, ItemVO, ItemConstants) {
 					for (let i = 0; i < this.items[key].length; i++) {
 						var item = this.items[key][i];
 						if (item.equipped) {
-							let itemBonus = item.getCurrentBonus(bonusType);
+							let itemBonus = ItemConstants.getCurrentBonus(item, bonusType);
 							if (isMultiplier) {
 								if (itemBonus != 0) {
 									bonus *= itemBonus;
@@ -247,7 +278,7 @@ function (Ash, ItemVO, ItemConstants) {
 			return bonus;
 		},
 
-		getAll: function (includeNotCarried) {
+		getAll: function (includeNotCarried, skipSort) {
 			var all = [];
 			var item;
 			for (var key in this.items) {
@@ -256,6 +287,9 @@ function (Ash, ItemVO, ItemConstants) {
 					if (includeNotCarried || item.carried) all.push(item);
 				}
 			}
+
+			if (skipSort) return all;
+
 			return all.sort(this.itemSortFunction);
 		},
 
@@ -270,7 +304,15 @@ function (Ash, ItemVO, ItemConstants) {
 			return all.sort(this.itemSortFunction);
 		},
 
-		getUnique: function (includeNotCarried) {
+		getUniqueByID: function (includeNotCarried) {
+			return this.getUnique(includeNotCarried, itemVO => itemVO.id);
+		},
+
+		getUniqueByIDAndState: function (includeNotCarried) {
+			return this.getUnique(includeNotCarried, itemVO => itemVO.id + (itemVO.broken ? "_b" : "") + ItemConstants.getItemQuality(itemVO));
+		},
+
+		getUnique: function (includeNotCarried, getID) {
 			let result = [];
 			let resultMap = {};
 
@@ -278,7 +320,7 @@ function (Ash, ItemVO, ItemConstants) {
 				for( let i = 0; i < this.items[key].length; i++) {
 					let item = this.items[key][i];
 					if (includeNotCarried || item.carried) {
-						var itemKey = item.id + (item.broken ? "_b" : "");
+						var itemKey = getID(item);	
 						if (resultMap[itemKey]) {
 							resultMap[itemKey] = resultMap[itemKey] + 1;
 						} else {
@@ -320,7 +362,7 @@ function (Ash, ItemVO, ItemConstants) {
 				for (let i = 0; i < this.items[key].length; i++) {
 					var item = this.items[key][i];
 					if (!includeNotCarried && !item.carried) continue;
-					let baseID = ItemConstants.getBaseItemId(item.id);
+					let baseID = ItemConstants.getBaseItemID(item.id);
 					if (baseID == itemBaseId) {
 						result++;
 					}
@@ -354,7 +396,7 @@ function (Ash, ItemVO, ItemConstants) {
 			var weakest = null;
 			for (let i = 0; i < this.items[type].length; i++) {
 				var item = this.items[type][i];
-				if (!weakest || item.getCurrentTotalBonus() < weakest.getCurrentTotalBonus()) weakest = item;
+				if (!weakest || ItemConstants.getCurrentTotalBonus(item) < ItemConstants.getCurrentTotalBonus(weakest)) weakest = item;
 			}
 			return weakest;
 		},
@@ -363,7 +405,7 @@ function (Ash, ItemVO, ItemConstants) {
 			var strongest = null;
 			for (let i = 0; i < this.items[type].length; i++) {
 				var item = this.items[type][i];
-				if (!strongest || item.getCurrentTotalBonus() > strongest.getCurrentTotalBonus()) strongest = item;
+				if (!strongest || ItemConstants.getCurrentTotalBonus(item) > ItemConstants.getCurrentTotalBonus(strongest)) strongest = item;
 			}
 			return strongest;
 		},
@@ -400,10 +442,10 @@ function (Ash, ItemVO, ItemConstants) {
 			return equippedItems.length > 0 && equippedItems[0].id == item.id;
 		},
 
-		contains: function (name) {
+		contains: function (id) {
 			for (var key in this.items) {
 				for (let i = 0; i < this.items[key].length; i++) {
-					if(this.items[key][i].name == name) return true;
+					if(this.items[key][i].id == id) return true;
 				}
 			}
 			return false;
@@ -441,7 +483,7 @@ function (Ash, ItemVO, ItemConstants) {
 			};
 			if (getSortTypeValue(a.type) > getSortTypeValue(b.type)) return 1;
 			if (getSortTypeValue(a.type) < getSortTypeValue(b.type)) return -1;
-			return b.getCurrentTotalBonus() - a.getCurrentTotalBonus();
+			return ItemConstants.getCurrentTotalBonus(b) - ItemConstants.getCurrentTotalBonus(a);
 		},
 
 		getSaveKey: function () {
@@ -449,38 +491,70 @@ function (Ash, ItemVO, ItemConstants) {
 		},
 
 		getCustomSaveObject: function () {
-			var copy = {};
+			let copy = {};
 			copy.items = {};
-			for(var key in this.items) {
+			copy.ingredientsCarried = {};
+			copy.ingredientsNotCarried = {};
+
+			for (let key in this.items) {
 				copy.items[key] = [];
 				for (let i = 0; i < this.items[key].length; i++) {
-					var item = this.items[key][i];
-					copy.items[key][i] = item.getCustomSaveObject();
+					let item = this.items[key][i];
+					if (key == ItemConstants.itemTypes.ingredient) {
+						let id = item.id;
+						if (item.carried) {
+							if (!copy.ingredientsCarried[id]) copy.ingredientsCarried[id] = 0;
+							copy.ingredientsCarried[id]++;
+						} else {
+							if (!copy.ingredientsNotCarried[id]) copy.ingredientsNotCarried[id] = 0;
+							copy.ingredientsNotCarried[id]++;
+						}
+					} else {
+						copy.items[key][i] = item.getCustomSaveObject();
+					}
 				}
 			}
+			
 			return copy;
 		},
 
 		customLoadFromSave: function (componentValues) {
-			for(var key in componentValues.items) {
+			let component = this;
+
+			for (let key in componentValues.items) {
 				for (let i in componentValues.items[key]) {
-					var id = componentValues.items[key][i].id;
-					var definition = ItemConstants.getItemByID(id);
-					if (!definition) {
-						log.w("no item definition found: " + id);
-						continue;
-					}
-					var item = definition.clone();
-					item.itemID = componentValues.items[key][i].itemID;
-					item.foundPosition = componentValues.items[key][i].foundPosition;
-					item.broken = componentValues.items[key][i].broken == 1;
-					var carried = componentValues.items[key][i].carried;
+					let savedItem =  componentValues.items[key][i];
+					if (!savedItem || !savedItem.id) continue;
+					let itemID = ItemConstants.getItemIDFromSaved(savedItem.id);
+					let definition = ItemConstants.getItemDefinitionByID(itemID);
+					if (!definition) continue;
+
+					let item = definition.clone(savedItem);
+					let carried = savedItem.carried || false;
+					let equipped = savedItem.equipped || false;
+
 					this.addItem(item, carried);
-					if (componentValues.items[key][i].equipped) {
+					if (equipped) {
 						this.equip(item);
 					}
 				}
 			}
+
+			let addIngredients = function (source, carried) {
+				for (let ingredientID in source) {
+					let num = source[ingredientID];
+					let definition = ItemConstants.getItemDefinitionByID(ingredientID);
+					if (!definition) continue;
+
+					for (let i = 0; i < num; i++) {
+						let item = definition.clone();
+						component.addItem(item, carried);
+					}
+				}
+			};
+
+			addIngredients(componentValues.ingredientsCarried, true);
+			addIngredients(componentValues.ingredientsNotCarried, false);
 		}
 	});
 

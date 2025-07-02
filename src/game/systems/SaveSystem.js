@@ -10,13 +10,14 @@ define([
 
 		engine: null,
 
-		saveNodes:null,
+		saveNodes: null,
+ 		
+		// list of slotIDs
+		pendingManualSaves: [],
+		pendingAutosaves: [],
 
-		isPendingAutosave: false,
-		isPendingManualSave: false,
-
-		lastSaveTimeStamp: 0,
-		saveFrequency: 1000 * 60 * 2,
+		lastDefaultSaveTimestamp: 0,
+		autoSaveFrequency: 1000 * 60 * 2,
 
 		error: null,
 
@@ -25,7 +26,7 @@ define([
 		addToEngine: function (engine) {
 			this.engine = engine;
 			this.saveNodes = engine.getNodeList(SaveNode);
-			this.lastSaveTimeStamp = new Date().getTime();
+			this.lastDefaultSaveTimestamp = new Date().getTime();
 			GlobalSignals.add(this, GlobalSignals.saveGameSignal, this.onSaveGameSignal);
 			GlobalSignals.add(this, GlobalSignals.restartGameSignal, this.onRestart);
 		},
@@ -40,22 +41,32 @@ define([
 			if (this.paused) return;
 			if (GameGlobals.gameState.isLaunched) return;
 
-			if (this.isPendingManualSave) {
-				this.save(true);
+			if (this.pendingManualSaves.length > 0) {
+				for (let i = 0; i < this.pendingManualSaves.length; i++) {
+					let slotID = this.pendingManualSaves[i];
+					this.save(slotID, true);
+				}
+				this.pendingManualSaves = [];
 				return;
 			}
 
 			if (!GameConstants.isAutosaveEnabled) return;
-			if (this.isPendingAutosave) {
-				this.save();
+
+			if (this.pendingAutosaves.length > 0) {
+				for (let i = 0; i < this.pendingAutosaves.length; i++) {
+					let slotID = this.pendingAutosaves[i];
+					this.save(slotID, false);
+				}
+				this.pendingAutosaves = [];
+				return;
+			}
+
+			var timeStamp = new Date().getTime();
+			if (timeStamp - this.lastDefaultSaveTimestamp > this.autoSaveFrequency) {
+				this.save(GameConstants.SAVE_SLOT_DEFAULT, false);
 				return;
 			}
 			
-			let timeStamp = new Date().getTime();
-			if (timeStamp - this.lastSaveTimeStamp > this.saveFrequency) {
-				this.save();
-				return;
-			}
 		},
 
 		pause: function () {
@@ -66,27 +77,94 @@ define([
 			this.paused = false;
 		},
 
-		save: function (isPlayerInitiated) {
+		save: function (slotID, isPlayerInitiated) {
 			// NOTE: only call this from update() so that save is never written while some other system is in the middle of updating and data might be wonky
 
-			if (this.paused) return;
-			if (!isPlayerInitiated && !GameConstants.isAutosaveEnabled) return;
-			if (GameGlobals.gameState.isLaunchStarted || GameGlobals.gameState.isLaunched || GameGlobals.gameState.isLaunchCompleted || GameGlobals.gameState.isFinished) return;
-			this.isPendingAutosave = false;
-			this.isPendingManualSave = false;
+			slotID = slotID || GameConstants.SAVE_SLOT_DEFAULT;
+			isPlayerInitiated = isPlayerInitiated || false;
+			let isDefaultSlot = slotID == GameConstants.SAVE_SLOT_DEFAULT;
 
-			this.error = null;
-			if (typeof(Storage) !== "undefined") {
-				try {
-					localStorage.save = this.getCompressedSaveJSON();
-					log.i("Saved");
-				} catch (ex) {
-					this.error = "Failed to save.";
-				}
-				this.lastSaveTimeStamp = new Date().getTime();
-			} else {
-				this.error = "Can't save (incompatible browser).";
+			if (!isPlayerInitiated) {
+				if (isDefaultSlot && this.paused) return;
+				if (isDefaultSlot && !GameConstants.isAutosaveEnabled) return;
+				if (GameGlobals.gameState.isLaunchStarted || GameGlobals.gameState.isLaunched || GameGlobals.gameState.isLaunchCompleted || GameGlobals.gameState.isFinished) return;
 			}
+
+			let data = this.getCompressedSaveJSON();
+			let success = this.saveDataToSlot(slotID, data);
+
+			this.saveMetaState();
+			
+			if (isDefaultSlot) {
+				this.error = success ? null : "Failed to save";
+				this.lastDefaultSaveTimestamp = new Date().getTime();
+			}
+		},
+
+		saveDataToDefaultSlot: function (data) {
+			return this.saveDataToSlot(GameConstants.SAVE_SLOT_DEFAULT, data);
+		},
+
+		saveDataToSlot: function (slotID, data) {
+			if (!data) return;
+
+			if (typeof(Storage) === "undefined") {
+				log.w("Could not save to save slot [" + slotID + "]: Storage not found");
+				return false;
+			}
+			
+			try {
+				let storageKeys = this.getStorageKeysForSaveSlotID(slotID);
+				for (let i = 0; i < storageKeys.length; i++) {
+					localStorage.setItem(storageKeys[i], data);
+				}
+				log.i("Saved to slot [" + slotID + "]");
+				return true;
+			} catch (ex) {
+				log.w("Could not save to save slot [" + slotID + "]: Exception: " + ex);
+				return false;
+			}
+		},
+
+		saveMetaState: function () {
+			if (typeof(Storage) === "undefined") {
+				log.w("Could not save meta state: Storage not found");
+				return false;
+			}
+
+			let data = this.getCompressedMetaStateJSON();
+			
+			try {
+				localStorage.setItem("meta-state", data);
+				log.i("Saved meta state");
+				return true;
+			} catch (ex) {
+				log.w("Could not save meta state: Exception: " + ex);
+				return false;
+			}
+		},
+
+		getMetaStateData: function () {
+			return localStorage.getItem("meta-state") || {};
+		},
+
+		getDataFromSlot: function (slotID) {
+			let storageKeys = this.getStorageKeysForSaveSlotID(slotID);
+			for (let i = 0; i < storageKeys.length; i++) {
+				let data = localStorage.getItem(storageKeys[i]);
+				if (data) return data;
+			}
+			return null;
+		},
+
+		clearSlot: function (slotID) {
+			if(typeof(Storage) === "undefined") return;
+
+			let storageKeys = this.getStorageKeysForSaveSlotID(slotID);
+			for (let i = 0; i < storageKeys.length; i++) {
+				localStorage.removeItem(storageKeys[i]);
+			}
+			log.i("Cleared save slot [" + slotID + "]");
 		},
 
 		getSaveJSON: function () {
@@ -150,32 +228,52 @@ define([
 		},
 
 		getSaveJSONfromCompressed: function (compressed) {
-			var json = LZString.decompressFromBase64(compressed);
+			let json = LZString.decompressFromBase64(compressed);
 			return json;
 		},
 
 		getCompressedSaveJSON: function (json) {
-			var json = json || this.getSaveJSON();
-			log.i("basic json: " + json.length);
-			var compressed = LZString.compressToBase64(json);
-			log.i("compressed: " + compressed.length);
+			json = json || this.getSaveJSON();
+			let compressed = LZString.compressToBase64(json);
 			return compressed;
 		},
 
-		onSaveGameSignal: function (isPlayerInitiated) {
-			if (isPlayerInitiated) {
-				this.isPendingManualSave = true;
-			} else {
-				this.isPendingAutosave = true;
+		getMetaStateJSON: function () {
+			let data = GameGlobals.metaState;
+			let result = JSON.stringify(data);
+			return result;
+		},
+
+		getCompressedMetaStateJSON: function () {
+			let json = this.getMetaStateJSON();
+			let compressed = LZString.compressToBase64(json);
+			return compressed;
+		},
+
+		getStorageKeysForSaveSlotID: function (slotID) {
+			let result = [ "save-" + slotID ];
+			if (slotID == GameConstants.SAVE_SLOT_DEFAULT) {
+				// backwards compatibility
+				result.push("save");
+			}
+			return result;
+		},
+
+		onSaveGameSignal: function (slotID, isPlayerInitiated) {
+			slotID = slotID || GameConstants.SAVE_SLOT_DEFAULT;
+
+			if (isPlayerInitiated && this.pendingManualSaves.indexOf(slotID) < 0) {
+				this.pendingManualSaves.push(slotID);
+			}
+
+			if (!isPlayerInitiated && this.pendingAutosaves.indexOf(slotID) < 0) {
+				this.pendingAutosaves.push(slotID);
 			}
 		},
 
 		onRestart: function (resetSave) {
 			if (!resetSave) return;
-			if(typeof(Storage) !== "undefined") {
-				localStorage.removeItem("save");
-				log.i("Removed save");
-			}
+			this.clearSlot(GameConstants.SAVE_SLOT_DEFAULT);
 		}
 
 	});

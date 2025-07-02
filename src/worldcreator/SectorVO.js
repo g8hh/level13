@@ -9,6 +9,8 @@ function (Ash, WorldConstants, WorldCreatorConstants, WorldCreatorLogger, Resour
 			this.level = position.level;
 			this.campableLevel = isCampableLevel;
 			this.notCampableReason = notCampableReason;
+
+			this.sectorType = null;
 			
 			this.isCamp = false;
 			this.isPassageUp = false;
@@ -25,6 +27,8 @@ function (Ash, WorldConstants, WorldCreatorConstants, WorldCreatorLogger, Resour
 			this.sunlit = false;
 			this.hazards = new EnvironmentalHazardsVO();
 			this.hasSpring = false;
+			this.hasWorkshop = false;
+			this.hasHeap = false;
 			this.hasTradeConnectorSpot = false;
 			this.isInvestigatable = false;
 			this.scavengeDifficulty = 5;
@@ -35,6 +39,10 @@ function (Ash, WorldConstants, WorldCreatorConstants, WorldCreatorLogger, Resour
 			this.possibleEnemies = [];
 			this.stashes = [];
 			this.waymarks = [];
+			this.examineSpots = [];
+
+			this.workshopResource = null;
+			this.heapResource = null;
 			
 			this.distanceToCamp = -1;
 		},
@@ -93,6 +101,20 @@ function (Ash, WorldConstants, WorldCreatorConstants, WorldCreatorLogger, Resour
 		
 		hasWater: function () {
 			return this.hasSpring || this.resourcesScavengable.getResource(resourceNames.water) > 0 || this.resourcesCollectable.getResource(resourceNames.water) > 0;
+		},
+
+		hasLocaleOfType: function (localeType) {
+			for (let i = 0; i < this.locales.length; i++) {
+				if (this.locales[i].type == localeType) return true;
+			}
+			return false;
+		},
+
+		hasStashWithLocaleType: function (localeType) {
+			for (let i = 0; i < this.stashes.length; i++) {
+				if (this.stashes[i].localeType == localeType) return true;
+			}
+			return false;
 		},
 		
 		getCriticalPathPriority: function (pathType) {

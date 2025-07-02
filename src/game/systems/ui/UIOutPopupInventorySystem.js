@@ -1,5 +1,6 @@
 define([
 	'ash',
+	'text/Text',
 	'game/GameGlobals',
 	'game/GlobalSignals',
 	'game/constants/UIConstants',
@@ -9,10 +10,13 @@ define([
 	'game/nodes/player/PlayerActionResultNode',
 	'game/components/common/PositionComponent',
 	'game/components/player/BagComponent'
-], function (Ash, GameGlobals, GlobalSignals, UIConstants, ItemConstants, BagConstants, ItemsNode, PlayerActionResultNode, PositionComponent, BagComponent) {
+], function (Ash, Text, GameGlobals, GlobalSignals, UIConstants, ItemConstants, BagConstants, ItemsNode, PlayerActionResultNode, PositionComponent, BagComponent) {
 	var UIOutPopupInventorySystem = Ash.System.extend({
 
 		playerActionResultNodes: null,
+
+		INVENTORYBOX_FOUND_ID: "FOUND",
+		INVENTORYBOX_KEPT_ID: "KEPT",
 
 		constructor: function () {
 			return this;
@@ -22,12 +26,16 @@ define([
 			this.itemNodes = engine.getNodeList(ItemsNode);
 			this.playerActionResultNodes = engine.getNodeList(PlayerActionResultNode);
 			this.playerActionResultNodes.nodeAdded.add(this.onNodeAdded, this);
+
+			GlobalSignals.add(this, GlobalSignals.popupShownSignal, this.onPopupShown);
 		},
 
 		removeFromEngine: function (engine) {
 			this.playerActionResultNodes.nodeAdded.remove(this.onNodeAdded, this);
 			this.playerActionResultNodes = null;
 			this.itemNodes = null;
+
+			GlobalSignals.removeAll(this);
 		},
 
 		onNodeAdded: function (node) {
@@ -47,6 +55,7 @@ define([
 			}
 
 			if (this.pendingListUpdate) {
+				GameGlobals.uiFunctions.toggle($("#resultlist-positive"), $("#resultlist-positive li").length > 0);
 				this.updateLists();
 			}
 		},
@@ -55,11 +64,13 @@ define([
 			var resultNode = this.playerActionResultNodes.head;
 			if (resultNode) {
 				var rewards = resultNode.result.pendingResultVO;
-				var hasPickedSomething = rewards && (rewards.selectedItems.length > 0 || rewards.selectedResources.getTotal() > 0 || rewards.discardedItems.length > 0 || rewards.discardedResources.getTotal() > 0);
+				var hasPickedSomething = this.getHasSelectedSomething(rewards);
 				var canPickSomething = rewards && (rewards.gainedResources.getTotal() > 0 || rewards.gainedItems.length > 0);
 				$(".inventory-selection-ok .btn-label").text(hasPickedSomething ? "Take selected" : canPickSomething ? "Leave" : "Continue");
 				$(".inventory-selection-ok").toggleClass("btn-secondary", !hasPickedSomething && canPickSomething);
 				this.pendingButtonsUpdate = false;
+
+				GlobalSignals.updateButtonsSignal.dispatch();
 			}
 		},
 
@@ -68,13 +79,13 @@ define([
 			$("#resultlist-inventorymanagement-kept ul").empty();
 			$("#resultlist-loststuff-lost ul").empty();
 
-			var sys = this;
+			let sys = this;
 
-			var inCamp = this.playerActionResultNodes.head.entity.get(PositionComponent).inCamp;
-			var resultNode = this.playerActionResultNodes.head;
-			var rewards = resultNode.result.pendingResultVO;
+			let inCamp = this.playerActionResultNodes.head.entity.get(PositionComponent).inCamp;
+			let resultNode = this.playerActionResultNodes.head;
+			let rewards = resultNode.result.pendingResultVO;
 
-			var playerAllItems = resultNode.items.getAll(inCamp);
+			let playerAllItems = resultNode.items.getAll(inCamp);
 
 			var findItemById = function (itemID, itemList, notInItemList, skipEquipped) {
 				for (let i = 0; i < itemList.length; i++) {
@@ -101,6 +112,8 @@ define([
 				var divItem = $(this).find(".item");
 				var resourceName = $(divRes).attr("data-resourcename");
 				var itemId = $(divItem).attr("data-itemid");
+
+				GlobalSignals.triggerSoundSignal.dispatch(UIConstants.soundTriggerIDs.buttonClicked);
 
 				var isInKeptList = $(this).parents("#resultlist-inventorymanagement-kept").length > 0;
 
@@ -147,15 +160,20 @@ define([
 			this.addItemsToLists(rewards, playerAllItems);
 			this.addResourcesToLists(rewards, resultNode);
 
-			GameGlobals.uiFunctions.toggle("#resultlist-inventorymanagement-kept .msg-empty", $("#resultlist-inventorymanagement-kept ul li").length <= 0);
-			GameGlobals.uiFunctions.toggle("#resultlist-inventorymanagement-found .msg-empty", $("#resultlist-inventorymanagement-found ul li").length <= 0);
+			let isFoundBoxEmpty = $("#resultlist-inventorymanagement-found ul li").length <= 0;
+			GameGlobals.uiFunctions.toggle("#resultlist-inventorymanagement-found .msg-empty", isFoundBoxEmpty);
+			$("#resultlist-inventorymanagement-found .msg-empty").text(this.getEmptyMessage(rewards, this.INVENTORYBOX_FOUND_ID));
+
+			let isKeptBoxEmpty = $("#resultlist-inventorymanagement-kept ul li").length <= 0;
+			GameGlobals.uiFunctions.toggle("#resultlist-inventorymanagement-kept .msg-empty", isKeptBoxEmpty);
+			$("#resultlist-inventorymanagement-kept .msg-empty").text(this.getEmptyMessage(rewards, this.INVENTORYBOX_KEPT_ID));
 
 			$("#resultlist-inventorymanagement-kept li").click(onLiClicked);
 			$("#resultlist-inventorymanagement-found li").click(onLiClicked);
 
-			GameGlobals.uiFunctions.generateCallouts("#resultlist-inventorymanagement-kept");
-			GameGlobals.uiFunctions.generateCallouts("#resultlist-inventorymanagement-found");
-			GameGlobals.uiFunctions.generateCallouts("#resultlist-loststuff-lost");
+			GameGlobals.uiFunctions.generateInfoCallouts("#resultlist-inventorymanagement-kept");
+			GameGlobals.uiFunctions.generateInfoCallouts("#resultlist-inventorymanagement-found");
+			GameGlobals.uiFunctions.generateInfoCallouts("#resultlist-loststuff-lost");
 
 			this.updateCapacity(rewards, resultNode, playerAllItems);
 			
@@ -164,12 +182,27 @@ define([
 			this.pendingListUpdate = false;
 		},
 
+		getEmptyMessage: function (resultVO, type) {
+			let isFight = resultVO.action == "fight";
+			let hasBag = this.itemNodes.head.items.getCurrentBonus(ItemConstants.itemBonusTypes.bag) > 0;
+			let hasDrops = resultVO.gainedResources.getTotal() > 0 || resultVO.gainedItems.length > 0;
+
+			if (type == this.INVENTORYBOX_FOUND_ID) {
+				if (isFight) return Text.t("ui.inventory_management.found_box_empty_fight_message");
+				if (!hasDrops) return Text.t("ui.inventory_management.found_box_empty_no_drops_message");
+				return Text.t("ui.inventory_management.found_box_empty_default_message");
+			} else {
+				if (!hasBag) return Text.t("ui.inventory_management.kept_box_empty_no_bag_message");
+				return Text.t("ui.inventory_management.kept_box_empty_default_message");
+			}
+		},
+
 		updateCapacity: function (rewards, resultNode, playerAllItems) {
 			var bagComponent = this.playerActionResultNodes.head.entity.get(BagComponent);
 			BagConstants.updateCapacity(bagComponent, rewards, resultNode.resources, playerAllItems);
 
 			var selectedCapacityPercent = bagComponent.selectedCapacity / bagComponent.totalCapacity * 100;
-			$("#inventory-popup-bar").data("progress-percent", selectedCapacityPercent);
+			$("#inventory-popup-bar").attr("data-progress-percent", selectedCapacityPercent);
 			$("#inventory-popup-bar .progress-label").text((Math.ceil( bagComponent.selectedCapacity * 10) / 10) + " / " + bagComponent.totalCapacity);
 
 			GameGlobals.uiFunctions.toggle(".inventory-selection-takeall", bagComponent.selectableCapacity > bagComponent.selectionStartCapacity);
@@ -286,6 +319,15 @@ define([
 					$("#resultlist-inventorymanagement-found ul").append(UIConstants.getResourceLi(name, amountFound));
 				}
 			}
+		},
+
+		getHasSelectedSomething: function (resultVO) {
+			if (!resultVO) return false;
+			return resultVO.selectedItems.length > 0 || resultVO.selectedResources.getTotal() > 0 || resultVO.discardedItems.length > 0 || resultVO.discardedResources.getTotal() > 0;
+		},
+
+		onPopupShown: function () {
+			this.pendingListUpdate = true;
 		},
 
 	});

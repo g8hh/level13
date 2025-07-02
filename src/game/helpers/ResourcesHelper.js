@@ -75,6 +75,14 @@ define([
 			return currentCurrencys;
 		},
 
+		getCurrentCampCurrency: function (campEntity) {
+			if (this.hasAccessToTradeNetwork(campEntity)) {
+				return this.globalResourcesNodes.head.currency;
+			}
+
+			return campEntity.get(CurrencyComponent);
+		},
+
 		getCurrentStorageCap: function () {
 			var playerPosition = this.playerResourcesNodes.head.entity.get(PositionComponent);
 			var showStorage = this.playerResourcesNodes.head.entity.get(ResourcesComponent).storageCapacity;
@@ -89,19 +97,35 @@ define([
 			return showStorage;
 		},
 
-		getCurrentStorageName: function () {
-			var playerPosition = this.playerResourcesNodes.head.entity.get(PositionComponent);
-			var showStorage = this.playerResourcesNodes.head.entity.get(ResourcesComponent).storageCapacity;
-			var storageName = "Bag capacity";
+		getCampStorageCap: function (sector) {
+			if (this.hasAccessToTradeNetwork(sector)) {
+				return this.getGlobalStorage().storageCapacity;
+			}
+			return sector.get(ResourcesComponent).storageCapacity;
+		},
+
+		getCurrentStorageNameKey: function (short) {
+			let playerPosition = this.playerResourcesNodes.head.entity.get(PositionComponent);
+
+			if (short) {
+				if (playerPosition.inCamp) {
+					return "ui.camp.storage_name_short";
+				} else {
+					return "ui.inventory.storage_name_short";
+				}
+			}
+
+			let showStorage = this.playerResourcesNodes.head.entity.get(ResourcesComponent).storageCapacity;
+			let storageName = "ui.inventory.storage_name_long";
 
 			if (showStorage < 10) {
-				storageName = "Carry capacity";
+				storageName = "ui.inventory.storage_name_no_bag";
 			}
 
 			if (playerPosition.inCamp && this.hasCampStorage()) {
-				storageName = "Camp storage";
+				storageName = "ui.camp.storage_name_long_camp";
 				if (this.hasAccessToTradeNetwork()) {
-					storageName = "Tribe storage";
+					storageName = "ui.camp.storage_name_long_connected";
 				}
 			}
 
@@ -191,6 +215,16 @@ define([
 				var playerResources = this.playerResourcesNodes.head.resources.resources;
 				var campResourcesSource = this.getCurrentStorage().resources;
 				this.moveResourcesFromVOToVO(resourcesVO, campResourcesSource, playerResources);
+			}
+		},
+
+		moveCurrencyFromCampToBag: function (value) {
+			let playerCurrency = this.playerResourcesNodes.head.entity.get(CurrencyComponent);
+			let playerLevelCamp = this.nearestCampNodes.head !== null ? this.nearestCampNodes.head.entity : null;
+			if (playerLevelCamp) {
+				let campCurrency = playerLevelCamp.get(CurrencyComponent);
+				campCurrency.currency -= value;
+				playerCurrency.currency += value;
 			}
 		},
 

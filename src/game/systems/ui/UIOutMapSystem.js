@@ -1,5 +1,6 @@
 define([
 	'ash',
+	'text/Text',
 	'utils/FileUtils',
 	'utils/MapUtils',
 	'game/GameGlobals',
@@ -18,7 +19,6 @@ define([
 	'game/nodes/PlayerPositionNode',
 	'game/components/common/CampComponent',
 	'game/components/common/PositionComponent',
-	'game/components/common/VisitedComponent',
 	'game/components/sector/EnemiesComponent',
 	'game/components/sector/PassagesComponent',
 	'game/components/sector/SectorControlComponent',
@@ -30,9 +30,9 @@ define([
 	'game/components/player/ItemsComponent',
 	'game/components/type/LevelComponent',
 	'game/systems/CheatSystem',
-], function (Ash, FileUtils, MapUtils, GameGlobals, GlobalSignals, GameConstants, ItemConstants, LevelConstants, LocaleConstants, MovementConstants, PositionConstants, SectorConstants, TextConstants, TradeConstants, UIConstants,
+], function (Ash, Text, FileUtils, MapUtils, GameGlobals, GlobalSignals, GameConstants, ItemConstants, LevelConstants, LocaleConstants, MovementConstants, PositionConstants, SectorConstants, TextConstants, TradeConstants, UIConstants,
 	PlayerLocationNode, PlayerPositionNode,
-	CampComponent, PositionComponent, VisitedComponent, EnemiesComponent, PassagesComponent, SectorControlComponent, SectorFeaturesComponent, SectorLocalesComponent, SectorStatusComponent, SectorImprovementsComponent, WorkshopComponent, ItemsComponent, LevelComponent,
+	CampComponent, PositionComponent, EnemiesComponent, PassagesComponent, SectorControlComponent, SectorFeaturesComponent, SectorLocalesComponent, SectorStatusComponent, SectorImprovementsComponent, WorkshopComponent, ItemsComponent, LevelComponent,
 	CheatSystem) {
 
 	var UIOutMapSystem = Ash.System.extend({
@@ -52,9 +52,9 @@ define([
 
 		addToEngine: function (engine) {
 			this.engine = engine;
-			$("#select-header-level").bind("change", $.proxy(this.onLevelSelectorChanged, this));
-			$("#select-header-mapmode").bind("change", $.proxy(this.onMapModeSelectorChanged, this));
-			$("#select-header-mapstyle").bind("change", $.proxy(this.onMapStyleSelectorChanged, this));
+			$("#select-header-level").on("change", $.proxy(this.onLevelSelectorChanged, this));
+			$("#select-header-mapmode").on("change", $.proxy(this.onMapModeSelectorChanged, this));
+			$("#select-header-mapstyle").on("change", $.proxy(this.onMapStyleSelectorChanged, this));
 			GameGlobals.uiMapHelper.enableScrollingForMap("mainmap");
 			this.playerPositionNodes = engine.getNodeList(PlayerPositionNode);
 			this.playerLocationNodes = engine.getNodeList(PlayerLocationNode);
@@ -67,9 +67,9 @@ define([
 		removeFromEngine: function (engine) {
 			this.engine = null;
 			GlobalSignals.removeAll(this);
-			$("#select-header-level").unbind("change", $.proxy(this.onLevelSelectorChanged, this));
-			$("#select-header-mapmode").unbind("change", $.proxy(this.onMapModeSelectorChanged, this));
-			$("#select-header-mapstyle").unbind("change", $.proxy(this.onMapStyleSelectorChanged, this));
+			$("#select-header-level").off("change", $.proxy(this.onLevelSelectorChanged, this));
+			$("#select-header-mapmode").off("change", $.proxy(this.onMapModeSelectorChanged, this));
+			$("#select-header-mapstyle").off("change", $.proxy(this.onMapStyleSelectorChanged, this));
 			GameGlobals.uiMapHelper.disableScrollingForMap("mainmap");
 			this.playerPositionNodes = null;
 			this.playerLocationNodes = null;
@@ -78,9 +78,11 @@ define([
 		initElements: function () {
 			var sys = this;
 			$("#btn-cheat-teleport").click(function () {
+				GlobalSignals.triggerSoundSignal.dispatch(UIConstants.soundTriggerIDs.buttonClicked);
 				sys.teleport();
 			});
 			$("#btn-download-map").click(function () {
+				GlobalSignals.triggerSoundSignal.dispatch(UIConstants.soundTriggerIDs.buttonClicked);
 				sys.downloadASCIIMap();
 			});
 			$("#btn-mainmap-sector-details-next").click($.proxy(this.selectNextSector, this));
@@ -96,9 +98,14 @@ define([
 
 		update: function (time) {
 			if (GameGlobals.gameState.uiStatus.isHidden) return;
-			GameGlobals.uiFunctions.toggle("#switch-map .bubble", !GameGlobals.gameState.uiStatus.mapVisited);
-			if (GameGlobals.gameState.uiStatus.currentTab !== GameGlobals.uiFunctions.elementIDs.tabs.map) return;
-			GameGlobals.gameState.uiStatus.mapVisited = true;
+			this.updateBubble();
+		},
+
+		updateBubble: function () {
+			let bubbleNumber = 0;
+			if (!GameGlobals.gameState.hasSeenTab(GameGlobals.uiFunctions.elementIDs.tabs.map)) bubbleNumber = "!";
+			GameGlobals.uiFunctions.updateBubble("#switch-map .bubble", this.bubbleNumber, bubbleNumber);
+			this.bubbleNumber = bubbleNumber;
 		},
 		
 		updateHeight: function () {
@@ -112,7 +119,8 @@ define([
 			var surfaceLevel = GameGlobals.gameState.getSurfaceLevel();
 			var groundLevel = GameGlobals.gameState.getGroundLevel();
 			for (let i = surfaceLevel; i >= groundLevel; i--) {
-				html += "<option value='" + i + "' id='map-level-selector-level-" + i + "'>Level " + i + "</option>"
+				let label = this.getLevelSelectorOptionLabel(i);
+				html += "<option value='" + i + "' id='map-level-selector-level-" + i + "'>" + label + "</option>"
 			}
 			$("#select-header-level").append(html);
 		},
@@ -139,17 +147,32 @@ define([
 			var groundLevel = GameGlobals.gameState.getGroundLevel();
 			var countVisible = 0;
 			for (let i = surfaceLevel; i >= groundLevel; i--) {
-				let isVisible = GameGlobals.uiMapHelper.isMapRevealed || GameGlobals.levelHelper.getLevelEntityForPosition(i).has(VisitedComponent);
+				let isVisible = GameGlobals.uiMapHelper.isMapRevealed || GameGlobals.levelHelper.isVisited(i);
 				let $elem = $("#map-level-selector-level-" + i);
 				let levelStats = GameGlobals.levelHelper.getLevelStats(i);
 				let isCleared = levelStats.percentClearedSectors >= 1;
 				GameGlobals.uiFunctions.toggle($elem, isVisible);
 				if (isVisible) {
-					$elem.text("Level " + i + " " + (isCleared ? "(x)" : "(-)"));
+					$elem.text(this.getLevelSelectorOptionLabel(i, isCleared));
 					countVisible++;
 				}
 			}
 			GameGlobals.uiFunctions.toggle($("#select-header-level"), countVisible > 1);
+		},
+
+		getLevelSelectorOptionLabel: function (level, isCleared) {
+				let surfaceLevel = GameGlobals.gameState.getSurfaceLevel();
+				let groundLevel = GameGlobals.gameState.getGroundLevel();
+
+				let result = "Level " + level;
+				
+				if (level == surfaceLevel) result = "Surface";
+				if (level == groundLevel) result = "Ground";
+
+				if (isCleared) result += " (x)";
+				else result += " (-)";
+
+				return result;
 		},
 
 		selectLevel: function (level) {
@@ -201,15 +224,18 @@ define([
 			
 			let sys = this;
 			
+			let sector = this.playerLocationNodes.head.entity;
 			let mapPosition = this.getCurrentMapPosition();
 			
-			var levelEntity = GameGlobals.levelHelper.getLevelEntityForPosition(mapPosition.level);
+			let levelEntity = GameGlobals.levelHelper.getLevelEntityForPosition(mapPosition.level);
+			if (!levelEntity) return;
+
 			var hasCampOnLevel = levelEntity.get(CampComponent) !== null;
 			GameGlobals.uiFunctions.toggle($("#btn-mainmap-sector-details-camp"), hasCampOnLevel);
 			
 			let mapStatus = GameGlobals.levelHelper.getLevelStats(this.selectedLevel);
 			let hasUnknownSectors = mapStatus.percentVisitedSectors < 1 || mapStatus.countVisitedSectors > mapStatus.countScoutedSectors;
-			let hasUnscoutedLocaleSectors = mapStatus.countClearedSectors != mapStatus.countScoutedSectors;
+			let hasUnscoutedLocaleSectors = mapStatus.countUnscoutedLocaleSectors > 0;
 			let hasIngredientSectors = mapStatus.countKnownIngredientSectors > 0;
 			let hasInvestigateSectors = mapStatus.countInvestigatableSectors > 0;
 			
@@ -256,7 +282,7 @@ define([
 			if (hasSector) {
 				let statusComponent = this.selectedSector.get(SectorStatusComponent);
 				var isScouted = statusComponent.scouted;
-				var isVisited = this.selectedSector.has(VisitedComponent);
+				var isVisited = GameGlobals.sectorHelper.isVisited(this.selectedSector);
 				var sectorFeatures = this.selectedSector.get(SectorFeaturesComponent);
 				var features = GameGlobals.sectorHelper.getTextFeatures(this.selectedSector);
 				var header = isVisited ? TextConstants.getSectorName(isScouted, features) : "Sector";
@@ -307,6 +333,7 @@ define([
 		selectNextSector: function () {
 			let newSector = this.getNextSelectableSector(1);
 			if (!newSector) return null;
+			GlobalSignals.triggerSoundSignal.dispatch(UIConstants.soundTriggerIDs.buttonClicked);
 			let pos = newSector.get(PositionComponent);
 			this.selectSector(pos.level, pos.sectorX, pos.sectorY);
 			this.centerMap(pos, true);
@@ -315,15 +342,17 @@ define([
 		selectPreviousSector: function () {
 			let newSector = this.getNextSelectableSector(-1);
 			if (!newSector) return null;
+			GlobalSignals.triggerSoundSignal.dispatch(UIConstants.soundTriggerIDs.buttonClicked);
 			let pos = newSector.get(PositionComponent);
 			this.selectSector(pos.level, pos.sectorX, pos.sectorY);
 			this.centerMap(pos, true);
 		},
 		
 		selectCampSector: function () {
-			let level = this.selectedLevel || 13;
+			let level = this.getValidSelectedLevel();
 			let campNode = GameGlobals.campHelper.getCampNodeForLevel(level);
 			if (!campNode) return;
+			GlobalSignals.triggerSoundSignal.dispatch(UIConstants.soundTriggerIDs.buttonClicked);
 			let pos = campNode.position;
 			this.selectSector(pos.level, pos.sectorX, pos.sectorY);
 			this.centerMap(pos, true);
@@ -335,6 +364,7 @@ define([
 				return sectorStatus == SectorConstants.MAP_SECTOR_STATUS_REVEALED_BY_MAP || sectorStatus == SectorConstants.MAP_SECTOR_STATUS_UNVISITED_VISIBLE || sectorStatus == SectorConstants.MAP_SECTOR_STATUS_VISITED_UNSCOUTED;
 			});
 			if (!newSector) return null;
+			GlobalSignals.triggerSoundSignal.dispatch(UIConstants.soundTriggerIDs.buttonClicked);
 			let pos = newSector.get(PositionComponent);
 			this.selectSector(pos.level, pos.sectorX, pos.sectorY);
 			this.centerMap(pos, true);
@@ -342,10 +372,11 @@ define([
 		
 		selectUnscoutedLocaleSector: function () {
 			let newSector = this.getNextSelectableSector(1, (sector) => {
-				let sectorStatus = GameGlobals.sectorHelper.getSectorStatus(sector);
-				return sectorStatus == SectorConstants.MAP_SECTOR_STATUS_VISITED_SCOUTED;
+				let num = GameGlobals.sectorHelper.getNumVisibleUnscoutedLocales(sector);
+				return num > 0;
 			});
 			if (!newSector) return null;
+			GlobalSignals.triggerSoundSignal.dispatch(UIConstants.soundTriggerIDs.buttonClicked);
 			let pos = newSector.get(PositionComponent);
 			this.selectSector(pos.level, pos.sectorX, pos.sectorY);
 			this.centerMap(pos, true);
@@ -357,6 +388,7 @@ define([
 				return GameGlobals.sectorHelper.hasSectorVisibleIngredients(sector);
 			});
 			if (!newSector) return null;
+			GlobalSignals.triggerSoundSignal.dispatch(UIConstants.soundTriggerIDs.buttonClicked);
 			let pos = newSector.get(PositionComponent);
 			this.selectSector(pos.level, pos.sectorX, pos.sectorY);
 			this.centerMap(pos, true);
@@ -368,13 +400,14 @@ define([
 				return GameGlobals.sectorHelper.canBeInvestigated(sector);
 			});
 			if (!newSector) return null;
+			GlobalSignals.triggerSoundSignal.dispatch(UIConstants.soundTriggerIDs.buttonClicked);
 			let pos = newSector.get(PositionComponent);
 			this.selectSector(pos.level, pos.sectorX, pos.sectorY);
 			this.centerMap(pos, true);
 		},
 		
 		getNextSelectableSector: function (offset, filter) {
-			let level = this.selectedLevel || 13;
+			let level = this.getValidSelectedLevel();
 			let sectors = GameGlobals.levelHelper.getSectorsByLevel(level);
 			let currentIndex = sectors.indexOf(this.selectedSector);
 			let startIndex = currentIndex >= 0 ? currentIndex : 0;
@@ -401,9 +434,12 @@ define([
 		getCurrentMapPosition: function () {
 			let mapPosition = this.playerPositionNodes.head.position.getPosition();
 			if (this.selectedLevel || this.selectedLevel == 0) {
-				mapPosition.level = this.selectedLevel;
-				mapPosition.sectorX = 0;
-				mapPosition.sectorY = 0;
+				let levelEntity = GameGlobals.levelHelper.getLevelEntityForPosition(this.selectedLevel);
+				if (levelEntity) {
+					mapPosition.level = this.selectedLevel;
+					mapPosition.sectorX = 0;
+					mapPosition.sectorY = 0;
+				}
 			}
 			return mapPosition;
 		},
@@ -417,6 +453,8 @@ define([
 			let startPosition = this.playerLocationNodes.head.position.getPosition();
 			let includeLevel = position.level != startPosition.level;
 			let title = "Directions from " + startPosition.getInGameFormat(includeLevel) + " to " + position.getInGameFormat(includeLevel);
+			
+			GlobalSignals.triggerSoundSignal.dispatch(UIConstants.soundTriggerIDs.buttonClicked);
 			
 			let stretches = [];
 			let previousPos = startPosition;
@@ -479,44 +517,52 @@ define([
 		updateMapCompletionHint: function () {
 			let level = this.selectedLevel;
 			
-			let levelTypeText = "";
+			let levelTypeTextVO = {};
+			
 			let levelComponent = GameGlobals.levelHelper.getLevelEntityForPosition(level).get(LevelComponent);
 			let surfaceLevel = GameGlobals.gameState.getSurfaceLevel();
 			let groundLevel = GameGlobals.gameState.getGroundLevel();
 			let isTypeRevealed = GameGlobals.levelHelper.isLevelTypeRevealed(level);
 			
 			if (level == surfaceLevel) {
-				levelTypeText = "This level is on the surface of the City. "
+				levelTypeTextVO.textKey = "ui.map.level_type_description_surface";
 			} else if (level == groundLevel) {
-				levelTypeText = "This level is on the Ground. ";
+				levelTypeTextVO.textKey = "ui.map.level_type_description_ground";
 			} else if (isTypeRevealed && !levelComponent.isCampable) {
 				switch (levelComponent.notCampableReason) {
 					case LevelConstants.UNCAMPABLE_LEVEL_TYPE_RADIATION:
+						levelTypeTextVO.textKey = "ui.map.level_type_description_radiation";
+						break;
 					case LevelConstants.UNCAMPABLE_LEVEL_TYPE_POLLUTION:
-						levelTypeText = "This level is polluted. ";
+						levelTypeTextVO.textKey = "ui.map.level_type_description_poison";
 						break;
 					default:
-						levelTypeText = "This level is uninhabited. ";
+						levelTypeTextVO.textKey = "ui.map.level_type_description_uncampable";
 						break;
 				}
-			} else {
+			} else if (isTypeRevealed && levelComponent.isCampable) {
+				levelTypeTextVO.textKey = "ui.map.level_type_description_campable";
 			}
 			
-			let levelPronoun = levelTypeText.length > 0 ? "It" : "This level";
-			let levelLocation = levelTypeText.length > 0 ? "" : " on this level";
+			let mapStatusTextVO = {};
+
+			mapStatusTextVO.textKey = "ui.map.level_status_many_unvisited_description";
 			
 			let mapStatus = GameGlobals.levelHelper.getLevelStats(level);
-			let mapStatusText = "There are still many unvisited streets" + levelLocation + ".";
-			if (mapStatus.percentClearedSectors >= 1)
-				mapStatusText = levelPronoun + " has been thoroughly explored.";
-			else if (mapStatus.percentScoutedSectors >= 1)
-				mapStatusText =  levelPronoun + " has been mapped, but there are unexplored locations left.";
+			if (mapStatus.countSeenClearedWorkshops > 0) 
+				mapStatusTextVO.textKey = "ui.map.level_status_uncleared_workshop_description";
+			else if (mapStatus.percentClearedSectors >= 1)
+				mapStatusTextVO.textKey = "ui.map.level_status_fully_explored_description";
+			else if (mapStatus.percentScoutedSectors >= 1) 
+				mapStatusTextVO.textKey = "ui.map.level_status_all_sectors_scouted_description";
 			else if (mapStatus.percentRevealedSectors >= 1)
-				mapStatusText = "There are still unscouted streets" + levelLocation + ".";
+				mapStatusTextVO.textKey = "ui.map.level_status_all_sectors_revealed_description";
 			else if (mapStatus.percentRevealedSectors >= 0.5)
-				mapStatusText = "There are still some unvisited streets" + levelLocation + ".";
+				mapStatusTextVO.textKey = "ui.map.level_status_some_unvisited_description";
 
-			$("#map-completion-hint").text(levelTypeText + "" + mapStatusText);
+			let hint = { textFragments: [ levelTypeTextVO, mapStatusTextVO ], delimiter: "ui.common.sentence_separator" };
+
+			$("#map-completion-hint").text(Text.compose(hint));
 		},
 		
 		getDistrictText: function (sector) {
@@ -535,6 +581,7 @@ define([
 			var localesComponent = sector.get(SectorLocalesComponent);
 			var improvements = sector.get(SectorImprovementsComponent);
 			var unScoutedLocales = localesComponent.locales.length - statusComponent.getNumLocalesScouted();
+			let numUnexaminedSpots = GameGlobals.sectorHelper.getNumUnexaminedSpots(sector);
 			
 			let result = [];
 			if (sector.has(CampComponent)) result.push("camp");
@@ -565,6 +612,7 @@ define([
 				result.push(TextConstants.getPassageDescription(sectorPassages.passageDown, PositionConstants.DIRECTION_DOWN, passageDownBuilt, true));
 			}
 			if (unScoutedLocales > 0) result.push("unscouted locales");
+			if (numUnexaminedSpots > 0) result.push("unexamined features");
 			if (sectorFeatures.hasSpring) result.push(TextConstants.getSpringName(sectorFeatures));
 			
 			for (let i = 0; i < localesComponent.locales.length; i++) {
@@ -598,7 +646,7 @@ define([
 			let knownResources = GameGlobals.sectorHelper.getLocationKnownResources(sector);
 			let items = GameGlobals.sectorHelper.getLocationDiscoveredItems(sector);
 			let knownItems = GameGlobals.sectorHelper.getLocationKnownItems(sector);
-			let allItems = GameGlobals.sectorHelper.getLocationScavengeableItems(sector);
+			
 			let showIngredients = GameGlobals.sectorHelper.hasSectorVisibleIngredients(sector);
 			if (resources.length < 1 && !showIngredients) {
 				result = "-";
@@ -609,6 +657,13 @@ define([
 			}
 			
 			result += " (" + scavengedPercent + "% scavenged) ";
+
+			if (featuresComponent.heapResource) {
+				let heapName = TextConstants.getHeapDisplayName(featuresComponent.heapResource, featuresComponent);
+				let heapScavengedPercentage = Math.round(statusComponent.getHeapScavengedPercent());
+				let resourceName = TextConstants.getResourceDisplayName(featuresComponent.heapResource);
+				result += ", " + heapName + " (" + resourceName + ", " + heapScavengedPercentage + "% scavenged)";
+			}
 			
 			if (investigatedPercent > 0) {
 				result += " (" + investigatedPercent + "% investigated) ";
@@ -618,21 +673,24 @@ define([
 		},
 		
 		getCollectorsText: function (sector, isScouted) {
-			var improvements = sector.get(SectorImprovementsComponent);
-			var featuresComponent = sector.get(SectorFeaturesComponent);
+			let improvements = sector.get(SectorImprovementsComponent);
+			let featuresComponent = sector.get(SectorFeaturesComponent);
+			let statusComponent = sector.get(SectorStatusComponent);
 			
-			var collectorFood = improvements.getVO(improvementNames.collector_food);
-			var collectorWater = improvements.getVO(improvementNames.collector_water);
+			let hazards = GameGlobals.sectorHelper.getEffectiveHazards(featuresComponent, statusComponent);
+			
+			let collectorFood = improvements.getVO(improvementNames.collector_food);
+			let collectorWater = improvements.getVO(improvementNames.collector_water);
 			
 			var result1 = [];
 			var result2 = [];
 			if (isScouted) {
 				if (collectorFood.count === 1) result1.push("1 trap");
 				if (collectorFood.count > 1) result1.push("traps");
-				if (collectorFood.count == 0 && featuresComponent.resourcesCollectable.food > 0) result2.push ("food")
+				if (collectorFood.count == 0 && featuresComponent.resourcesCollectable.food > 0 && hazards.territory == 0) result2.push ("food")
 				if (collectorWater.count === 1) result1.push("1 bucket");
 				if (collectorWater.count > 1) result1.push("buckets");
-				if (collectorWater.count == 0 && featuresComponent.resourcesCollectable.water > 0) result2.push ("water")
+				if (collectorWater.count == 0 && featuresComponent.resourcesCollectable.water > 0 && hazards.territory == 0) result2.push ("water")
 			}
 			
 			let part1 = "-";
@@ -667,7 +725,7 @@ define([
 				if (blocker) {
 					let gangComponent = GameGlobals.levelHelper.getGangComponent(position, direction);
 					let enemiesComponent = this.playerLocationNodes.head.entity.get(EnemiesComponent);
-					let blockerName = TextConstants.getMovementBlockerName(blocker, enemiesComponent, gangComponent).toLowerCase();
+					let blockerName = TextConstants.getMovementBlockerName(blocker, gangComponent).toLowerCase();
 					if (GameGlobals.movementHelper.isBlocked(sector, direction)) {
 						let blockerType = blocker.type;
 						let isGang = blockerType === MovementConstants.BLOCKER_TYPE_GANG;
@@ -681,7 +739,7 @@ define([
 		},
 		
 		getEnvironmentHTML: function (sector, isScouted) {
-			let isVisited = sector.has(VisitedComponent);
+			let isVisited = GameGlobals.sectorHelper.isVisited(sector);
 			if (!isVisited) return "?";
 			let result = [];
 			let featuresComponent = sector.get(SectorFeaturesComponent);
@@ -697,6 +755,7 @@ define([
 			
 			if (featuresComponent.sunlit) result.push("sunlit");
 			if (hazards.debris > 0) result.push("debris");
+			if (hazards.territory > 0) result.push("gang territory");
 			
 			if (hazards.radiation > 0)
 				result.push(getHazardSpan("radioactivity", hazards.radiation, hazards.radiation > itemsComponent.getCurrentBonus(ItemConstants.itemBonusTypes.res_radiation)));
@@ -704,22 +763,26 @@ define([
 				result.push(getHazardSpan("pollution", hazards.poison, hazards.poison > itemsComponent.getCurrentBonus(ItemConstants.itemBonusTypes.res_poison)));
 			if (hazards.cold > 0)
 				result.push(getHazardSpan("cold", hazards.cold, hazards.cold > itemsComponent.getCurrentBonus(ItemConstants.itemBonusTypes.res_cold)));
+			if (hazards.flooded > 0)
+				result.push(getHazardSpan("flooded", hazards.flooded, hazards.flooded > itemsComponent.getCurrentBonus(ItemConstants.itemBonusTypes.res_water)));
 			
 			if (result.length < 1) return "-";
 			else return result.join(", ");
 		},
 		
 		getMiscHTML: function (sector, isScouted) {
-			let isVisited = sector.has(VisitedComponent);
+			let isVisited = GameGlobals.sectorHelper.isVisited(sector);
 			if (!isVisited) return "?";
 			let result = [];
 			
 			if (isScouted) {
+				let statusComponent = this.selectedSector.get(SectorStatusComponent);
+				let featuresComponent = sector.get(SectorFeaturesComponent);
+
 				if (GameGlobals.sectorHelper.canBeInvestigated(sector)) {
 					result.push("can be investigated");
 				}
 				
-				let statusComponent = this.selectedSector.get(SectorStatusComponent);
 				if (statusComponent.graffiti) {
 					result.push("Graffiti: '" + statusComponent.graffiti + "'");
 				}
@@ -734,10 +797,16 @@ define([
 			var len = path ? path.length : "?";
 			return len + " blocks";
 		},
+
+		getValidSelectedLevel: function () {
+			if (this.selectedLevel) return this.selectedLevel;
+			if (this.selectedLevel === 0) return this.selectedLevel;
+			return 13;
+		},
 		
 		findPathTo: function (sector) {
 			if (!sector) return null;
-			return GameGlobals.levelHelper.findPathTo(this.playerLocationNodes.head.entity, sector, { skipBlockers: true, skipUnvisited: false });
+			return GameGlobals.levelHelper.findPathTo(this.playerLocationNodes.head.entity, sector, { skipBlockers: true, skipUnvisited: true });
 		},
 		
 		downloadASCIIMap: function () {
@@ -775,6 +844,7 @@ define([
 		onTabChanged: function (tabID, tabProps) {
 			if (tabID !== GameGlobals.uiFunctions.elementIDs.tabs.map) return;
 			
+			this.updateBubble();
 			this.updateHeader();
 			
 			$("#select-header-mapmode").toggle(this.isMapModesVisible());
@@ -794,7 +864,7 @@ define([
 		},
 		
 		updateHeader: function () {
-			let header = "Map";
+			let header = Text.t("ui.map.page_header");
 			if (this.isMapModesVisible()) header += " (" + this.selectedMapMode + ")";
 			$("#tab-header h2").text(header);
 		},
@@ -821,10 +891,6 @@ define([
 			if (this.selectedMapStyle === mapStyle) return;
 			this.selectMapStyle(mapStyle);
 		},
-
-		clearBubble: function () {
-			GameGlobals.gameState.uiStatus.mapVisited = true;
-		}
 
 	});
 

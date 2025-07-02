@@ -83,22 +83,22 @@ define([
 			let levelCamp = this.nearestCampNodes.head;
 			let currentCamp = levelCamp ? levelCamp.entity : null;
 			let isInCamp = this.playerStatsNodes.head && this.playerStatsNodes.head.entity.get(PositionComponent).inCamp;
-			let hasMap = GameGlobals.playerHelper.hasItem("equipment_map");
+			let hasMap = GameGlobals.playerHelper.hasItem("equipment_map") || GameGlobals.uiMapHelper.isMapRevealed;
 			let hasProjects = GameGlobals.gameState.unlockedFeatures.projects;
 			let hasTradingPost = currentCamp && currentCamp.get(SectorImprovementsComponent).getCount(improvementNames.tradepost) > 0;
 			let hasHomes = currentCamp && currentCamp.get(SectorImprovementsComponent).getCount(improvementNames.house) > 0;
 
-			GameGlobals.uiFunctions.tabToggleIf("#switch-tabs #switch-in", null, isInCamp, 200, 0);
-			GameGlobals.uiFunctions.tabToggleIf("#switch-tabs #switch-upgrades", null, isInCamp && GameGlobals.gameState.unlockedFeatures.upgrades, 100, 0);
-			GameGlobals.uiFunctions.tabToggleIf("#switch-tabs #switch-world", null, isInCamp && GameGlobals.gameState.numCamps > 1, 100, 0);
-			GameGlobals.uiFunctions.tabToggleIf("#switch-tabs #switch-milestones", null, isInCamp && GameGlobals.gameState.unlockedFeatures.milestones, 100, 0);
-			GameGlobals.uiFunctions.tabToggleIf("#switch-tabs #switch-bag", null, GameGlobals.gameState.unlockedFeatures.bag, 100, 0);
-			GameGlobals.uiFunctions.tabToggleIf("#switch-tabs #switch-followers", null, GameGlobals.gameState.unlockedFeatures.followers, 100, 0);
-			GameGlobals.uiFunctions.tabToggleIf("#switch-tabs #switch-out", null, !isInCamp, 100, 0);
-			GameGlobals.uiFunctions.tabToggleIf("#switch-tabs #switch-map", null, hasMap, 100, 0);
-			GameGlobals.uiFunctions.tabToggleIf("#switch-tabs #switch-trade", null, isInCamp && GameGlobals.gameState.unlockedFeatures.trade, 100, 0);
-			GameGlobals.uiFunctions.tabToggleIf("#switch-tabs #switch-projects", null, isInCamp && hasProjects, 100, 0);
-			GameGlobals.uiFunctions.tabToggleIf("#switch-tabs #switch-embark", null, isInCamp, 0);
+			GameGlobals.uiFunctions.toggle("#switch-tabs #switch-in", isInCamp);
+			GameGlobals.uiFunctions.toggle("#switch-tabs #switch-upgrades", isInCamp && GameGlobals.gameState.unlockedFeatures.upgrades);
+			GameGlobals.uiFunctions.toggle("#switch-tabs #switch-world", isInCamp && GameGlobals.gameState.numCamps > 1);
+			GameGlobals.uiFunctions.toggle("#switch-tabs #switch-milestones", isInCamp && GameGlobals.gameState.unlockedFeatures.milestones);
+			GameGlobals.uiFunctions.toggle("#switch-tabs #switch-bag", GameGlobals.gameState.unlockedFeatures.bag);
+			GameGlobals.uiFunctions.toggle("#switch-tabs #switch-explorers", GameGlobals.gameState.unlockedFeatures.explorers);
+			GameGlobals.uiFunctions.toggle("#switch-tabs #switch-out", !isInCamp);
+			GameGlobals.uiFunctions.toggle("#switch-tabs #switch-map", hasMap);
+			GameGlobals.uiFunctions.toggle("#switch-tabs #switch-trade", isInCamp && GameGlobals.gameState.unlockedFeatures.trade);
+			GameGlobals.uiFunctions.toggle("#switch-tabs #switch-projects", isInCamp && hasProjects);
+			GameGlobals.uiFunctions.toggle("#switch-tabs #switch-embark", isInCamp);
 		},
 		
 		updateTabNames: function () {

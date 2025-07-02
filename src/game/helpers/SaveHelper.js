@@ -1,23 +1,30 @@
 // Singleton with helper methods for saving and loading and related string manipulation
 define([
 	'ash',
+	'game/constants/GameConstants',
 	'game/components/common/CampComponent',
 	'game/components/common/CurrencyComponent',
 	'game/components/sector/improvements/BeaconComponent',
 	'game/components/sector/ReputationComponent',
 	'game/components/common/VisitedComponent',
 	'game/components/common/RevealedComponent',
-	'game/components/player/DeityComponent',
+	'game/components/player/HopeComponent',
 	'game/components/player/ExcursionComponent',
 	'game/components/sector/LastVisitedCampComponent',
 	'game/components/sector/OutgoingCaravansComponent',
 	'game/components/sector/events/CampEventTimersComponent',
+	'game/components/sector/events/DisasterComponent',
+	'game/components/sector/events/DiseaseComponent',
 	'game/components/sector/events/RaidComponent',
 	'game/components/sector/events/TraderComponent',
 	'game/components/sector/events/RecruitComponent',
-], function (Ash, CampComponent, CurrencyComponent, BeaconComponent, ReputationComponent, VisitedComponent, RevealedComponent, DeityComponent, ExcursionComponent, LastVisitedCampComponent, OutgoingCaravansComponent, CampEventTimersComponent, RaidComponent, TraderComponent, RecruitComponent) {
+	'game/components/sector/events/RefugeesComponent',
+	'game/components/sector/events/VisitorComponent',
+], function (Ash, GameConstants, 
+	CampComponent, CurrencyComponent, BeaconComponent, ReputationComponent, VisitedComponent, RevealedComponent, HopeComponent, ExcursionComponent, LastVisitedCampComponent, OutgoingCaravansComponent, 
+	CampEventTimersComponent, DisasterComponent, DiseaseComponent, RaidComponent, TraderComponent, RecruitComponent, RefugeesComponent, VisitorComponent) {
 
-	var SaveHelper = Ash.Class.extend({
+	let SaveHelper = Ash.Class.extend({
 
 		saveKeys: {
 			player: "player",
@@ -31,18 +38,32 @@ define([
 			// sector: all camps
 			CampComponent, CurrencyComponent, ReputationComponent, CampEventTimersComponent, OutgoingCaravansComponent,
 			// sector: camp events
-			TraderComponent, RecruitComponent, RaidComponent,
+			DisasterComponent, DiseaseComponent, TraderComponent, RecruitComponent, RaidComponent, RefugeesComponent, VisitorComponent,
 			// sector: buildings
 			BeaconComponent,
 			// sector: status
 			VisitedComponent, RevealedComponent, LastVisitedCampComponent,
 			// tribe: overall progress
-			DeityComponent,
+			HopeComponent,
 			// player: status
 			ExcursionComponent
 		],
 
 		constructor: function () {},
+
+		parseMetaStateJSON: function (json) {
+			if (!json) return null;
+
+			let result = null;
+			try {
+				result = JSON.parse(json);
+			} catch (ex) {
+				log.w("Error parsing meta state JSON. " + ex);
+				return null;
+			}
+
+			return result;
+		},
 
 		// returns null if invalid, a parsed save object if valid
 		parseSaveJSON: function (json) {
@@ -81,10 +102,9 @@ define([
 				if (!component) {
 					for (let i in existingComponents) {
 						var existingComponent = existingComponents[i];
-						if (existingComponent.getSaveKey) {
-							if (existingComponent.getSaveKey() === componentKey) {
-								component = existingComponent;
-							}
+						if (this.isMatchingComponent(existingComponent, componentKey)) {
+							component = existingComponent;
+							break;
 						}
 					}
 				}
@@ -105,12 +125,10 @@ define([
 				if (!component) {
 					for (let i = 0; i < this.optionalComponents.length; i++) {
 						var optionalComponent = this.optionalComponents[i];
-						if (optionalComponent.prototype.getSaveKey) {
-							if (optionalComponent.prototype.getSaveKey() === componentKey) {
-								component = new optionalComponent();
-								entity.add(component);
-								break;
-							}
+						if (this.isMatchingComponent(optionalComponent.prototype, componentKey)) {
+							component = new optionalComponent();
+							entity.add(component);
+							break;
 						}
 					}
 				}
@@ -187,6 +205,29 @@ define([
 					this.loadObject(object[attr], attrValues[attr]);
 				}
 			}
+		},
+
+		hasManualSave: function (saveSlotID) {
+			return saveSlotID && saveSlotID != GameConstants.SAVE_SLOT_LOADED && saveSlotID != GameConstants.SAVE_SLOT_BACKUP;
+		},
+
+		isCustomSaveSlot: function (saveSlotID) {
+			switch (saveSlotID) {
+				case GameConstants.SAVE_SLOT_USER_1: return true;
+				case GameConstants.SAVE_SLOT_USER_2: return true;
+				case GameConstants.SAVE_SLOT_USER_3: return true;
+				default: return false;
+			}
+		},
+
+		isMatchingComponent: function (existingComponent, componentSaveKey) {
+			if (existingComponent.getSaveKey && existingComponent.getSaveKey() === componentSaveKey) {
+				return true;
+			}
+			if (existingComponent.getOldSaveKey && existingComponent.getOldSaveKey() === componentSaveKey) {
+				return true;
+			}
+			return false;
 		},
 
 		isDate: function (s) {

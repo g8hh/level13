@@ -1,5 +1,6 @@
 define([
 	'ash',
+	'text/Text',
 	'game/GameGlobals',
 	'game/GlobalSignals',
 	'game/constants/PlayerStatConstants',
@@ -13,7 +14,7 @@ define([
 	'game/components/player/StaminaComponent',
 	'game/components/common/CampComponent',
 ], function (
-	Ash, GameGlobals, GlobalSignals, PlayerStatConstants, UIConstants, ItemConstants, BagConstants,
+	Ash, Text, GameGlobals, GlobalSignals, PlayerStatConstants, UIConstants, ItemConstants, BagConstants,
 	PlayerPositionNode, PlayerLocationNode,
 	BagComponent, ItemsComponent, StaminaComponent, CampComponent
 ) {
@@ -48,9 +49,10 @@ define([
 		},
 		
 		initElements: function () {
-			for (var key in resourceNames) {
-				var name = resourceNames[key];
-				var indicatorEmbark = UIConstants.createResourceIndicator(name, true, "embark-resources-" + name, true, false, false);
+			let resNames = this.getResNamesWithCurrency();
+			for (let key in resNames) {
+				let name = resNames[key];
+				let indicatorEmbark = UIConstants.createResourceIndicator(name, true, "embark-resources-" + name, true, false, false, false);
 				$("#embark-resources").append(
 					"<tr id='embark-assign-" + name + "'>" +
 					"<td class='dimmable'>" + indicatorEmbark + "</td>" +
@@ -66,13 +68,13 @@ define([
 		
 		initLeaveCampRes: function () {
 			if (!GameGlobals.gameState.uiStatus.leaveCampRes) return;
-			var campResources = GameGlobals.resourcesHelper.getCurrentStorage();
-			for (var key in resourceNames) {
-				var name = resourceNames[key];
-				var oldVal = GameGlobals.gameState.uiStatus.leaveCampRes[name];
-				var campVal = campResources.resources.getResource(name);
+			let resNames = this.getResNamesWithCurrency();
+			for (let key in resNames) {
+				let name = resNames[key];
+				let oldVal = GameGlobals.gameState.uiStatus.leaveCampRes[name];
+				let campVal = this.getCampValue(name);
 				if (oldVal && oldVal > 0) {
-					var value = Math.floor(Math.min(oldVal, campVal));
+					let value = Math.floor(Math.min(oldVal, campVal));
 					$("#stepper-embark-" + name + " input").val(value);
 				}
 			}
@@ -87,7 +89,7 @@ define([
 				if (!oldVal) continue;
 				let ownedCount = itemsComponent.getCountByIdAndStatus(itemID, false, true);
 				if (ownedCount < 1) continue;
-				let item = ItemConstants.getItemByID(itemID);
+				let item = ItemConstants.getItemDefinitionByID(itemID);
 				if (!item) continue;
 				if (item.equippable) {
 					let isEquipped = itemsComponent.isEquipped(item);
@@ -101,7 +103,7 @@ define([
 		},
 		
 		refresh: function () {
-			$("#tab-header h2").text("Leave camp");
+			$("#tab-header h2").text(Text.t("ui.main.tab_embark_header"));
 			if (!this.playerLocationNodes.head) return;
 			this.updateSteppers();
 		},
@@ -115,13 +117,16 @@ define([
 			
 			var selectedWater = 0;
 			var selectedFood = 0;
+
+			let sys = this;
 			
 			// Resource steppers
 			$.each($("#embark-resources tr"), function () {
-				var resourceName = $(this).attr("id").split("-")[2];
-				var campVal = campResources.resources.getResource(resourceName);
-				var visible = campVal > 0;
-				var inputMax = Math.min(Math.floor(campVal));
+				let resourceName = $(this).attr("id").split("-")[2];
+				let isCurrency = resourceName == "currency";
+				let campVal = sys.getCampValue(resourceName);
+				let visible = campVal > 0;
+				let inputMax = Math.min(Math.floor(campVal));
 				GameGlobals.uiFunctions.toggle($(this), visible);
 				if (visible) {
 					var stepper = $(this).children("td").children(".stepper");
@@ -129,7 +134,7 @@ define([
 					var val = $(this).children("td").children(".stepper").children("input").val();
 					GameGlobals.uiFunctions.updateStepper("#" + $(stepper).attr("id"), val, inputMin, inputMax)
 					selectedAmount = Math.max(0, val);
-					selectedCapacity += selectedAmount * BagConstants.getResourceCapacity(resourceName);
+					if (!isCurrency) selectedCapacity += selectedAmount * BagConstants.getResourceCapacity(resourceName);
 					
 					$(this).toggleClass("container-dimmed", val <= 0 || inputMax <= 0);
 					
@@ -169,52 +174,58 @@ define([
 			GlobalSignals.updateButtonsSignal.dispatch();
 			
 			bagComponent.selectedCapacity = selectedCapacity;
-			$("#embark-bag .value").text(UIConstants.roundValue(bagComponent.selectedCapacity), true, true);
+			$("#embark-bag .value").text(UIConstants.roundValue(bagComponent.selectedCapacity * 10) / 10, true, true);
 			$("#embark-bag .value-total").text(UIConstants.getBagCapacityDisplayValue(bagComponent));
 			
 			this.updateWarning(campResourcesAcc, campResources, selectedWater, selectedFood);
 		},
 		
 		updateWarning: function (campResourcesAcc, campResources, selectedWater, selectedFood) {
-			var warning = "";
 			var staminaComponent = this.playerPosNodes.head.entity.get(StaminaComponent);
 			var campComponent = this.playerLocationNodes.head.entity.get(CampComponent);
 			if (!campComponent) return;
+
+			let warningTextKey = "";
+
 			var campPopulation = Math.floor(campComponent.population);
-			if (staminaComponent.stamina < PlayerStatConstants.getStaminaWarningLimit(staminaComponent)) {
-				warning = "Won't get far with low stamina.";
+			if (staminaComponent.stamina < PlayerStatConstants.getStaminaWarningLimit(staminaComponent) * 2) {
+				warningTextKey = "ui.embark.warning_low_stamina_description";
+			} else if (selectedWater < 1 || selectedFood < 1) {
+				warningTextKey = "ui.embark.warning_low_supplies_description";
 			} else if (campPopulation >= 1) {
 				var remainingWater = campResources.resources.getResource(resourceNames.water) - selectedWater;
 				var remainingFood = campResources.resources.getResource(resourceNames.food) - selectedFood;
 				var isWaterDecreasing = campResourcesAcc.resourceChange.getResource(resourceNames.water) < 0;
 				var isFoodDecreasing = campResourcesAcc.resourceChange.getResource(resourceNames.food) < 0;
 				if ((isWaterDecreasing && selectedWater > 0 && remainingWater <= campPopulation) || remainingWater < 1) {
-					warning = "There won't be much water left in the camp.";
+					warningTextKey = "ui.embark.warning_low_water_description";
 				}
 				else if ((isFoodDecreasing && selectedFood > 0 && remainingFood <= campPopulation) || remainingFood < 1) {
-					warning = "There won't be much food left in the camp.";
+					warningTextKey = "ui.embark.warning_low_food_description";
 				}
-			} else if (selectedWater < 1 || selectedFood < 1) {
-				warning = "Won't get far without food and water.";
-			}
-			$("#embark-warning").text(warning);
-			GameGlobals.uiFunctions.toggle("#embark-warning", warning.length > 0);
+			} 
+			
+			$("#embark-warning").text(Text.t(warningTextKey));
+			GameGlobals.uiFunctions.toggle("#embark-warning", warningTextKey.length > 0);
 		},
 		
 		regenrateEmbarkItems: function () {
 			$("#embark-items").empty();
 			let itemsComponent = this.playerPosNodes.head.entity.get(ItemsComponent);
-			let uniqueItems = itemsComponent.getUnique(true);
+			let uniqueItems = itemsComponent.getUniqueByID(true);
 			uniqueItems = uniqueItems.sort(UIConstants.sortItemsByType);
 			uniqueItems = uniqueItems.filter(item => !item.broken);
+
 			for (let i = 0; i < uniqueItems.length; i++) {
 				let item = uniqueItems[i];
-				let baseItemId = ItemConstants.getBaseItemId(item.id);
+				let itemName = ItemConstants.getItemDisplayName(item);
+				let baseItemId = ItemConstants.getBaseItemID(item.id);
 				if (item.type === ItemConstants.itemTypes.uniqueEquipment) continue;
 				if (item.type === ItemConstants.itemTypes.artefact) continue;
 				if (item.type === ItemConstants.itemTypes.trade) continue;
 				if (item.type === ItemConstants.itemTypes.note) continue;
 				if (item.type === ItemConstants.itemTypes.ingredient) continue;
+				if (item.type === ItemConstants.itemTypes.note) continue;
 				if (item.type === ItemConstants.itemTypes.voucher) {
 					let useAction = "use_item_" + baseItemId;
 					let useActionReqs = GameGlobals.playerActionsHelper.getReqs(useAction);
@@ -227,7 +238,7 @@ define([
 				
 				$("#embark-items").append(
 					"<tr id='embark-assign-" + item.id + "'>" +
-					"<td class='dimmable'><img src='" + item.icon + "'/><span>" + item.name + "</span></td>" +
+					"<td class='dimmable'><img src='" + item.icon + "'/><span>" + itemName + "</span></td>" +
 					"<td><div class='stepper' id='stepper-embark-" + item.id + "'></div></td>" +
 					"<td class='list-amount dimmable'><span> / " + showCount + "</span></div></td>" +
 					"</tr>"
@@ -258,6 +269,19 @@ define([
 				let val = GameGlobals.gameState.uiStatus.leaveCampItems[item.id] || 0;
 				GameGlobals.gameState.uiStatus.leaveCampItems[item.id] = val + 1;
 			}
+		},
+
+		getCampValue: function (resourceName) {
+			let campResources = GameGlobals.resourcesHelper.getCurrentStorage();
+			let campCurrency = GameGlobals.resourcesHelper.getCurrentCurrency();
+			let isCurrency = resourceName == "currency";
+			return isCurrency ? campCurrency.currency : campResources.resources.getResource(resourceName);
+		},
+
+		getResNamesWithCurrency: function () {
+			let resNames = Object.assign({}, resourceNames);
+			resNames["currency"] = "currency";
+			return resNames;
 		},
 		
 		registerStepperListeners: function (scope) {

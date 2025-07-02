@@ -38,10 +38,10 @@ define([
 		},
 		
 		isBlockedCheck: function (sectorEntity, direction) {
-			var passagesComponent = sectorEntity.get(PassagesComponent);
+			let passagesComponent = sectorEntity.get(PassagesComponent);
 			
-			var reason = "";
-			var blocked = true;
+			let reason = "";
+			let blocked = true;
 			
 			if (PositionConstants.isLevelDirection(direction)) {
 				var isBridged = this.isBridged(sectorEntity, direction);
@@ -62,6 +62,10 @@ define([
 							return { value: !isDefeated, reason: "Blocked by a fight." };
 						case MovementConstants.BLOCKER_TYPE_DEBRIS:
 							return { value: !isCleared, reason: "Blocked by debris." };
+						case MovementConstants.BLOCKER_TYPE_EXPLOSIVES:
+							return { value: !isCleared, reason: "Blocked by explosives." };
+						case MovementConstants.BLOCKER_TYPE_TOLL_GATE:
+							return { value: !isCleared, reason: "Blocked by a toll gate." };
 						default:
 							log.w(this, "Unknown blocker type: " + blocker.type);
 							return { value: false };
@@ -102,6 +106,9 @@ define([
 			if (passage == null) return false;
 			
 			let passageType = passage.type;
+
+			if (passageType == MovementConstants.PASSAGE_TYPE_PREBUILT) return true;
+
 			let action = this.getBuildActionForPassageType(passageType);
 			if (action == null) return false;
 			
@@ -127,8 +134,12 @@ define([
 		},
 		
 		isCleared: function (sectorEntity, direction) {
-			var statusComponent = sectorEntity.get(SectorStatusComponent);
-			return this.hasClearableBlocker(sectorEntity, direction) && statusComponent.isBlockerCleared(direction, MovementConstants.BLOCKER_TYPE_DEBRIS);
+			let statusComponent = sectorEntity.get(SectorStatusComponent);
+			if (!this.hasClearableBlocker(sectorEntity, direction)) return false;
+			if (statusComponent.isBlockerCleared(direction, MovementConstants.BLOCKER_TYPE_DEBRIS)) return true;
+			if (statusComponent.isBlockerCleared(direction, MovementConstants.BLOCKER_TYPE_EXPLOSIVES)) return true;
+			if (statusComponent.isBlockerCleared(direction, MovementConstants.BLOCKER_TYPE_TOLL_GATE)) return true;
+			return false;
 		},
 		
 		isBridged: function (sectorEntity, direction) {
@@ -149,6 +160,15 @@ define([
 		hasClearableBlocker: function (sectorEntity, direction) {
 			var passagesComponent = sectorEntity.get(PassagesComponent);
 			return passagesComponent.isClearable(direction);
+		},
+
+		isProjectBlocker: function (blockerType) {
+			switch (blockerType) {
+				case MovementConstants.BLOCKER_TYPE_GAP: return true;
+				case MovementConstants.BLOCKER_TYPE_DEBRIS: return true;
+				case MovementConstants.BLOCKER_TYPE_EXPLOSIVES: return true;
+				default: return false;
+			}
 		},
 		
 		getBuildActionForPassageType: function (passageType) {

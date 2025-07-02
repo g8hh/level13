@@ -8,15 +8,14 @@ define([
 	'game/constants/ItemConstants',
 	'game/constants/PerkConstants',
 	'game/components/common/PositionComponent',
-	'game/components/common/LogMessagesComponent',
 	'game/components/sector/SectorFeaturesComponent',
 	'game/components/sector/SectorStatusComponent',
 	'game/components/player/PlayerActionComponent',
 	'game/nodes/player/PlayerStatsNode',
 	'game/nodes/PlayerLocationNode',
-], function (Ash, GameGlobals, GlobalSignals, GameConstants, LogConstants, ItemConstants, PerkConstants, PositionComponent, LogMessagesComponent, SectorFeaturesComponent, SectorStatusComponent, PlayerActionComponent, PlayerStatsNode, PlayerLocationNode) {
+], function (Ash, GameGlobals, GlobalSignals, GameConstants, LogConstants, ItemConstants, PerkConstants, PositionComponent, SectorFeaturesComponent, SectorStatusComponent, PlayerActionComponent, PlayerStatsNode, PlayerLocationNode) {
 	
-	var PerkSystem = Ash.System.extend({
+	let PerkSystem = Ash.System.extend({
 		
 		playerNodes: null,
 		locationNodes: null,
@@ -30,6 +29,7 @@ define([
 			GlobalSignals.add(this, GlobalSignals.gameShownSignal, this.onGameShown);
 			GlobalSignals.add(this, GlobalSignals.playerPositionChangedSignal, this.onPlayerPositionChanged);
 			GlobalSignals.add(this, GlobalSignals.equipmentChangedSignal, this.onEquipmentChanged);
+			GlobalSignals.add(this, GlobalSignals.inventoryChangedSignal, this.onInventoryChanged);
 			GlobalSignals.add(this, GlobalSignals.improvementBuiltSignal, this.onImprovementBuilt);
 			GlobalSignals.add(this, GlobalSignals.actionStartedSignal, this.onActionStarted);
 			GlobalSignals.add(this, GlobalSignals.actionCompletedSignal, this.onActionCompleted);
@@ -77,6 +77,19 @@ define([
 						this.addPerkStartedLogMessage(perk.id);
 					}
 				}
+			}
+		},
+
+		updateItemPerks: function () {
+			if (!this.locationNodes.head) return;
+			let playerPos = this.playerNodes.head.entity.get(PositionComponent);
+			let hasLuckyCoin = this.playerNodes.head.items.getCountById("exploration_3") > 0;
+			let hasLuckyPerk = hasLuckyCoin && !playerPos.inCamp;
+
+			if (hasLuckyPerk) {
+				this.addOrUpdatePerk(PerkConstants.perkIds.lucky);
+			} else {
+				this.deactivatePerk(PerkConstants.perkIds.lucky, 0);
 			}
 		},
 		
@@ -148,8 +161,8 @@ define([
 		},
 		
 		addPerkAddedLogMessage: function (perkID) {
-			let logComponent = this.playerNodes.head.entity.get(LogMessagesComponent);
 			let playerPos = this.playerNodes.head.entity.get(PositionComponent);
+			if (playerPos.inCamp) return;
 			
 			let msg = "";
 			switch (perkID) {
@@ -166,7 +179,7 @@ define([
 					break;
 					
 				case PerkConstants.perkIds.lightBeacon:
-					msg = playerPos.inCamp ? "" : "Nearby beacon lights the way";
+					msg =  "Nearby beacon lights the way";
 					break;
 					
 				default:
@@ -175,8 +188,10 @@ define([
 			}
 			
 			if (!msg) return;
+
+			log.i("add perk added message: " + perkID);
 			
-			logComponent.addMessage(LogConstants.MSG_ID_ADD_HAZARD_PERK, msg);
+			GameGlobals.playerHelper.addLogMessage(LogConstants.MSG_ID_ADD_HAZARD_PERK, msg);
 		},
 		
 		addPerkStartedLogMessage: function (perkID) {
@@ -184,8 +199,8 @@ define([
 		},
 		
 		addPerkDeactivatedMessage: function (perkID) {
-			let logComponent = this.playerNodes.head.entity.get(LogMessagesComponent);
 			let playerPos = this.playerNodes.head.entity.get(PositionComponent);
+			if (playerPos.inCamp) return;
 			
 			// TODO different message depending on if perk was deactivated due to moving or by changing equipment
 			
@@ -216,12 +231,16 @@ define([
 			}
 			
 			if (!msg) return;
+
+			log.i("add perk deactivated message: " + perkID);
 			
-			logComponent.addMessage(LogConstants.MSG_ID_TIME_HAZARD_PERK, msg);
+			GameGlobals.playerHelper.addLogMessage(LogConstants.MSG_ID_TIME_HAZARD_PERK, msg);
 		},
 		
 		addPerkRemovedLogMessage: function (perkID) {
-			var logComponent = this.playerNodes.head.entity.get(LogMessagesComponent);
+			let playerPos = this.playerNodes.head.entity.get(PositionComponent);
+			if (playerPos.inCamp) return;
+			
 			var msg = "";
 			switch (perkID) {
 				case PerkConstants.perkIds.hazardCold:
@@ -252,8 +271,10 @@ define([
 			}
 			
 			if (!msg) return;
+
+			log.i("add perk removed message: " + perkID);
 			
-			logComponent.addMessage(LogConstants.MSG_ID_REMOVE_HAZARD_PERK, msg);
+			GameGlobals.playerHelper.addLogMessage(LogConstants.MSG_ID_REMOVE_HAZARD_PERK, msg);
 		},
 		
 		getHazardPerksForSector: function (featuresComponent, statusComponent, itemsComponent) {
@@ -280,6 +301,7 @@ define([
 				sys.updateLocationPerks();
 				sys.updateHazardPerks();
 				sys.updateStatusPerks();
+				sys.updateItemPerks();
 			});
 		},
 		
@@ -290,6 +312,11 @@ define([
 		
 		onEquipmentChanged: function () {
 			this.updateHazardPerks();
+			this.updateItemPerks();
+		},
+		
+		onInventoryChanged: function () {
+			this.updateItemPerks();
 		},
 		
 		onImprovementBuilt: function () {
@@ -304,6 +331,7 @@ define([
 		onActionCompleted: function () {
 			this.updateStatusPerks();
 			this.updateLocationPerks();
+			this.updateItemPerks();
 		},
 		
 		

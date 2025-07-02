@@ -4,8 +4,11 @@ define([
 	'game/GameGlobals',
 	'game/GlobalSignals',
 	'game/constants/FightConstants',
-	'game/constants/PositionConstants',
+	'game/constants/ExplorerConstants',
 	'game/constants/EnemyConstants',
+	'game/constants/LogConstants',
+	'game/constants/MovementConstants',
+	'game/constants/TextConstants',
 	'game/nodes/FightNode',
 	'game/nodes/player/PlayerStatsNode',
 	'game/components/common/PositionComponent',
@@ -13,7 +16,7 @@ define([
 	'game/components/sector/SectorControlComponent',
 	'game/components/player/ItemsComponent',
 	'game/components/player/PlayerActionResultComponent',
-], function (Ash, GameGlobals, GlobalSignals, FightConstants, PositionConstants, EnemyConstants,
+], function (Ash, GameGlobals, GlobalSignals, FightConstants, ExplorerConstants, EnemyConstants, LogConstants, MovementConstants, TextConstants,
 	FightNode, PlayerStatsNode,
 	PositionComponent,
 	FightEncounterComponent, SectorControlComponent,
@@ -92,6 +95,24 @@ define([
 			var playerStamina = this.playerStatsNodes.head.stamina;
 			playerStamina.resetHP();
 			playerStamina.resetShield();
+
+			GameGlobals.gameState.increaseGameStatSimple("numFightsStarted");
+
+			if (enemy.tags.indexOf("magic") >= 0) {
+				GameGlobals.playerActionFunctions.setStoryFlag("SPIRITS_MAGIC_PENDING", false);
+				GameGlobals.playerActionFunctions.setStoryFlag("SPIRITS_MAGIC_SEEN", true);
+			}
+			
+			let explorers = this.playerStatsNodes.head.explorers.getParty();
+			for (let i = 0; i < explorers.length; i++) {
+				let explorer = explorers[i];
+				let isFighter = ExplorerConstants.isFighter(explorer);
+				if (isFighter) {
+					explorer.numFights = explorer.numFights || 0;
+					explorer.numFights++;
+					GameGlobals.gameState.increaseGameStatHighScore("mostFightsWithExplorer", explorer, explorer.numFights);
+				}
+			}
 			
 			this.log("init fight | enemy IV: " + enemy.getIVAverage() + " | next turn player: " + nextTurnPlayer + ", enemy: " + nextTurnEnemy);
 		},
@@ -101,7 +122,7 @@ define([
 			this.totalFightTime += fightTime;
 			
 			var itemsComponent = this.playerStatsNodes.head.items;
-			var followersComponent = this.playerStatsNodes.head.followers;
+			var explorersComponent = this.playerStatsNodes.head.explorers;
 			var enemy = this.fightNodes.head.fight.enemy;
 			var playerStamina = this.playerStatsNodes.head.stamina;
 			var itemEffects = this.fightNodes.head.fight.itemEffects;
@@ -117,7 +138,7 @@ define([
 			this.fightNodes.head.fight.nextTurnPlayer -= fightTime;
 			if (this.fightNodes.head.fight.nextTurnPlayer <= 0) {
 				isPlayerTurn = true;
-				let scenarios = FightConstants.getTurnScenarios(FightConstants.PARTICIPANT_TYPE_FRIENDLY, enemy, playerStamina, itemsComponent, followersComponent, this.totalFightTime);
+				let scenarios = FightConstants.getTurnScenarios(FightConstants.PARTICIPANT_TYPE_FRIENDLY, enemy, playerStamina, itemsComponent, explorersComponent, this.totalFightTime);
 				let scenario = this.pickTurnScenario(scenarios);
 				damageToEnemy = scenario.damage;
 				playerMissed = scenario.type == "MISS";
@@ -135,7 +156,7 @@ define([
 					isEnemyTurn = true;
 					this.fightNodes.head.fight.nextTurnEnemy -= fightTime;
 					if (this.fightNodes.head.fight.nextTurnEnemy <= 0) {
-						let scenarios = FightConstants.getTurnScenarios(FightConstants.PARTICIPANT_TYPE_ENEMY, enemy, playerStamina, itemsComponent, followersComponent, this.totalFightTime);
+						let scenarios = FightConstants.getTurnScenarios(FightConstants.PARTICIPANT_TYPE_ENEMY, enemy, playerStamina, itemsComponent, explorersComponent, this.totalFightTime);
 						let scenario = this.pickTurnScenario(scenarios);
 						damageToPlayer = scenario.damage;
 						enemyMissed = scenario.type == "MISS";
@@ -203,20 +224,35 @@ define([
 		},
 		
 		endFight: function () {
-			var sector = this.fightNodes.head.entity;
-			var enemy = this.fightNodes.head.fight.enemy;
-			var playerStamina = this.playerStatsNodes.head.stamina;
-			var won = FightConstants.isWin(playerStamina.hp, enemy.hp);
+			let sector = this.fightNodes.head.entity;
+			let enemy = this.fightNodes.head.fight.enemy;
+			let playerStamina = this.playerStatsNodes.head.stamina;
+			let won = FightConstants.isWin(playerStamina.hp, enemy.hp);
 			
 			GlobalSignals.fightUpdateSignal.dispatch(0, 0, null, null);
+
+			if (won) {
+				GameGlobals.gameState.increaseGameStatSimple("numFightsWon");
+				GameGlobals.gameState.increaseGameStatKeyed("numTimesKilledEnemy", enemy.id);
+				GameGlobals.gameState.increaseGameStatList("uniqueEnemiesDefeated", enemy.id);
+			} else {
+				GameGlobals.gameState.increaseGameStatKeyed("numTimesKilledByEnemy", enemy.id);
+			}
 			
 			this.fightNodes.head.fight.finishedPending = true;
+
 			setTimeout(function () {
 				var encounterComponent = sector.get(FightEncounterComponent);
 				if (encounterComponent.gangComponent) {
 					// gang
 					encounterComponent.gangComponent.addAttempt();
 					if (won) encounterComponent.gangComponent.addWin();
+					if (encounterComponent.gangComponent.isDefeated()) {
+						let blockeVO = { type: MovementConstants.BLOCKER_TYPE_GANG };
+						let blockerName = TextConstants.getMovementBlockerName(blockeVO, encounterComponent.gangComponent).toLowerCase();
+						let blockerVerb = TextConstants.getUnblockedVerb(blockeVO.type);
+						GameGlobals.playerHelper.addLogMessage(LogConstants.getUniqueID(), blockerName + " " + blockerVerb);
+					}
 				} else {
 					// random encounter
 					if (won) {
@@ -247,6 +283,8 @@ define([
 			playerStamina.resetHP();
 			playerStamina.resetShield();
 			this.fightNodes.head.fight.fled = true;
+			
+			GameGlobals.gameState.increaseGameStatSimple("numFightsFled");
 		},
 		
 		log: function (msg) {

@@ -4,29 +4,39 @@ define([
 	'game/GameGlobals',
 	'game/GlobalSignals',
 	'game/constants/LevelConstants',
+	'game/constants/LocaleConstants',
 	'game/nodes/level/LevelNode',
 	'game/nodes/sector/SectorNode',
 	'game/nodes/PlayerLocationNode',
+	'game/components/common/CampComponent',
 	'game/components/common/PositionComponent',
 	'game/components/level/LevelPassagesComponent',
 	'game/components/level/LevelStatusComponent',
 	'game/components/sector/PassagesComponent',
+	'game/components/sector/SectorControlComponent',
 	'game/components/sector/improvements/SectorImprovementsComponent',
+	'game/components/sector/improvements/WorkshopComponent',
 	'game/components/sector/SectorFeaturesComponent',
+	'game/components/sector/SectorStatusComponent',
 	'game/components/type/LevelComponent'
 ], function (Ash,
 		GameGlobals,
 		GlobalSignals,
 		LevelConstants,
+		LocaleConstants,
 		LevelNode,
 		SectorNode,
 		PlayerLocationNode,
+		CampComponent,
 		PositionComponent,
 		LevelPassagesComponent,
 		LevelStatusComponent,
 		PassagesComponent,
+		SectorControlComponent,
 		SectorImprovementsComponent,
+		WorkshopComponent,
 		SectorFeaturesComponent,
+		SectorStatusComponent,
 		LevelComponent) {
 
 	let LevelStatusSystem = Ash.System.extend({
@@ -37,6 +47,8 @@ define([
 		sectorNodes: null,
 		playerLocationNodes: null,
 
+		featuresToSaveFirstScoutedSectorFor: [ "hasTradeConnectorSpot", "campable" ],
+
 		constructor: function () { },
 
 		addToEngine: function (engine) {
@@ -45,10 +57,11 @@ define([
 			this.playerLocationNodes = engine.getNodeList(PlayerLocationNode);
 			
 			GlobalSignals.add(this, GlobalSignals.gameStateReadySignal, this.updateAll);
-			GlobalSignals.add(this, GlobalSignals.sectorScoutedSignal, this.updateAllLevels);
-			GlobalSignals.add(this, GlobalSignals.improvementBuiltSignal, this.updateAllPassages);
+			GlobalSignals.add(this, GlobalSignals.sectorScoutedSignal, this.onSectorScouted);
+			GlobalSignals.add(this, GlobalSignals.improvementBuiltSignal, this.updateAll);
 			GlobalSignals.add(this, GlobalSignals.campBuiltSignal, this.updateAllLevels);
 			GlobalSignals.add(this, GlobalSignals.playerPositionChangedSignal, this.onPlayerPositionChanged);
+			GlobalSignals.add(this, GlobalSignals.workshopClearedSignal, this.updateAllLevels);
 		},
 
 		removeFromEngine: function (engine) {
@@ -67,13 +80,17 @@ define([
 				let level = node.level.position;
 				
 				if (!node.levelStatus.isLevelTypeRevealed) {
-					let mapStatus = GameGlobals.levelHelper.getLevelStats(level);
-					let countScoutedSectors = mapStatus.countScoutedSectors || 0;
+					let countScoutedSectors = GameGlobals.levelHelper.getLevelNumScoutedSectors(level);
 					
 					let shouldBeRevealed = countScoutedSectors >= 5;
 					if (shouldBeRevealed) this.revealLevelType(level);
 				}
+
+				node.levelStatus.clearedWorkshops = this.getLevelClearedWorkshops(level);
+				node.levelStatus.improvementCounts = this.getLevelImprovementCounts(level);
 			}
+
+			this.updateFirstScoutedSectorsForOldSaves();
 		},
 
 		updateAllPassages: function () {
@@ -126,6 +143,86 @@ define([
 			
 			GlobalSignals.levelTypeRevealedSignal.dispatch(level);
 		},
+
+		registerScoutedFeatures: function (sector) {
+			let position = sector.get(PositionComponent);
+			let sectorFeatures = sector.get(SectorFeaturesComponent);
+			let levelEntity = GameGlobals.levelHelper.getLevelEntityForPosition(position);
+			let levelStatus = levelEntity.get(LevelStatusComponent);
+			for (let i in this.featuresToSaveFirstScoutedSectorFor) {
+				let feature = this.featuresToSaveFirstScoutedSectorFor[i];
+				if (levelStatus.firstScoutedSectorByFeature[feature]) continue;
+				if (!GameGlobals.levelHelper.isScoutedSectorWithFeature(sector, feature)) continue;
+				levelStatus.firstScoutedSectorByFeature[feature] = position.sectorId();
+			}
+		},
+
+		updateFirstScoutedSectorsForOldSaves: function () {
+			// this is for backwards compatibility with saves for 0.5.2 and earlier 
+			// (using time stamps on sectors rather than LevelStatusComponent.firstScoutedSectorByFeature)
+			// TODO remove at some point
+			let firstScoutedSectorByLevelAndFeature = {};
+			for (let node = this.sectorNodes.head; node; node = node.next) {
+				let level = node.position.level;
+				let sectorStatus = node.entity.get(SectorStatusComponent);
+				if (!sectorStatus.scoutedTimestamp) continue;
+				for (let i in this.featuresToSaveFirstScoutedSectorFor) {
+					let feature = this.featuresToSaveFirstScoutedSectorFor[i];
+					if (!GameGlobals.levelHelper.isScoutedSectorWithFeature(node.entity, feature)) continue;
+					if (!firstScoutedSectorByLevelAndFeature[level]) firstScoutedSectorByLevelAndFeature[level] = {};
+					let scoutedTimestamp = sectorStatus.scoutedTimestamp;
+					if (!firstScoutedSectorByLevelAndFeature[level][feature] || scoutedTimestamp < firstScoutedSectorByLevelAndFeature[level][feature].timestamp) {
+						firstScoutedSectorByLevelAndFeature[level][feature] = { entity: node.entity, timestamp: scoutedTimestamp };
+					}
+				}
+				sectorStatus.scoutedTimestamp = null;
+			}
+
+			for (let level in firstScoutedSectorByLevelAndFeature) {
+				let levelEntity = GameGlobals.levelHelper.getLevelEntityForPosition(level);
+				let levelStatus = levelEntity.get(LevelStatusComponent);
+				for (let feature in firstScoutedSectorByLevelAndFeature[level]) {
+					levelStatus.firstScoutedSectorByFeature[feature] = firstScoutedSectorByLevelAndFeature[level][feature].entity.get(PositionComponent).sectorId();
+				}
+			}
+		},
+
+		getLevelClearedWorkshops: function (level) {
+			let result = {};
+			let sectors = GameGlobals.levelHelper.getSectorsByLevel(level);
+			for (let i in sectors) {
+				let sector = sectors[i];
+				let sectorControlComponent = sector.get(SectorControlComponent);
+				let workshopComponent = sector.get(WorkshopComponent);
+				if (workshopComponent && sectorControlComponent && sectorControlComponent.hasControlOfLocale(LocaleConstants.LOCALE_ID_WORKSHOP)) {
+					let resource = workshopComponent.resource;
+					if (!result[resource]) result[resource] = 0;
+					result[resource]++;
+				}
+			}
+			return result;
+		},
+
+		getLevelImprovementCounts: function (level) {
+			let result = {};
+			for (let improvementID in improvementNames) {
+				let count = 0;
+				let sectors = GameGlobals.levelHelper.getSectorsByLevel(level);
+				for (let i = 0; i < sectors.length; i++) {
+					let sector = sectors[i];
+					let improvements = sector.get(SectorImprovementsComponent);
+					let campComponent = sector.get(CampComponent);
+					count += GameGlobals.playerActionsHelper.getCurrentImprovementCount(improvements, campComponent, improvementID);
+				}
+				result[improvementID] = count;
+			}
+			return result;
+		},
+
+		onSectorScouted: function (sector) {
+			this.updateAllLevels();
+			this.registerScoutedFeatures(sector);
+		},
 		
 		onPlayerPositionChanged: function () {
 			let level = this.playerLocationNodes.head.position.level;
@@ -156,8 +253,16 @@ define([
 				}
 				
 			}
+
 			if (levelComponent.notCampableReason == LevelConstants.UNCAMPABLE_LEVEL_TYPE_POLLUTION) {
 				if (isRevealedByHazard("poison")) {
+					this.revealLevelType(level);
+					return;
+				}
+			}
+
+			if (levelComponent.notCampableReason == LevelConstants.UNCAMPABLE_LEVEL_TYPE_FLOODED) {
+				if (isRevealedByHazard("flooded")) {
 					this.revealLevelType(level);
 					return;
 				}

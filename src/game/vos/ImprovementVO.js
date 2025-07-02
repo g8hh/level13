@@ -62,6 +62,7 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 			this.count = 0;
 			this.level = 1;
 			this.numDamaged = 0;
+			this.damagedSource = null;
 			
 			this.initStorage();
 		},
@@ -83,10 +84,6 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 		
 		getType: function() {
 			return getImprovementType(this.name);
-		},
-		
-		getReputationBonus: function () {
-			return getImprovementReputationBonus(this.name, this.level);
 		},
 		
 		getKey: function () {
@@ -121,12 +118,17 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 		getCustomSaveObject: function () {
 			let copy = {};
 			copy.name = this.name;
-			copy.count = this.count;
+			if (this.count !== 1) {
+				copy.count = this.count;
+			}
 			if (this.level > 1) {
 				copy.level = this.level;
 			}
 			if (this.numDamaged > 0) {
 				copy.numDamaged = this.numDamaged;
+			}
+			if (this.damagedSource) {
+				copy.damagedSource = this.damagedSource;
 			}
 			if (this.storedResources) copy.storedResources = this.storedResources.getCustomSaveObject();
 			if (this.storageCapacity) copy.storageCapacity = this.storageCapacity.getCustomSaveObject();
@@ -138,8 +140,10 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 			if (componentValues.name) this.name = componentValues.name;
 			if (componentValues.count) this.count = componentValues.count;
 			
+			this.count = componentValues.count === 0 ? 0 : componentValues.count ? componentValues.count : 1;
 			this.level = componentValues.level ? componentValues.level : 1;
 			this.numDamaged = componentValues.numDamaged ? componentValues.numDamaged : 0;
+			this.damagedSource = componentValues.damagedSource ? componentValues.damagedSource : null;
 			
 			if (this.storedResources) this.storedResources.customLoadFromSave(componentValues.storedResources);
 			if (this.storageCapacity) this.storageCapacity.customLoadFromSave(componentValues.storageCapacity);
@@ -172,50 +176,6 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 
 			default:
 				return improvementTypes.camp;
-		}
-	};
-	
-	getImprovementReputationBonus = function (name, level) {
-		if (getImprovementType(name) == improvementTypes.level) return 0;
-		level = level || 1;
-		switch (name) {
-			case improvementNames.home:
-			case improvementNames.apothecary:
-			case improvementNames.smithy:
-			case improvementNames.cementmill:
-			case improvementNames.barracks:
-			case improvementNames.fortification:
-			case improvementNames.storage:
-			case improvementNames.stable:
-				return 0;
-			case improvementNames.house:
-			case improvementNames.house2:
-			case improvementNames.darkfarm:
-			case improvementNames.library:
-			case improvementNames.lights:
-			case improvementNames.generator:
-			case improvementNames.shrine:
-				return 0.5;
-			case improvementNames.inn:
-			case improvementNames.market:
-			case improvementNames.tradepost:
-				return 1;
-			case improvementNames.campfire:
-			case improvementNames.hospital:
-			case improvementNames.sundome:
-				return 2;
-			case improvementNames.temple:
-				return 3;
-			case improvementNames.square:
-			case improvementNames.garden:
-				return 1.9 + level * 0.1;
-			case improvementNames.radiotower:
-				let fullUpgradeEffect = 2;
-				let upgradeFactor = (level - 1) / 9;
-				let upgradePart = fullUpgradeEffect * upgradeFactor;
-				return 2 + Math.round(upgradeFactor * 10) / 10;
-			default:
-				return 1;
 		}
 	};
 	

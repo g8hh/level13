@@ -106,6 +106,11 @@ define([
 			
 			GameGlobals.gameState.gameTime += tickTime;
 			GameGlobals.gameState.playTime += playTime;
+
+			let playerPosition = GameGlobals.playerHelper.getPosition();
+			if (playerPosition && !playerPosition.inCamp) {
+				GameGlobals.gameState.increaseGameStatKeyed("timeOutsidePerLevel", playerPosition.level, playTime);
+			}
 		},
 
 		// Called on page load
@@ -118,6 +123,7 @@ define([
 			
 			let save;
 			let worldVO;
+			
 			this.loadGameState()
 				.then(s => {
 					save = s;
@@ -171,6 +177,10 @@ define([
 				setTimeout(function () {
 					GameGlobals.gameState.uiStatus.isInitialized = true;
 					GameGlobals.uiFunctions.showGame();
+					setTimeout(function () {
+						// updates to game state that should be done at start but can wait until the player is unblocked
+						GlobalSignals.gameStateRefreshSignal.dispatch();
+					}, 1);
 				}, 1);
 			}, 250);
 		},
@@ -182,9 +192,12 @@ define([
 			GameGlobals.uiFunctions.hideGame(true);
 			var sys = this;
 			setTimeout(function () {
+				GameGlobals.metaState.hasCompletedGame = GameGlobals.metaState.hasCompletedGame || GameGlobals.gameState.isLaunchStarted;
+				GameGlobals.metaState.maxCampOrdinalReached = Math.max(GameGlobals.metaState.maxCampOrdinalReached, GameGlobals.gameState.numCamps);
 				sys.engine.removeAllEntities();
 				GameGlobals.levelHelper.reset();
 				GameGlobals.gameState.reset();
+				log.i("game state reset");
 				GlobalSignals.gameResetSignal.dispatch();
 				sys.setupGame();
 				GlobalSignals.gameStateReadySignal.addOnce(function () {
@@ -207,7 +220,24 @@ define([
 		setupNewGame: function () {
 			gtag('event', 'game_start_new', { event_category: 'game_data' });
 			GameGlobals.gameState.gameStartTimeStamp = new Date().getTime();
-			this.creator.initPlayer(this.player);
+			this.creator.initPlayer(this.player, GameGlobals.metaState);
+		},
+
+		loadMetaState: function () {
+			return new Promise((resolve, reject) => {
+				let data = this.getMetaStateObject();
+				let hasData = data != null;
+
+				log.i("START " + GameConstants.STARTTimeNow() + "\t meta state loaded (hasData: " + hasData + ")");
+	
+				if (hasData) {
+					let loadedMetaState = data;
+					for (let key in loadedMetaState) {
+						GameGlobals.metaState[key] = loadedMetaState[key];
+					}
+				}
+				resolve();
+			});
 		},
 
 		loadGameState: function () {
@@ -217,7 +247,7 @@ define([
 	
 				if (hasSave) {
 					var loadedGameState = save.gameState;
-					for (key in loadedGameState) {
+					for (let key in loadedGameState) {
 						GameGlobals.gameState[key] = loadedGameState[key];
 					}
 				}
@@ -326,7 +356,7 @@ define([
 					}
 
 					var sectorNodes = this.engine.getNodeList(SectorNode);
-					var positionComponent;
+					let positionComponent;
 					var saveKey;
 					for (var sectorNode = sectorNodes.head; sectorNode; sectorNode = sectorNode.next) {
 						positionComponent = sectorNode.entity.get(PositionComponent);
@@ -434,12 +464,26 @@ define([
 		},
 
 		getSaveObject: function () {
-			var saveSystem = this.engine.getSystem(SaveSystem);
+			let saveSystem = this.engine.getSystem(SaveSystem);
 			try {
-				var compressed = localStorage.save;
-				localStorage.loadedSave = compressed;
-				var json = saveSystem.getSaveJSONfromCompressed(compressed);
-				var object = GameGlobals.saveHelper.parseSaveJSON(json);
+				let compressed = saveSystem.getDataFromSlot(GameConstants.SAVE_SLOT_DEFAULT);
+				saveSystem.saveDataToSlot(GameConstants.SAVE_SLOT_LOADED, compressed);
+				let json = saveSystem.getSaveJSONfromCompressed(compressed);
+				let object = GameGlobals.saveHelper.parseSaveJSON(json);
+				return object;
+			} catch (exception) {
+				// TODO show no save found to user?
+				log.i("Error loading save: " + exception);
+			}
+			return null;
+		},
+
+		getMetaStateObject: function () {
+			let saveSystem = this.engine.getSystem(SaveSystem);
+			try {
+				let compressed = saveSystem.getMetaStateData();
+				let json = saveSystem.getSaveJSONfromCompressed(compressed);
+				let object = GameGlobals.saveHelper.parseMetaStateJSON(json);
 				return object;
 			} catch (exception) {
 				// TODO show no save found to user?
@@ -476,14 +520,18 @@ define([
 				"Restart",
 				"Continue",
 				function () {
+					GameGlobals.uiFunctions.showGame();
 					GameGlobals.uiFunctions.restart();
 				},
-				function () {},
+				function () {
+					GameGlobals.uiFunctions.showGame();
+				},
 				true
 			);
 		},
 		
 		showVersionWarning: function (saveVersion, continueCallback) {
+			GameGlobals.uiFunctions.hideGame();
 			var currentVersion = GameGlobals.changeLogHelper.getCurrentVersionNumber();
 			var changelogLink = "<a href='changelog.html' target='changelog'>changelog</a>";
 			var message = "";
@@ -491,16 +539,18 @@ define([
 			message += "<br><br/>";
 			message += "Save version: " + saveVersion + "<br/>Current version: " + currentVersion;
 			message += "<br><br/>";
-			message += " Restart the game or continue at your own risk.";
+			message += " It is recommended to restart the game. Continue at your own risk.";
 			GameGlobals.uiFunctions.showQuestionPopup(
 				"Update",
 				message,
 				"Restart",
 				"Continue",
 				function () {
+					GameGlobals.uiFunctions.showGame();
 					GameGlobals.uiFunctions.restart();
 				},
 				function () {
+					GameGlobals.uiFunctions.showGame();
 					continueCallback();
 				},
 				true

@@ -1,20 +1,25 @@
 // A class that checks raw user input from the DOM and passes game-related actions to PlayerActionFunctions
 define(['ash',
-		'core/ExceptionHandler',
-		'game/GameGlobals',
-		'game/GlobalSignals',
-		'game/constants/GameConstants',
-		'game/constants/CampConstants',
-		'game/constants/UIConstants',
-		'game/constants/ItemConstants',
-		'game/constants/PlayerActionConstants',
-		'game/constants/PlayerStatConstants',
-		'game/constants/PositionConstants',
-		'game/helpers/ui/UIPopupManager',
-		'game/vos/ResourcesVO',
-		'utils/MathUtils',
-	],
-	function (Ash, ExceptionHandler, GameGlobals, GlobalSignals, GameConstants, CampConstants, UIConstants, ItemConstants, PlayerActionConstants, PlayerStatConstants, PositionConstants, UIPopupManager, ResourcesVO, MathUtils) {
+	'text/Text',
+	'core/ExceptionHandler',
+	'game/GameGlobals',
+	'game/GlobalSignals',
+	'game/constants/CheatConstants',
+	'game/constants/GameConstants',
+	'game/constants/CampConstants',
+	'game/constants/EnemyConstants',
+	'game/constants/UIConstants',
+	'game/constants/ItemConstants',
+	'game/constants/PlayerActionConstants',
+	'game/constants/PlayerStatConstants',
+	'game/helpers/ui/UIPopupManager',
+	'game/vos/ResourcesVO',
+	'game/vos/PositionVO',
+	'utils/ActionButton',
+	'utils/MathUtils',
+	'utils/StringUtils',
+],
+	function (Ash, Text, ExceptionHandler, GameGlobals, GlobalSignals, CheatConstants, GameConstants, CampConstants, EnemyConstants, UIConstants, ItemConstants, PlayerActionConstants, PlayerStatConstants, UIPopupManager, ResourcesVO, PositionVO, ActionButton, MathUtils, StringUtils) {
 
 		// TODO separate generic utils and tabs handling to a different file
 
@@ -23,10 +28,17 @@ define(['ash',
 			context: "UIFunctions",
 			popupManager: null,
 
+			hotkeys: {},
+
+			texts: [],
+
+			HOTKEY_DEFAULT_MODIFIER: "HOTKEY_DEFAULT_MODIFIER",
+			HOTKEY_DEFAULT_MODIFIER_KEY: "shiftKey",
+
 			elementIDs: {
 				tabs: {
 					bag: "switch-bag",
-					followers: "switch-followers",
+					explorers: "switch-explorers",
 					projects: "switch-projects",
 					map: "switch-map",
 					trade: "switch-trade",
@@ -44,6 +56,7 @@ define(['ash',
 			},
 			
 			init: function () {
+				this.registerHotkeys();
 				this.generateElements();
 				this.hideElements();
 				this.registerListeners();
@@ -51,19 +64,21 @@ define(['ash',
 			},
 
 			registerListeners: function () {
-				var elementIDs = this.elementIDs;
 				var uiFunctions = this;
 
 				$(window).resize(this.onResize);
 
 				// Switch tabs
-				var onTabClicked = this.onTabClicked;
+				let onTabClickedInternal = function (e) {
+					let target = e.currentTarget;
+					if (!($(target).hasClass("disabled"))) {
+						GlobalSignals.triggerSoundSignal.dispatch(UIConstants.soundTriggerIDs.buttonClicked);
+						uiFunctions.onTabClicked(target.id);
+					}
+				};
 				$.each($("#switch-tabs li"), function () {
-					$(this).click(function () {
-						if (!($(this).hasClass("disabled"))) {
-							onTabClicked(this.id);
-						}
-					});
+					$(this).click(onTabClickedInternal);
+					$(this).keydown((e) => uiFunctions.onButtonLikeElementKeyDown(e, onTabClickedInternal));
 				});
 
 				// Collapsible divs
@@ -72,34 +87,55 @@ define(['ash',
 				// Steppers and stepper buttons
 				this.registerStepperListeners("");
 
-				// Action buttons buttons
-				this.registerActionButtonListeners("");
-
 				// Meta/non-action buttons
 				$("#btn-save").click(function (e) {
-					GlobalSignals.saveGameSignal.dispatch(true);
+					GlobalSignals.triggerSoundSignal.dispatch(UIConstants.soundTriggerIDs.buttonClicked);
+					GlobalSignals.saveGameSignal.dispatch(GameConstants.SAVE_SLOT_DEFAULT, true);
 				});
 				$("#btn-restart").click(function (e) {
+					GlobalSignals.triggerSoundSignal.dispatch(UIConstants.soundTriggerIDs.buttonClicked);
 					uiFunctions.onRestartButton();
 				});
 				$("#btn-more").click(function (e) {
-					var wasVisible = $("#game-options-extended").is(":visible");
-					$("#game-options-extended").toggle();
-					$(this).text(wasVisible ? "more" : "less");
-					GlobalSignals.elementToggledSignal.dispatch($(this), !wasVisible);
+					GlobalSignals.triggerSoundSignal.dispatch(UIConstants.soundTriggerIDs.buttonClicked);
+					let wasVisible = $("#game-options-extended").is(":visible");
+					uiFunctions.showGameOptions(!wasVisible);
 				});
 				$("#btn-importexport").click(function (e) {
+					GlobalSignals.triggerSoundSignal.dispatch(UIConstants.soundTriggerIDs.buttonClicked);
 					gtag('event', 'screen_view', {
 						'screen_name': "popup-manage-save"
 					});
 					uiFunctions.showManageSave();
 				});
+				$("#btn-stats").click(function (e) {
+					uiFunctions.showStatsPopup();
+				});
+				$("#game-stats-popup-close").click(function (e) {
+					GlobalSignals.triggerSoundSignal.dispatch(UIConstants.soundTriggerIDs.buttonClicked);
+					uiFunctions.popupManager.closePopup("game-stats-popup");
+				});
+				$("#btn-settings").click(function (e) {
+					GlobalSignals.triggerSoundSignal.dispatch(UIConstants.soundTriggerIDs.buttonClicked);
+					let options = { isMeta: true, isDismissable: true };
+					gtag('event', 'screen_view', {
+						'screen_name': "popup-settings"
+					});
+					uiFunctions.showSpecialPopup("settings-popup", options);
+				});
+				$("#settings-popup-close").click(function (e) {
+					GlobalSignals.triggerSoundSignal.dispatch(UIConstants.soundTriggerIDs.buttonClicked);
+					uiFunctions.popupManager.closePopup("settings-popup");
+				});
 				$("#btn-info").click(function (e) {
+					GlobalSignals.triggerSoundSignal.dispatch(UIConstants.soundTriggerIDs.buttonClicked);
 					gtag('event', 'screen_view', {
 						'screen_name': "popup-game-info"
 					});
-					uiFunctions.showInfoPopup("Level 13", uiFunctions.getGameInfoDiv(), null, null, null, true, false);
+					uiFunctions.showInfoPopup("Level 13", uiFunctions.getGameInfoDiv(), null, null, null, true, true);
 				});
+				$("#out-action-fight-close").click(this.onMetaButtonClicked);
+				$("#out-action-fight-continue").click(this.onMetaButtonClicked);
 
 				$("#in-assign-workers input.amount").change(function (e) {
 					var assignment = {};
@@ -111,6 +147,7 @@ define(['ash',
 
 				// Buttons: In: Other
 				$("#btn-header-rename").click(function (e) {
+					GlobalSignals.triggerSoundSignal.dispatch(UIConstants.soundTriggerIDs.buttonClicked);
 					var prevCampName = GameGlobals.playerActionFunctions.getNearestCampName();
 					uiFunctions.showInput(
 						"Rename Camp",
@@ -119,7 +156,9 @@ define(['ash',
 						true,
 						function (input) {
 							GameGlobals.playerActionFunctions.setNearestCampName(input);
-						}
+						},
+						null,
+						CampConstants.MAX_CAMP_NAME_LENGTH
 					);
 				});
 				
@@ -143,101 +182,97 @@ define(['ash',
 				});
 			},
 
-			registerActionButtonListeners: function (scope) {
-				var uiFunctions = this;
-				var gameState = GameGlobals.gameState;
+			registerHotkeys: function () {
+				let tabs = GameGlobals.uiFunctions.elementIDs.tabs;
+				let defaultModifier = this.HOTKEY_DEFAULT_MODIFIER;
+				this.registerHotkey("Move N", "KeyW", defaultModifier, tabs.out, false, false, "move_sector_north");
+				this.registerHotkey("Move N", "Numpad8", defaultModifier, tabs.out, false, false, "move_sector_north");
+				this.registerHotkey("Move W", "KeyA", defaultModifier, tabs.out, false, false, "move_sector_west");
+				this.registerHotkey("Move W", "Numpad4", defaultModifier, tabs.out, false, false, "move_sector_west");
+				this.registerHotkey("Move S", "KeyS", defaultModifier, tabs.out, false, false, "move_sector_south");
+				this.registerHotkey("Move S", "Numpad0", defaultModifier, tabs.out, false, false, "move_sector_south");
+				this.registerHotkey("Move E", "KeyD", defaultModifier, tabs.out, false, false, "move_sector_east");
+				this.registerHotkey("Move E", "Numpad6", defaultModifier, tabs.out, false, false, "move_sector_east");
+				this.registerHotkey("Move NW", "KeyQ", defaultModifier, tabs.out, false, false, "move_sector_nw");
+				this.registerHotkey("Move NW", "Numpad7", defaultModifier, tabs.out, false, false, "move_sector_nw");
+				this.registerHotkey("Move NE", "KeyE", defaultModifier, tabs.out, false, false, "move_sector_ne");
+				this.registerHotkey("Move NE", "Numpad9", defaultModifier, tabs.out, false, false, "move_sector_ne");
+				this.registerHotkey("Move SW", "KeyZ", defaultModifier, tabs.out, false, false, "move_sector_sw");
+				this.registerHotkey("Move SW", "Numpad1", defaultModifier, tabs.out, false, false, "move_sector_sw");
+				this.registerHotkey("Move SE", "KeyC", defaultModifier, tabs.out, false, false, "move_sector_se");
+				this.registerHotkey("Move SE", "Numpad3", defaultModifier, tabs.out, false, false, "move_sector_se");
 
-				// All action buttons
-				$.each($(scope + " button.action"), function () {
-					var $element = $(this);
-					if ($element.hasClass("click-bound")) {
-						log.w("trying to bind click twice! id: " + $element.attr("id"));
-						return;
+				this.registerHotkey("Scavenge", "KeyN", defaultModifier, tabs.out, false, false, "scavenge");
+				this.registerHotkey("Scout", "KeyM", defaultModifier, tabs.out, false, false, "scout");
+				this.registerHotkey("Collect water", "KeyG", defaultModifier, tabs.out, false, false, "use_out_collector_water");
+				this.registerHotkey("Collect food", "KeyF", defaultModifier, tabs.out, false, false, "use_out_collector_food");
+
+				this.registerHotkey("Teleport home", "KeyH", defaultModifier, null, false, true, () => GlobalSignals.triggerCheatSignal.dispatch(CheatConstants.CHEAT_NAME_TELEPORT_HOME));
+				this.registerHotkey("Pass time", "KeyK", defaultModifier, null, false, true, () => GlobalSignals.triggerCheatSignal.dispatch(CheatConstants.CHEAT_NAME_TIME + " " + 1));
+				this.registerHotkey("Toggle map", "KeyL", defaultModifier, null, false, true, () => GlobalSignals.triggerCheatSignal.dispatch(CheatConstants.CHEAT_NAME_REVEAL_MAP));
+
+				this.registerHotkey("Previous tab", "ArrowLeft", "shiftKey", null, false, false, () => GameGlobals.uiFunctions.showPreviousTab());
+				this.registerHotkey("Next tab", "ArrowRight", "shiftKey", null, false, false, () => GameGlobals.uiFunctions.showNextTab());
+
+				this.registerHotkey("Dismiss popup", "Escape", null, null, true, false, () => GameGlobals.uiFunctions.popupManager.dismissPopups());
+			},
+
+			registerHotkey: function (description, code, modifier, tab, isUniversal, isDev, cb) {
+				if (!code) return;
+				if (!cb) return;
+				if (isDev && !GameConstants.isCheatsEnabled) return;
+
+				modifier = modifier || null;
+				tab = tab || null;
+				isUniversal = isUniversal || false;
+
+				let displayKey = code.replace("Key", "");
+				let displayKeyShort = displayKey.replace("Numpad", "");
+
+				let action = null;
+				if (typeof cb === "string") {
+					action = cb;
+					cb = () => GameGlobals.playerActionFunctions.startAction(action);
+				}
+
+				let activeCondition = null;
+
+				if (action && action.indexOf("move_") >= 0) {
+					if (code.indexOf("Numpad") >= 0) {
+						activeCondition = () => GameGlobals.gameState.settings.hotkeysNumpad;
+					} else {
+						activeCondition = () => !GameGlobals.gameState.settings.hotkeysNumpad;
 					}
-					if ($element.hasClass("action-manual-trigger")) {
-						return;
+				}
+
+				if (!this.hotkeys[code]) this.hotkeys[code] = [];
+
+				let hotkey = { 
+					activeCondition: activeCondition,
+					code: code, 
+					modifier: modifier, 
+					description: description, 
+					displayKey: displayKey, 
+					displayKeyShort: displayKeyShort,
+					tab: tab, 
+					isUniversal: isUniversal,
+					isDev: isDev,
+					action: action, 
+					cb: cb 
+				};
+				this.hotkeys[code].push(hotkey);
+			},
+
+			getActionHotkey: function (action) {
+				if (!action) return null;
+				for (let code in this.hotkeys) {
+					for (let i = 0; i < this.hotkeys[code].length; i++) {
+						let hotkey = this.hotkeys[code][i];
+						if (hotkey.activeCondition && !hotkey.activeCondition()) continue;
+						if (hotkey.action == action) return hotkey;
 					}
-					$element.addClass("click-bound");
-					$element.click(ExceptionHandler.wrapClick(function (e) {
-						var action = $(this).attr("action");
-						if (!action) {
-							log.w("No action mapped for button.");
-							return;
-						}
-						
-						GlobalSignals.actionButtonClickedSignal.dispatch(action);
-
-						var param = null;
-						var actionIDParam = GameGlobals.playerActionsHelper.getActionIDParam(action);
-						if (actionIDParam) param = actionIDParam;
-						let isProject = $(this).hasClass("action-level-project");
-						if (isProject) param = $(this).attr("sector");
-						if (!param) param = GameGlobals.playerActionsHelper.getActionDefaultParam();
-
-						let locationKey = uiFunctions.getLocationKey(action);
-						let isStarted = GameGlobals.playerActionFunctions.startAction(action, param);
-						if (!isStarted) {
-							uiFunctions.updateButtonCooldown($(this), action);
-							return;
-						}
-
-						var baseId = GameGlobals.playerActionsHelper.getBaseActionID(action);
-						var duration = PlayerActionConstants.getDuration(action, baseId);
-						if (duration > 0) {
-							GameGlobals.gameState.setActionDuration(action, locationKey, duration);
-							uiFunctions.startButtonDuration($(this), duration);
-						}
-					}));
-				});
-
-				// Special actions
-				$(scope + "#out-action-fight-confirm").click(function (e) {
-					GameGlobals.fightHelper.startFight();
-				});
-				$(scope + "#out-action-fight-close").click(function (e) {
-					GameGlobals.fightHelper.endFight(false);
-				});
-				$(scope + "#out-action-fight-continue").click(function (e) {
-					GameGlobals.fightHelper.endFight(false);
-				});
-				$(scope + "#out-action-fight-takeselected").click(function (e) {
-					GameGlobals.fightHelper.endFight(false);
-				});
-				$(scope + "#out-action-fight-takeall").click(function (e) {
-					GameGlobals.fightHelper.endFight(true);
-				});
-				$(scope + "#out-action-fight-cancel").click(function (e) {
-					GameGlobals.fightHelper.endFight(false);
-					GameGlobals.playerActionFunctions.flee();
-				});
-				$(scope + "#incoming-caravan-popup-cancel").click(function (e) {
-					uiFunctions.popupManager.closePopup("incoming-caravan-popup");
-				});
-				$(scope + " button[action='leave_camp']").click(function (e) {
-					gameState.uiStatus.leaveCampItems = {};
-					gameState.uiStatus.leaveCampRes = {};
-
-					var selectedResVO = new ResourcesVO();
-					$.each($("#embark-resources tr"), function () {
-						var resourceName = $(this).attr("id").split("-")[2];
-						var selectedVal = parseInt($(this).children("td").children(".stepper").children("input").val());
-						selectedResVO.setResource(resourceName, selectedVal);
-					});
-
-					var selectedItems = {};
-					$.each($("#embark-items tr"), function () {
-						var itemID = $(this).attr("id").split("-")[2];
-						var selectedVal = parseInt($(this).children("td").children(".stepper").children("input").val());
-						selectedItems[itemID] = selectedVal;
-					});
-
-					GameGlobals.playerActionFunctions.updateCarriedItems(selectedItems);
-					GameGlobals.resourcesHelper.moveResFromCampToBag(selectedResVO);
-					GameGlobals.playerActionFunctions.leaveCamp();
-				});
-
-				// Buttons: Bag: Item details
-				// some in UIOoutBagSystem
+				}
+				return null;
 			},
 			
 			registerCustomButtonListeners: function (scope, btnClass, fn) {
@@ -269,6 +304,7 @@ define(['ash',
 			registerCollapsibleContainerListeners: function (scope) {
 				var sys = this;
 				$(scope + " .collapsible-header").click(function () {
+					GlobalSignals.triggerSoundSignal.dispatch(UIConstants.soundTriggerIDs.buttonClicked);
 					var wasVisible = $(this).next(".collapsible-content").is(":visible");
 					sys.toggleCollapsibleContainer($(this), !wasVisible);
 				});
@@ -280,6 +316,7 @@ define(['ash',
 			registerStepperListeners: function (scope) {
 				var sys = this;
 				$(scope + " .stepper button").click(function (e) {
+					GlobalSignals.triggerSoundSignal.dispatch(UIConstants.soundTriggerIDs.buttonClicked);
 					sys.onStepperButtonClicked(this, e);
 				});
 				$(scope + ' .stepper input.amount').change(function () {
@@ -298,9 +335,8 @@ define(['ash',
 				this.generateTabBubbles();
 				this.generateResourceIndicators();
 				this.generateSteppers("body");
-				this.generateButtonOverlays("body");
-				this.generateCallouts("body");
-				this.setInitialButtonState("body");
+				this.createButtons("body");
+				this.generateInfoCallouts("body");
 			},
 			
 			hideElements: function () {
@@ -312,24 +348,20 @@ define(['ash',
 			},
 
 			generateResourceIndicators: function () {
-				for (var key in resourceNames) {
-					var name = resourceNames[key];
-					var isSupplies = name === resourceNames.food || name === resourceNames.water;
-					$("#statsbar-resources").append(UIConstants.createResourceIndicator(name, false, "resources-" + name, true, true, true));
-					$("#bag-resources").append(UIConstants.createResourceIndicator(name, false, "resources-bag-" + name, true, true, false));
+				for (let key in resourceNames) {
+					let name = resourceNames[key];
+					$("#statsbar-resources-regular").append(UIConstants.createResourceIndicator(name, false, "resources-camp-regular-" + name, true, true, true, true));
+					$("#statsbar-resources-mobile").append(UIConstants.createResourceIndicator(name, false, "resources-camp-mobile-" + name, true, true, true, false));
+					$("#bag-resources-regular").append(UIConstants.createResourceIndicator(name, false, "resources-bag-regular-" + name, true, true, false, false));
+					$("#bag-resources-mobile").append(UIConstants.createResourceIndicator(name, false, "resources-bag-mobile-" + name, true, true, false, false));
 				}
 			},
 
-			generateCallouts: function (scope) {
-				// Info callouts
+			generateInfoCallouts: function (scope) {
 				$.each($(scope + " .info-callout-target"), function () {
 					let $target = $(this);
 					let generated = $target.data("callout-generated") || $target.parent().hasClass("callout-container");
-					if (generated) {
-						log.w("Info callout already generated! id: " + $target.attr("id") + ", scope: " + scope);
-						log.i($target);
-						return;
-					}
+					if (generated) return;
 					
 					let isSidePosition = $target.hasClass("info-callout-target-side")
 					let arrowClass = isSidePosition ? "callout-arrow-left" : "callout-arrow-up";
@@ -342,127 +374,171 @@ define(['ash',
 						let callout = '<div class="info-callout">' + content + '</div>';
 						return callout;
 					});
-					$target.data("callout-generated", true);
-				});
 
-				// Button callouts
-				// TODO performance bottleneck - detach elements to edit
-				var uiFunctions = this;
-				$.each($(scope + " div.container-btn-action"), function () {
-					let $container = $(this);
-					let button = $(this).children("button")[0];
-					let action = $(button).attr("action");
-					let generated = $container.data("callout-generated");
-					if (generated) {
-						log.w("Button callout already generated!");
-						log.i($container);
-						return;
-					}
-					$container.data("callout-generated", true);
-					$container.wrap('<div class="callout-container"></div>');
-					$container.after(function () {
-						if (!action) {
-							log.w("Action button with no action ");
-							log.i($(button))
-							return "";
-						}
-						if (action === "take_all" || action === "accept_inventory" || action === "fight")
-							return "";
-						return uiFunctions.generateActionButtonCallout(action);
-					});
+					$target.data("callout-generated", true);
+					$target.hover(() => GlobalSignals.elementToggledSignal.dispatch());
 				});
 
 				GlobalSignals.calloutsGeneratedSignal.dispatch();
 			},
-			
-			updateCallouts: function (scope) {
-				$.each($(scope + " .callout-container"), function () {
-					var description = $(this).children(".info-callout-target").attr("description");
-					$(this).find(".info-callout-content").html(description);
-				});
+
+			transition: function (transitionID, targetValue, duration, transitionElements, callbacks) {
+				if (!transitionID) return;
+
+				let currentTransition = this.currentTransition;
+
+				if (currentTransition) {
+					if (currentTransition.id == transitionID && currentTransition.targetValue == targetValue) return;
+
+					this.completeTransition();
+				}
+
+				transitionElements = transitionElements || {};
+				callbacks = callbacks || {};
+				duration = duration || 1;
+				
+				let blockUI = duration > 100;
+				let fade = duration > 300;
+				let fadeOutDuration = fade ? duration * 0.4 : 0;
+				let transitionDuration = fade ? duration * 0.2 : duration;
+				let fadeInDuration = fade ? duration * 0.4 : 0;
+				let transition = { id: transitionID, targetValue: targetValue, transitionElements: transitionElements, callbacks: callbacks };
+
+				this.currentTransition = transition;
+
+				$("body").toggleClass("ui-transition", true);
+				if (blockUI) GameGlobals.gameState.uiStatus.isTransitioning = true;
+				GlobalSignals.transitionStartedSignal.dispatch();
+
+				if (callbacks.started) callbacks.started();
+
+				this.transitionElementsOut(transitionElements, fadeOutDuration, transitionDuration, fadeInDuration);
+
+				transition.currentTimeoutID = setTimeout(function () {
+					GameGlobals.uiFunctions.transitionElementsIn(transitionElements, fadeOutDuration, transitionDuration, fadeInDuration);
+
+					if (callbacks.toggled) callbacks.toggled();
+					
+					transition.currentTimeoutID = setTimeout(function () {
+						GameGlobals.uiFunctions.completeTransition();
+						if (callbacks.completed) callbacks.completed();
+					}, transitionDuration + fadeOutDuration);
+				}, fadeOutDuration);
+			},
+
+			transitionElementsOut: function (transitionElements, fadeOutDuration, transitionDuration, fadeInDuration) {
+				log.i("transition elements out");
+
+				if (transitionElements.$fadeInOut) {
+					transitionElements.$fadeInOut.toggleClass("ui-transition-element", true);
+					transitionElements.$fadeInOut.stop(true).animate({ opacity: 1 }, fadeOutDuration).delay(transitionDuration).animate({ opacity: 0 }, fadeInDuration);
+				}
+
+				if (transitionElements.$fadeOut) {
+					transitionElements.$fadeOut.toggleClass("ui-transition-element", true);
+					transitionElements.$fadeOut.stop(true).animate({ opacity: 0 }, fadeOutDuration);
+				}
+
+				if (transitionElements.$slideInOut) {
+					$.each(transitionElements.$slideInOut, function () {
+						GameGlobals.uiFunctions.slideToggleIf($(this), null, true, fadeOutDuration, fadeOutDuration);
+					});
+				}
+
+				if (transitionElements.$slideOut) {
+					$.each(transitionElements.$slideOut, function () {
+						GameGlobals.uiFunctions.slideToggleIf($(this), null, false, fadeOutDuration, fadeOutDuration);
+					});
+				}
+			},
+
+			transitionElementsIn: function (transitionElements, fadeOutDuration, transitionDuration, fadeInDuration) {
+				log.i("transition elements in");
+
+				if (transitionElements.$fadeIn) {
+					transitionElements.$fadeIn.toggleClass("ui-transition-element", true);
+					transitionElements.$fadeIn.stop(true).animate({ opacity: 1 }, fadeInDuration);
+				}
+
+				if (transitionElements.$slideInOut) {
+					$.each(transitionElements.$slideInOut, function () {
+						GameGlobals.uiFunctions.slideToggleIf($(this), null, false, fadeInDuration, fadeInDuration);
+					});
+				}
+
+				if (transitionElements.$slideIn) {
+					$.each(transitionElements.$slideIn, function () {
+						GameGlobals.uiFunctions.slideToggleIf($(this), null, true, fadeInDuration, fadeInDuration);
+					});
+				}
+			},
+
+			transitionElementsComplete: function (transitionElements) {
+				log.i("transition elements complete");
+
+				if (!transitionElements) return;
+
+				if (transitionElements.$fadeInOut) {
+					transitionElements.$fadeInOut.toggleClass("ui-transition-element", false);
+					transitionElements.$fadeInOut.stop(true).animate({ opacity: 0 }, 1);
+				}
+
+				if (transitionElements.$fadeOut) {
+					transitionElements.$fadeOut.toggleClass("ui-transition-element", false);
+					transitionElements.$fadeOut.stop(true).animate({ opacity: 0 }, 1);
+				}
+
+				if (transitionElements.$fadeIn) {
+					transitionElements.$fadeIn.toggleClass("ui-transition-element", false);
+					transitionElements.$fadeIn.stop(true).animate({ opacity: 1 }, 1);
+				}
+
+				if (transitionElements.$slideInOut) {
+					$.each(transitionElements.$slideInOut, function () {
+						GameGlobals.uiFunctions.toggle($(this), false);
+					});
+				}
+
+				if (transitionElements.$slideOut) {
+					$.each(transitionElements.$slideOut, function () {
+						GameGlobals.uiFunctions.toggle($(this), false);
+					});
+				}
+
+				if (transitionElements.$slideIn) {
+					$.each(transitionElements.$slideIn, function () {
+						GameGlobals.uiFunctions.toggle($(this), true);
+					});
+				}
+			},
+
+			completeTransition: function () {
+				let transition = this.currentTransition;
+
+				this.currentTransition = null;
+				$("body").toggleClass("ui-transition", false);
+				GameGlobals.gameState.uiStatus.isTransitioning = false;
+
+				if (!transition) return;
+
+				clearTimeout(transition.timeoutID);
+
+				this.transitionElementsComplete(transition.elements);
+				
+				GlobalSignals.transitionCompletedSignal.dispatch();
 			},
 			
-			generateActionButtonCallout: function (action) {
-				var baseActionId = GameGlobals.playerActionsHelper.getBaseActionID(action);
-
-				var content = "";
-				var enabledContent = "";
-				var disabledContent = "";
-				
-				/*
-				var ordinal = GameGlobals.playerActionsHelper.getActionOrdinal(action);
-				content += "<span>" + action + " " + ordinal + "</span>"
-				*/
-
-				// always visible: description
-				var description = GameGlobals.playerActionsHelper.getDescription(action);
-				if (description) {
-					content += "<span class='action-description'>" + description + "</span>";
-				}
-
-				// visible if button is enabled: costs, special requirements, & risks
-				let costs = GameGlobals.playerActionsHelper.getCosts(action);
-				let costsSpans = UIConstants.getCostsSpans(action, costs);
-				if (costsSpans.length > 0) {
-					if (content.length > 0 || enabledContent.length) enabledContent += "<hr/>";
-					enabledContent += costsSpans;
-				}
-
-				var duration = PlayerActionConstants.getDuration(action, baseActionId);
-				if (duration > 0) {
-					if (content.length > 0 || enabledContent.length) enabledContent += "<hr/>";
-					enabledContent += "<span class='action-duration'>duration: " + Math.round(duration * 100) / 100 + "s</span>";
-				}
-				
-				let specialReqs = GameGlobals.playerActionsHelper.getSpecialReqs(action);
-				if (specialReqs) {
-					let s = this.getSpecialReqsText(action);
-					if (s.length > 0) {
-						if (content.length > 0 || enabledContent.length) enabledContent += "<hr/>";
-						enabledContent += "<span class='action-special-reqs'>" + s + "</span>";
+			updateInfoCallouts: function (scope) {
+				$.each($(scope + " .callout-container"), function () {
+					var description = $(this).children(".info-callout-target").attr("description");
+					if (description && description.length > 0) {
+						$(this).find(".info-callout-content").html(description);
 					}
-				}
-
-				var encounterFactor = GameGlobals.playerActionsHelper.getEncounterFactor(action);
-				var injuryRiskMax = PlayerActionConstants.getInjuryProbability(action, 0, 0);
-				var inventoryRiskMax = PlayerActionConstants.getLoseInventoryProbability(action, 0, 0);
-				var fightRiskMax = PlayerActionConstants.getRandomEncounterProbability(baseActionId, 0, 1, encounterFactor);
-				var fightRiskMin = PlayerActionConstants.getRandomEncounterProbability(baseActionId, 100, 1, encounterFactor);
-				if (injuryRiskMax > 0 || inventoryRiskMax > 0 || fightRiskMax > 0) {
-					if (content.length > 0 || enabledContent.length) enabledContent += "<hr/>";
-					var inventoryRiskLabel = action === "despair" ? "drop items" : "drop item";
-					if (injuryRiskMax > 0)
-						enabledContent += "<span class='action-risk action-risk-injury warning'>injury: <span class='action-risk-value'></span>%</span>";
-					if (inventoryRiskMax > 0)
-						enabledContent += "<span class='action-risk action-risk-inventory warning'>" + inventoryRiskLabel + ": <span class='action-risk-value'></span>%</span>";
-					if (fightRiskMax > 0)
-						enabledContent += "<span class='action-risk action-risk-fight warning'>fight: <span class='action-risk-value'></span>%</span>";
-				}
-
-				// visible if button is disabled: disabled reason
-				if (content.length > 0 || enabledContent.length > 0) {
-					if (content.length > 0) disabledContent += "<hr/>";
-					disabledContent += "<span class='btn-disabled-reason action-cost-blocker'></span>";
-				}
-
-				if (enabledContent.length > 0) {
-					content += "<span class='btn-callout-content-enabled'>" + enabledContent + "</span>";
-				}
-
-				if (disabledContent.length > 0) {
-					content += "<span class='btn-callout-content-disabled' style='display:none'>" + disabledContent + "</span>";
-				}
-
-				if (content.length > 0) {
-					return '<div class="btn-callout"><div class="callout-arrow-up"></div><div class="btn-callout-content">' + content + '</div></div>';
-				} else {
-					log.w("No callout could be created for action button with action " + action + ". No content for callout.");
-					return "";
-				}
+				});
 			},
 
 			getSpecialReqsText: function (action) {
-				var position = GameGlobals.playerActionFunctions.playerPositionNodes.head ? GameGlobals.playerActionFunctions.playerPositionNodes.head.position : {};
+				let position = GameGlobals.sectorHelper.getCurrentActionPosition();
 				let s = "";
 				let specialReqs = GameGlobals.playerActionsHelper.getSpecialReqs(action);
 				if (specialReqs) {
@@ -473,7 +549,7 @@ define(['ash',
 								if (actionImprovementName != improvementNames.camp) {
 									for (let improvementID in specialReqs[key]) {
 										let range = specialReqs[key][improvementID];
-										let count = GameGlobals.playerActionsHelper.getCurrentImprovementCountOnLevel(position.level, improvementID);
+										let count = position ? GameGlobals.playerActionsHelper.getCurrentImprovementCountOnLevel(position.level, improvementID) : 0;
 										let rangeText = UIConstants.getRangeText(range);
 										let displayName = GameGlobals.playerActionsHelper.getImprovementDisplayName(improvementID);
 										if (actionImprovementName == displayName) {
@@ -496,7 +572,7 @@ define(['ash',
 
 			generateSteppers: function (scope) {
 				$(scope + " .stepper").append("<button type='button' class='btn-glyph' data-type='minus' data-field=''>-</button>");
-				$(scope + " .stepper").append("<input class='amount' type='text' min='0' max='100' autocomplete='off' value='0' name='' tabindex='1'></input>");
+				$(scope + " .stepper").append("<input class='amount' type='text' min='0' max='100' autocomplete='off' value='0' name='' tabindex='0'></input>");
 				$(scope + " .stepper").append("<button type='button' class='btn-glyph' data-type='plus' data-field=''>+</button>");
 				$(scope + " .stepper button").attr("data-field", function (i, val) {
 					return $(this).parent().attr("id") + "-input";
@@ -509,38 +585,34 @@ define(['ash',
 				});
 			},
 
-			generateButtonOverlays: function (scope) {
-				$.each($(scope + " button.action"), function () {
-					let $btn = $(this);
-					if ($btn.parent().hasClass("container-btn-action")) {
-						log.w("generating double button overlays: " + $(this) + " | " + scope);
-						return;
-					}
-					let action = $btn.attr("action");
-					let text = $btn.text();
-					$btn.text("");
-					$btn.append("<span class='btn-label'>" + text + "</span>");
-					$btn.append("<div class='cooldown-action' style='display:none' />");
-					$btn.append("<div class='cooldown-duration' style='display:none' />");
-					$btn.wrap("<div class='container-btn-action' />");
+			createButtons: function (scope) {
+				let $container = $(scope);
+
+				$.each($container.find("button.action"), function () {
+					if (ActionButton.isButton(this)) return;
+					let button = ActionButton.create(this);
+					if (!button) return;
+					ActionButton.registerListener(button, GameGlobals.uiFunctions, GameGlobals.uiFunctions.onActionButtonClicked);
 				});
-				
-				
-				$.each($(scope + " div.container-btn-action"), function () {
-					let $container = $(this);
-					if ($container.find(".cooldown-reqs").length > 0) return;
-					let $button = $container.find("button");
-					let action = $button.attr("action");
-					let costs = GameGlobals.playerActionsHelper.getCosts(action);
-					let hasCosts = action && costs && Object.keys(costs).length > 0;
-					if (hasCosts) {
-						$container.append("<div class='cooldown-reqs' data-action='" + action + "' />");
-					}
-				});
-			},
-			
-			setInitialButtonState: function (scope) {
+
 				GameGlobals.buttonHelper.updateButtonDisabledStates(scope, true);
+				this.updateHotkeyHints();
+
+				GlobalSignals.calloutsGeneratedSignal.dispatch();
+			},
+
+			updateHotkeyHints: function () {
+				let hotkeysEnabled = GameGlobals.gameState.settings.hotkeysEnabled;
+				$(".hotkey-hint").toggleClass("hidden", !hotkeysEnabled);
+
+				if (!hotkeysEnabled) return;
+
+				$.each($("button.action"), function () {
+					let $btn = $(this);
+					let action = $btn.attr("action");
+					let hotkey = GameGlobals.uiFunctions.getActionHotkey(action);
+					$btn.children(".hotkey-hint").html(hotkey ? hotkey.displayKeyShort : "");
+				});
 			},
 
 			startGame: function () {
@@ -548,7 +620,7 @@ define(['ash',
 				var startTab = this.elementIDs.tabs.out;
 				var playerPos = GameGlobals.playerActionFunctions.playerPositionNodes.head.position;
 				if (playerPos.inCamp) startTab = this.elementIDs.tabs.in;
-				this.selectTab(startTab);
+				this.showTabInstant(startTab);
 			},
 
 			/**
@@ -561,10 +633,8 @@ define(['ash',
 				if (cooldown > 0) {
 					let locationKey = this.getLocationKey(action);
 					GameGlobals.gameState.setActionCooldown(action, locationKey, cooldown);
-					if (!GameGlobals.gameState.isAutoPlaying) {
-						let button = $("button[action='" + action + "']");
-						this.startButtonCooldown($(button), cooldown);
-					}
+					let button = $("button[action='" + action + "']");
+					this.startButtonCooldown($(button), cooldown);
 				}
 			},
 
@@ -577,7 +647,10 @@ define(['ash',
 				this.setGameElementsVisibility(true);
 				this.updateButtonCooldowns();
 				this.setUIStatus(false, false);
-				GlobalSignals.gameShownSignal.dispatch();
+
+				setTimeout(function () {
+					GlobalSignals.gameShownSignal.dispatch();
+				}, 1);
 			},
 
 			hideGame: function (showLoading, showThinking) {
@@ -614,6 +687,7 @@ define(['ash',
 				$(".sticky-footer").css("display", visible ? "block" : "none");
 				$("#grid-main").css("display", visible ? "block" : "none");
 				$("#unit-main").css("display", visible ? "block" : "none");
+				$(".hide-while-loading").css("display", visible ? "initial" : "none");
 			},
 
 			scrollToTabTop: function () {
@@ -636,8 +710,91 @@ define(['ash',
 				GlobalSignals.windowResizedSignal.dispatch();
 			},
 
+			updateGameStatsPopup: function () {
+				let stats = GameGlobals.playerHelper.getVisibleGameStats();
+
+				let html = "<table class='fullwidth'>";
+				for (let i in stats) {
+					let category = stats[i];
+					let isCategoryDebugVisible = !category.isVisible && GameConstants.isDebugVersion;
+					let isCategoryVisible = category.isVisible || isCategoryDebugVisible;
+					if (!isCategoryVisible) continue;
+
+					html += "<th colspan=2 class='game-stat-category" + (isCategoryDebugVisible ? " debug-info" : "") + "'>";
+					html += category.displayName;
+					html += "</th>";
+
+					for (let j in category.stats) {
+						let stat = category.stats[j];
+
+						let isDebugVisible = !stat.isVisible && GameConstants.isDebugVersion;
+						let isVisible = stat.isVisible || isDebugVisible;
+						if (!isVisible) continue;
+
+						let divClasses = [ "game-stat-entry" ];
+						if (isDebugVisible) divClasses.push("debug-info");
+						if (stat.isInSubCategory) divClasses.push("game-stat-in-subcategory")
+
+						if (stat.isSubCategory) {
+							divClasses.push("game-stat-sub-category");
+							html += "<tr><td colspan=2 class='" + divClasses.join(" ") + "'>" + stat.displayName + "</td></tr>";
+							continue;
+						}
+
+						let displayValue = "-";
+						if (stat.value) {
+							if (stat.unit == GameConstants.gameStatUnits.seconds) {
+								displayValue = UIConstants.getTimeToNum(stat.value)
+							} else if (stat.isPercentage) {
+								displayValue = UIConstants.roundValue(stat.value * 100) + "%";
+							} else if (stat.unit == GameConstants.gameStatUnits.steps) {
+								displayValue = UIConstants.roundValue(stat.value) + " steps";
+							} else {
+								displayValue = UIConstants.getDisplayValue(UIConstants.roundValue(stat.value));
+							}
+						}
+						
+						html += "<tr>";
+						html += "<td class='" + divClasses.join(" ") + "'>";
+						html += "<span class='game-stat-span game-stat-name'>" + Text.capitalize(stat.displayName) + "</span>";
+						html += "</td>";
+
+						html += "<td>"
+						html += "<span class='game-stat-span game-stat-value'>" + displayValue + "</span> ";
+
+						if (stat.entry) {
+							let entryDisplay = stat.entry;
+							if (stat.entry.hasOwnProperty("sectorX")) {
+								entryDisplay = new PositionVO(stat.entry.level, stat.entry.sectorX, stat.entry.sectorY).getInGameFormat(true);
+							} else if (stat.entry.hasOwnProperty("level")) {
+								entryDisplay = "on level " + stat.entry.level;
+							} else if (stat.entry.hasOwnProperty("name")) {
+								entryDisplay = stat.entry.name;
+							} else if (EnemyConstants.tryGetEnemy(stat.entry)) {
+								entryDisplay = EnemyConstants.getEnemy(stat.entry).name;
+							} else if(ItemConstants.getItemDefinitionByID(stat.entry, true)) {
+								entryDisplay = ItemConstants.getItemDisplayNameFromID(stat.entry);
+							} else if (stat.entry.hasOwnProperty("timestamp")) {
+								entryDisplay = UIConstants.getTimeSinceText(stat.entry.timestamp);
+							} else if (stat.entryUnit == GameConstants.gameStatUnits.level) {
+								entryDisplay = "on level " + stat.entry;
+							}
+							html += "<span class='game-stat-span game-stat-highscore-entry'>(" + entryDisplay + ")</span>";
+						}
+						html += "</td>";
+
+
+						html += "</tr>";
+					}
+				}
+				html += "</table>";
+				
+				$("#game-stats-container").html(html);
+				$("#game-stats-container").animate({ scrollTop: 0 });
+			},
+
 			getGameInfoDiv: function () {
-				var html = "";
+				let html = "";
 				html += "<span id='changelog-version'>version " + GameGlobals.changeLogHelper.getCurrentVersionNumber() + "<br/>updated " + GameGlobals.changeLogHelper.getCurrentVersionDate() + "</span>";
 				html += "<p>Note that this game is still in development and many features are incomplete and unbalanced. Updates might break saves. Feedback and bug reports are appreciated!</p>";
 				html += "<p>Feedback:<br/>" + GameConstants.getFeedbackLinksHTML() + "</p>";
@@ -646,13 +803,55 @@ define(['ash',
 			},
 
 			onTabClicked: function (tabID, tabProps) {
+				GameGlobals.uiFunctions.showTab(tabID, tabProps);
+			},
+
+			showTab: function (tabID, tabProps, isCampTransition) {
 				if (GameGlobals.gameState.isLaunchStarted) return;
 				if (GameGlobals.gameState.isLaunched) return;
+
+				let isInCamp = GameGlobals.playerHelper.isInCamp();
+				if (isInCamp && tabID == GameGlobals.uiFunctions.elementIDs.tabs.out) tabID == GameGlobals.uiFunctions.elementIDs.tabs.embark;
+
+				let previousTabID = GameGlobals.gameState.uiStatus.currentTab;
+
+				let transitionElements = {};
+				transitionElements.$fadeOut = $(".tabelement, .tabbutton").filter("[data-tab!='" + tabID + "']");
+				transitionElements.$fadeInOut = null;
+				transitionElements.$fadeIn = $(".tabelement, .tabbutton").filter("[data-tab='" + tabID + "']");
+				transitionElements.$slideOut = $(".tabcontainer").filter("[data-tab!='" + tabID + "']");
+				transitionElements.$slideInOut = null;
+				transitionElements.$slideIn = $(".tabcontainer").filter("[data-tab='" + tabID + "']");
+
+				if (isCampTransition) {
+					if (isInCamp) {
+						transitionElements.$slideIn.add("#main-header-camp");
+						transitionElements.$slideOut.add("#main-header-bag");
+						transitionElements.$slideOut.add("#main-header-items");
+					} else {
+						transitionElements.$slideOut.add("#main-header-camp");
+						transitionElements.$slideIn.add("#main-header-bag");
+						transitionElements.$slideIn.add("#main-header-items");
+					}
+				}
+
+				let callbacks = {
+					started: () => GlobalSignals.tabClosedSignal.dispatch(previousTabID),
+					toggled: () => GameGlobals.uiFunctions.setTab(tabID, tabProps),
+					completed: () => GlobalSignals.tabOpenedSignal.dispatch(tabID),
+				};
 				
-				GameGlobals.uiFunctions.selectTab(tabID, tabProps);
+				GameGlobals.uiFunctions.transition("tab", tabID, 500, transitionElements, callbacks);
 			},
 			
-			selectTab: function (tabID, tabProps) {
+			showTabInstant: function (tabID, tabProps) {
+				let previousTabID = GameGlobals.gameState.uiStatus.currentTab;
+				GlobalSignals.tabClosedSignal.dispatch(previousTabID);
+				GameGlobals.uiFunctions.setTab(tabID, tabProps);
+				GlobalSignals.tabOpenedSignal.dispatch(tabID);
+			},
+
+			setTab: function (tabID, tabProps) {
 				$("#switch-tabs li").removeClass("selected");
 				$("#switch-tabs li#" + tabID).addClass("selected");
 				$("#tab-header h2").text(tabID);
@@ -661,16 +860,21 @@ define(['ash',
 					'screen_name': tabID
 				});
 
-				var transition = !(GameGlobals.gameState.uiStatus.currentTab === tabID);
-				var transitionTime = transition ? 200 : 0;
 				GameGlobals.gameState.uiStatus.currentTab = tabID;
 
+				$.each($(".tabcontainer"), function () {
+					GameGlobals.uiFunctions.toggle($(this), $(this).attr("data-tab") === tabID);
+				});
+
 				$.each($(".tabelement"), function () {
-					GameGlobals.uiFunctions.slideToggleIf($(this), null, $(this).attr("data-tab") === tabID, transitionTime, 200);
+					GameGlobals.uiFunctions.toggle($(this), $(this).attr("data-tab") === tabID);
 				});
+
 				$.each($(".tabbutton"), function () {
-					GameGlobals.uiFunctions.slideToggleIf($(this), null, $(this).attr("data-tab") === tabID, transitionTime, 200);
+					GameGlobals.uiFunctions.toggle($(this), $(this).attr("data-tab") === tabID);
 				});
+
+				GameGlobals.gameState.markSeenTab(tabID);
 				
 				log.i("tabChanged: " + tabID, "ui");
 
@@ -721,45 +925,135 @@ define(['ash',
 			},
 			
 			onKeyUp: function (e) {
-				var isInCamp = GameGlobals.playerHelper.isInCamp();
+				if (e.originalEvent.isTextInput) return;
+				if (!GameGlobals.uiFunctions.triggerHotkey(e.originalEvent.code, e)) return;
+			},
+
+			triggerHotkey: function (code, modifiers) {
+				if (!this.hotkeys[code]) return false;
+				let currentTab = GameGlobals.gameState.uiStatus.currentTab;
 				let hasPopups = GameGlobals.uiFunctions.popupManager.hasOpenPopup();
-				if (!e.shiftKey) {
-					if (!isInCamp && !hasPopups) {
-						if (e.keyCode == 65) {
-							GameGlobals.playerActionFunctions.startAction("move_sector_west");
+				let hasModifier = modifiers.shiftKey || modifiers.altKey || modifiers.ctrlKey || modifiers.metaKey;
+
+				for (let i = 0; i < this.hotkeys[code].length; i++) {
+					let hotkey = this.hotkeys[code][i];
+					if (hotkey.tab && hotkey.tab !== currentTab) continue;
+					if (!hotkey.isUniversal && hasPopups) continue;
+					if (hotkey.activeCondition && !hotkey.activeCondition()) continue;
+					if (!GameGlobals.gameState.settings.hotkeysEnabled && !hotkey.isUniversal) continue;
+
+					let modifier = GameGlobals.uiFunctions.getActualHotkeyModifier(hotkey.modifier);
+					if (modifier && !modifiers[modifier]) continue;
+					if (!modifier && hasModifier) continue;
+
+					log.i("[hotkey] triggered " + hotkey.code + " " + hotkey.modifier + " " + hotkey.tab);
+
+					hotkey.cb.apply(this);
+					return true;
+				}
+
+				return false;
+			},
+
+			getActualHotkeyModifier: function (modifier) {
+				if (!modifier) return null;
+
+				let result = modifier.modifier || modifier;
+				if (result == GameGlobals.uiFunctions.HOTKEY_DEFAULT_MODIFIER) {
+					result = null;
+				}
+				return result;
+			},
+
+			onMetaButtonClicked: function (e) {
+				let $btn = $(e.currentTarget);
+				let id = $btn.attr("id");
+				
+				GlobalSignals.triggerSoundSignal.dispatch(UIConstants.soundTriggerIDs.buttonClicked);
+
+				if (id == "out-action-fight-close") {
+					GameGlobals.fightHelper.endFight(false, false);
+				} else if (id == "out-action-fight-continue") {
+					GameGlobals.fightHelper.endFight(false, false);
+				}
+			},
+
+			onActionButtonClicked: function (button) {
+				var uiFunctions = this;
+				var gameState = GameGlobals.gameState;
+
+				let $btn = button.$button;
+				let action = $btn.attr("action");
+				let id = $btn.attr("id");
+
+				if (!GameGlobals.gameState.isPlayerInputAccepted()) return;
+
+				GlobalSignals.actionButtonClickedSignal.dispatch(action);
+
+				if (id == "out-action-fight-confirm") {
+					GameGlobals.fightHelper.startFight();
+				} else if  (id == "out-action-fight-takeselected") {
+					GameGlobals.fightHelper.endFight(false, false);
+				} else if  (id == "out-action-fight-takeall") {
+					GameGlobals.fightHelper.endFight(true, false);
+				} else if  (id == "out-action-fight-cancel") {
+					GameGlobals.fightHelper.endFight(false, true);
+				} else if (action == "leave_camp") {
+					gameState.uiStatus.leaveCampItems = {};
+					gameState.uiStatus.leaveCampRes = {};
+
+					let selectedResVO = new ResourcesVO();
+					let selectedCurrency = 0;
+					$.each($("#embark-resources tr"), function () {
+						let resourceName = $(this).attr("id").split("-")[2];
+						let selectedVal = parseInt($(this).children("td").children(".stepper").children("input").val());
+						let isCurrency = resourceName == "currency";
+						if (isCurrency) {
+							selectedCurrency = selectedVal;
+						} else {
+							selectedResVO.setResource(resourceName, selectedVal);
 						}
-						if (e.keyCode == 87) {
-							GameGlobals.playerActionFunctions.startAction("move_sector_north");
-						}
-						if (e.keyCode == 83) {
-							GameGlobals.playerActionFunctions.startAction("move_sector_south")
-						}
-						if (e.keyCode == 68) {
-							GameGlobals.playerActionFunctions.startAction("move_sector_east")
-						}
-						if (e.keyCode == 81) {
-							GameGlobals.playerActionFunctions.startAction("move_sector_nw")
-						}
-						if (e.keyCode == 69) {
-							GameGlobals.playerActionFunctions.startAction("move_sector_ne")
-						}
-						if (e.keyCode == 90) {
-							GameGlobals.playerActionFunctions.startAction("move_sector_sw")
-						}
-						if (e.keyCode == 67) {
-							GameGlobals.playerActionFunctions.startAction("move_sector_se")
-						}
-						if (GameConstants.isCheatsEnabled) {
-							if (e.keyCode == 78) {
-								GameGlobals.playerActionFunctions.startAction("scavenge")
-							}
-							if (e.keyCode == 77) {
-								GameGlobals.playerActionFunctions.startAction("scout")
-							}
-						}
+					});
+
+					var selectedItems = {};
+					$.each($("#embark-items tr"), function () {
+						var itemID = $(this).attr("id").split("-")[2];
+						var selectedVal = parseInt($(this).children("td").children(".stepper").children("input").val());
+						selectedItems[itemID] = selectedVal;
+					});
+
+					GameGlobals.playerActionFunctions.updateCarriedItems(selectedItems);
+					GameGlobals.resourcesHelper.moveResFromCampToBag(selectedResVO);
+					GameGlobals.resourcesHelper.moveCurrencyFromCampToBag(selectedCurrency);
+					GameGlobals.playerActionFunctions.leaveCamp();
+				} else {
+					if ($btn.hasClass("action-manual-trigger")) {
+						return;
 					}
-					if (e.keyCode == 27) {
-						GameGlobals.uiFunctions.popupManager.dismissPopups();
+
+					GameGlobals.gameState.uiStatus.isBusyCounter++;
+
+					let param = null;
+					let actionIDParam = GameGlobals.playerActionsHelper.getActionIDParam(action);
+					if (actionIDParam) param = actionIDParam;
+					let isProject = $btn.hasClass("action-level-project");
+					if (isProject) param = $btn.attr("sector");
+					if (!param) param = GameGlobals.playerActionsHelper.getActionDefaultParam();
+
+					let locationKey = uiFunctions.getLocationKey(action);
+					let isStarted = GameGlobals.playerActionFunctions.startAction(action, param);
+
+					GameGlobals.gameState.uiStatus.isBusyCounter--;
+
+					if (!isStarted) {
+						uiFunctions.updateButtonCooldown($btn, action);
+					} else {
+						let baseId = GameGlobals.playerActionsHelper.getBaseActionID(action);
+						let duration = PlayerActionConstants.getDuration(action, baseId);
+						if (duration > 0) {
+							GameGlobals.gameState.setActionDuration(action, locationKey, duration);
+							uiFunctions.startButtonDuration($btn, duration);
+						}
 					}
 				}
 			},
@@ -789,12 +1083,23 @@ define(['ash',
 					// let it happen, don't do anything
 					return;
 				}
+				e.originalEvent.isTextInput = true;
 			},
 
 			onTextInputKeyUp: function (e) {
-				var value = $(e.target).val();
-				value = value.replace(/[&\/\\#,+()$~%.'":*?<>{}\[\]=]/g, '_');
+				let value = $(e.target).val();
+				value = StringUtils.cleanUpInput(value, $(e.target).data("max-input-length"), '_');
 				$(e.target).val(value);
+				e.originalEvent.isTextInput = true;
+			},
+
+			onButtonLikeElementKeyDown: function (e, cb) {
+				switch (e.keyCode) {
+					case 13:
+					case 32:
+						cb(e);
+						return;
+				}
 			},
 
 			onPlayerPositionChanged: function () {
@@ -817,10 +1122,6 @@ define(['ash',
 				);
 			},
 
-			cleanUpInput: function (str) {
-				return str.replace(/[&\/\\#,+()$~%.'":*?<>{}]$/g, '');
-			},
-
 			slideToggleIf: function (element, replacement, show, durationIn, durationOut, cb) {
 				var visible = this.isElementToggled(element);
 				var toggling = ($(element).attr("data-toggling") == "true");
@@ -834,6 +1135,7 @@ define(['ash',
 						$(element).attr("data-toggling", "false");
 						if (cb) cb();
 					});
+					return;
 				} else if (!show && (visible == true || visible == null) && !toggling) {
 					$(element).attr("data-toggling", "true");
 					$(element).stop().slideToggle(durationOut, function () {
@@ -842,7 +1144,10 @@ define(['ash',
 						$(element).attr("data-toggling", "false");
 						if (cb) cb();
 					});
+					return;
 				}
+
+				if (cb) cb();
 			},
 
 			toggleCollapsibleContainer: function (element, show) {
@@ -865,38 +1170,19 @@ define(['ash',
 				GlobalSignals.elementToggledSignal.dispatch($element, show);
 			},
 
-			tabToggleIf: function (element, replacement, show, durationIn, durationOut) {
-				var visible = $(element).is(":visible");
-				var toggling = ($(element).attr("data-toggling") == "true");
-				var sys = this;
-
-				if (show && !visible && !toggling) {
-					if (replacement) sys.toggle(replacement, false);
-					$(element).attr("data-toggling", "true");
-					$(element).fadeToggle(durationIn, function () {
-						sys.toggle(element, true);
-						$(element).attr("data-toggling", "false");
-					});
-				} else if (!show && visible && !toggling) {
-					$(element).attr("data-toggling", "true");
-					$(element).fadeToggle(durationOut, function () {
-						if (replacement) sys.toggle(replacement, true);
-						sys.toggle(element, false);
-						$(element).attr("data-toggling", "false");
-					});
-				}
-			},
-
 			toggle: function (element, show, signalParams, delay) {
 				let $element = typeof (element) === "string" ? $(element) : element;
+
 				if (($element).length === 0)
 					return;
+
 				if (typeof (show) === "undefined")
 					show = false;
 				if (show === null)
 					show = false;
 				if (!show)
 					show = false;
+
 				if (this.isElementToggled($element) === show)
 					return;
 					
@@ -911,12 +1197,31 @@ define(['ash',
 			},
 			
 			toggleInternal: function ($element, show, signalParams) {
+				show = show == true;
 				$element.attr("data-visible", show);
 				$element.toggle(show);
+
+				// if parent callout container exists and it has only one non-hover child (element being toggled), toggle parent too
+				this.toggleParentCalloutContainer($element, ".info-callout-target", show);
+				this.toggleParentCalloutContainer($element, ".callout-container", show);
+
 				// NOTE: For some reason the element isn't immediately :visible for checks in UIOutElementsSystem without the timeout
 				setTimeout(function () {
 					GlobalSignals.elementToggledSignal.dispatch($element, show, signalParams);
 				}, 1);
+			},
+
+			toggleParentCalloutContainer: function ($element, parentSelector, show) {
+				let $parent = $element.parent(parentSelector);
+
+				if ($parent.length === 0) return;
+				
+				let $children = $parent.children();
+				let $countedChildren = $children.not(".info-callout");
+
+				if ($countedChildren.length === 1) {
+					this.toggle($parent, show);
+				}
 			},
 			
 			cancelDelayedToggle: function ($element) {
@@ -981,6 +1286,29 @@ define(['ash',
 				return (($element).is(":visible"));
 			},
 
+			setText: function (selector, key, options) {
+				this.texts[selector] = { key: key, options: options };
+				this.updateText($(selector), Text.t(key, options));
+			},
+
+			updateTexts: function () {
+				for (let selector in this.texts) {
+					let saved = this.texts[selector];
+					try {
+						this.updateText($(selector), Text.t(saved.key, saved.options));
+					} catch (error) {
+						debugger
+					}
+					  
+				}
+			},
+
+			updateText: function ($elem, text) {
+				let current = $elem.text();
+				if (current == text) return;
+				$elem.text(text);
+			},
+
 			stopButtonCooldown: function (button) {
 				$(button).children(".cooldown-action").stop(true, true);
 				$(button).attr("data-hasCooldown", "false");
@@ -990,22 +1318,32 @@ define(['ash',
 			},
 			
 			updateButtonCooldown: function (button, action) {
-				var baseId = GameGlobals.playerActionsHelper.getBaseActionID(action);
-				var locationKey = this.getLocationKey(action);
+				let baseId = GameGlobals.playerActionsHelper.getBaseActionID(action);
+				let locationKey = this.getLocationKey(action);
+
 				cooldownTotal = PlayerActionConstants.getCooldown(baseId);
 				cooldownLeft = Math.min(cooldownTotal, GameGlobals.gameState.getActionCooldown(action, locationKey, cooldownTotal));
 				durationTotal = PlayerActionConstants.getDuration(action, baseId);
 				durationLeft = Math.min(durationTotal, GameGlobals.gameState.getActionDuration(action, locationKey, durationTotal));
+
 				if (cooldownLeft > 0) this.startButtonCooldown(button, cooldownTotal, cooldownLeft);
 				else this.stopButtonCooldown(button);
+
 				if (durationLeft > 0) this.startButtonDuration(button, durationTotal, durationLeft);
 				else this.stopButtonDuration(button);
 			},
 
 			startButtonCooldown: function (button, cooldown, cooldownLeft) {
 				if (GameGlobals.gameState.uiStatus.isHidden) return;
+
 				let action = $(button).attr("action");
-				if (!GameGlobals.playerActionsHelper.isRequirementsMet(action)) return;
+				let isAvailable = GameGlobals.playerActionsHelper.isRequirementsMet(action, null, [ PlayerActionConstants.DISABLED_REASON_BUSY ]);
+
+				if (!isAvailable) {
+					this.stopButtonCooldown(button);
+					return;
+				}
+
 				if (!cooldownLeft) cooldownLeft = cooldown;
 				var uiFunctions = this;
 				var startingWidth = (cooldownLeft / cooldown * 100);
@@ -1054,17 +1392,41 @@ define(['ash',
 				let playerHealth = GameGlobals.playerActionFunctions.playerStatsNodes.head.stamina.health;
 				let maxRumours = GameGlobals.playerActionFunctions.playerStatsNodes.head.rumours.maxValue;
 				let maxEvidence = GameGlobals.playerActionFunctions.playerStatsNodes.head.evidence.maxValue;
-				let maxFavour = GameGlobals.playerHelper.getMaxFavour();
+				let maxHope = GameGlobals.playerHelper.getMaxHope();
 				let maxInsight = GameGlobals.playerActionFunctions.playerStatsNodes.head.insight.maxValue;
 				let showStorage = GameGlobals.resourcesHelper.getCurrentStorageCap();
+
+				let costsWithoutBonuses = GameGlobals.playerActionsHelper.getCostsWithoutBonuses(action);
+
+				let maxCostCountdown = -1;
+				let hasNonAccumulatingCost = false;
 				
+				// costs themselves
 				for (let key in costs) {
+					let value = costs[key];
+					let valueWithoutBonuses = costsWithoutBonuses[key];
+					let isNegatedByBonus = value === 0 && valueWithoutBonuses !== 0;
+					let isAccumulatingCost = GameGlobals.playerActionsHelper.isAccumulatingCost(key, false);
+
+					if (isAccumulatingCost && !hasNonAccumulatingCost) {
+						let costCountdown = GameGlobals.playerActionsHelper.getCostCountdownSeconds(key, value);
+
+						if (costCountdown < 0) {
+							hasNonAccumulatingCost = true;
+						}
+
+						if (costCountdown >= 0 && costCountdown > maxCostCountdown) {
+							maxCostCountdown = costCountdown;
+						}
+					} else {
+						hasNonAccumulatingCost = true;
+					}
+
 					let $costSpan = elements.costSpans[key];
 					if (!$costSpan || $costSpan.length == 0) {
 						log.w("cost span missing: " + key + " " + action);
 						continue;
 					}
-					let value = costs[key];
 					let costFraction = GameGlobals.playerActionsHelper.checkCost(action, key);
 					let isFullCostBlocker =
 						(isResource(key.split("_")[1]) && value > showStorage) ||
@@ -1072,7 +1434,7 @@ define(['ash',
 						(key == "rumours" && value > maxRumours) ||
 						(key == "evidence" && value > maxEvidence) ||
 						(key == "insight" && value > maxInsight) ||
-						(key == "favour" && value > maxFavour);
+						(key == "hope" && value > maxHope);
 						
 					if (costsStatus) {
 						if (isFullCostBlocker) {
@@ -1083,13 +1445,28 @@ define(['ash',
 					}
 					$costSpan.toggleClass("action-cost-blocker", costFraction < 1);
 					$costSpan.toggleClass("action-cost-blocker-storage", isFullCostBlocker);
-	
-					if (value !== displayedCosts[key]) {
-						let $costSpanValue = elements.costSpanValues[key];
-						$costSpanValue.html(UIConstants.getDisplayValue(value));
-						GameGlobals.uiFunctions.toggle($costSpan, value > 0, signalParams);
-						displayedCosts[key] = value;
+
+					let displayValue = UIConstants.getDisplayValue(value);
+					if (isNegatedByBonus) {
+						displayValue = "<span class='action-cost-negated'>" + UIConstants.getDisplayValue(valueWithoutBonuses) + "</span> " + displayValue;
 					}
+	
+					if (displayValue !== displayedCosts[key]) {
+						let $costSpanValue = elements.costSpanValues[key];
+						let showCostSpan = valueWithoutBonuses > 0;
+						$costSpanValue.html(displayValue);
+						GameGlobals.uiFunctions.toggle($costSpan, showCostSpan, signalParams);
+						displayedCosts[key] = displayValue;
+					}
+				}
+
+				// cost countdown
+				let $costsCountdown = elements.calloutCostsCountdown;
+				let $costsCountdownContainer = elements.calloutCostsCountdownContainer;
+				let showCostCountdown = !hasNonAccumulatingCost && maxCostCountdown >= 0 && costsStatus.bottleneckCostFraction < 1;
+				GameGlobals.uiFunctions.toggle($costsCountdownContainer, showCostCountdown, signalParams);
+				if (showCostCountdown) {
+					$costsCountdown.text(Text.t("ui.actions.action_available_in_field", UIConstants.getTimeToNum(maxCostCountdown)));
 				}
 			},
 
@@ -1145,7 +1522,7 @@ define(['ash',
 				var $element = typeof (element) === "string" ? $(element) : element;
 				
 				$element.text(bubbleNumber);
-				GameGlobals.uiFunctions.toggle($element, bubbleNumber > 0);
+				GameGlobals.uiFunctions.toggle($element, bubbleNumber !== 0);
 			},
 
 			registerLongTap: function (element, callback) {
@@ -1194,9 +1571,49 @@ define(['ash',
 				});
 			},
 
-			showTab: function (tabID, tabProps) {
-				if (GameGlobals.gameState.isLaunched) return;
-				this.onTabClicked(tabID, tabProps);
+			focus: function ($element, numTries) {
+				if (!$element || $element.length == 0) {
+					log.w("could not find element to focus on");
+					return;
+				}
+
+				let name = UIConstants.getElementName($element);
+
+				if (numTries > 10) {
+					log.w("could not focus on element (not focusable): " + name);
+					return;
+				}
+
+				let e = $element[0];
+				let isFocusable = UIConstants.isFocusable(e);
+
+				if (!isFocusable) {
+					setTimeout(() => { GameGlobals.uiFunctions.focus($element, numTries + 1); }, 100);
+					return;
+				}
+
+				log.i("focus on " + name);
+				e.focus();
+			},
+
+			showPreviousTab: function () {
+				let visibleTabElements = $("#switch-tabs li").filter("[data-visible=true]");
+				let currentTabElement = $("#switch-tabs li.selected")[0];
+				let currentTabElementIndex = visibleTabElements.toArray().indexOf(currentTabElement);
+				let previousTabElementIndex = currentTabElementIndex - 1;
+				if (previousTabElementIndex < 0) previousTabElementIndex = visibleTabElements.length - 1;
+				visibleTabElements[previousTabElementIndex].click();
+				GameGlobals.uiFunctions.scrollToTabTop();
+			},
+
+			showNextTab: function () {
+				let visibleTabElements = $("#switch-tabs li").filter("[data-visible=true]");
+				let currentTabElement = $("#switch-tabs li.selected")[0];
+				let currentTabElementIndex = visibleTabElements.toArray().indexOf(currentTabElement);
+				let nextTabElementIndex = currentTabElementIndex + 1;
+				if (nextTabElementIndex >= visibleTabElements.length) nextTabElementIndex = 0;
+				visibleTabElements[nextTabElementIndex].click();
+				GameGlobals.uiFunctions.scrollToTabTop();
 			},
 
 			showFight: function () {
@@ -1209,29 +1626,50 @@ define(['ash',
 			},
 
 			showManageSave: function () {
-				this.showSpecialPopup("manage-save-popup");
+				let options = { isMeta: true, isDismissable: true };
+				this.showSpecialPopup("manage-save-popup", options);
 			},
 
-			showSpecialPopup: function (popupID) {
-				log.i("[ui] showSpecialPopup " + popupID);
-				let $popup = $("#" + popupID);
-				if ($popup.is(":visible")) return;
+			showStatsPopup: function () {
+				GlobalSignals.triggerSoundSignal.dispatch(UIConstants.soundTriggerIDs.buttonClicked);
+				let options = { isMeta: true, isDismissable: true };
+				gtag('event', 'screen_view', {
+					'screen_name': "popup-stats"
+				});
+				this.updateGameStatsPopup();
+				this.showSpecialPopup("game-stats-popup", options);
+			},
+
+			showSpecialPopup: function (popupID, options) {
+				options = options || {};
 				
-				if ($popup.parent().hasClass("popup-overlay")) $popup.unwrap();
-				$popup.wrap("<div class='popup-overlay popup-overlay-ingame' style='display:none'></div>");
+				log.i("[ui] showSpecialPopup " + popupID);
+				
+				let $popup = $("#" + popupID);
+
+				if (options.setupCallback) {
+					options.setupCallback();
+				}
+
+				GameGlobals.uiFunctions.popupManager.setDismissable($popup, options.isDismissable);
 				
 				let uiFunctions = this;
-				$(".popup-overlay").fadeIn(200, function () {
-					uiFunctions.popupManager.repositionPopups();
+
+				this.popupManager.showOverlay(function () {
+					uiFunctions.popupManager.repositionPopup($popup);
 					GlobalSignals.popupOpenedSignal.dispatch(popupID);
-					GameGlobals.gameState.isPaused = true;
-					$("#" + popupID).fadeIn(200, function () {
+					$popup.stop().fadeIn(UIConstants.POPUP_FADE_IN_DURATION, function () {
+						$popup.attr("data-toggling", false);
 						uiFunctions.toggle("#" + popupID, true);
-						uiFunctions.popupManager.repositionPopups();
+						uiFunctions.popupManager.repositionPopup($popup);
+						uiFunctions.popupManager.updatePause();
+						GlobalSignals.popupShownSignal.dispatch("common-popup");
+						if (options.$defaultButton) GameGlobals.uiFunctions.focus(options.$defaultButton);
 					});
 					GlobalSignals.elementToggledSignal.dispatch(("#" + popupID), true);
 				});
-				this.generateCallouts("#" + popupID);
+				
+				this.generateInfoCallouts("#" + popupID);
 			},
 
 			showInfoPopup: function (title, msg, buttonLabel, resultVO, callback, isMeta, isDismissable) {
@@ -1244,7 +1682,24 @@ define(['ash',
 			},
 
 			showResultPopup: function (title, msg, resultVO, callback, options) {
+				options = options || {};
+				options.isDismissable = !resultVO || resultVO.isVisuallyEmpty();
 				this.popupManager.showPopup(title, msg, "Continue", false, resultVO, callback, null, options);
+			},
+
+			showActionPopup: function (action, title, msg) {
+				let options = {
+					isMeta: false,
+					isDismissable: true,
+					action: action,
+				};
+
+				let baseActionID = GameGlobals.playerActionsHelper.getBaseActionID(action);
+				let actionName = Text.t("game.actions." + baseActionID + "_name");
+
+				title = title || actionName;
+				
+				this.popupManager.showPopup(title, msg, null, "Cancel", null, null, null, options);
 			},
 
 			showConfirmation: function (msg, callback, isMeta) {
@@ -1282,11 +1737,11 @@ define(['ash',
 				this.popupManager.showPopup(title, msg, buttonLabel, cancelButtonLabel, null, okCallback, cancelCallback, options);
 			},
 
-			showInput: function (title, msg, defaultValue, allowCancel, confirmCallback, inputCallback) {
+			showInput: function (title, msg, defaultValue, allowCancel, confirmCallback, inputCallback, maxLength) {
 				// TODO improve input validation (check and show feedback on input, not just on confirm)
 				let okCallback = function () {
 					let input = $("#common-popup input").val();
-					input = GameGlobals.uiFunctions.cleanUpInput(input);
+					input = StringUtils.cleanUpInput(input, maxLength);
 					let ok = input && input.length > 0 && (inputCallback ? inputCallback(input) : true);
 					if (ok) {
 						confirmCallback(input);
@@ -1300,6 +1755,7 @@ define(['ash',
 				let options = {
 					isMeta: false,
 					isDismissable: false,
+					isCloseable: false,
 				};
 				
 				this.popupManager.showPopup(title, msg, "Confirm", cancelButtonLabel, null, okCallback, null, options);
@@ -1310,8 +1766,19 @@ define(['ash',
 				$("#common-popup-input-container input").attr("maxlength", maxChar);
 
 				$("#common-popup input").val(defaultValue);
+				$("#common-popup input").data("max-input-length", maxLength)
 				$("#common-popup input").keydown(uiFunctions.onTextInputKeyDown);
 				$("#common-popup input").keyup(uiFunctions.onTextInputKeyUp);
+			},
+
+			showGameOptions: function (show) {
+				$("#game-options-extended").toggle(show);
+				$("#btn-more").text(show ? Text.t("ui.meta.more_options_button_label") : Text.t("ui.meta.more_options_button_label"));
+				GlobalSignals.elementToggledSignal.dispatch($("#game-options-extended"), show);
+			},
+
+			showResultFlyout: function (resultVO) {
+				
 			},
 		});
 

@@ -3,14 +3,14 @@ define([
 	'json!game/data/EnemyData.json',
 	'game/GameGlobals',
 	'game/constants/EnemyConstants',
-	'game/constants/FollowerConstants',
+	'game/constants/ExplorerConstants',
 	'game/constants/PerkConstants',
 	'game/constants/ItemConstants',
 	'game/constants/FightConstants',
 	'game/constants/UpgradeConstants',
 	'game/constants/WorldConstants',
 	'game/components/player/ItemsComponent',
-	'game/components/player/FollowersComponent',
+	'game/components/player/ExplorersComponent',
 	'game/vos/EnemyVO',
 	'utils/MathUtils',
 ], function (
@@ -18,23 +18,23 @@ define([
 	EnemyData,
 	GameGlobals,
 	EnemyConstants,
-	FollowerConstants,
+	ExplorerConstants,
 	PerkConstants,
 	ItemConstants,
 	FightConstants,
 	UpgradeConstants,
 	WorldConstants,
 	ItemsComponent,
-	FollowersComponent,
+	ExplorersComponent,
 	EnemyVO,
 	MathUtils
 ) {
-	var EnemyCreator = Ash.Class.extend({
+	let EnemyCreator = Ash.Class.extend({
 		
 		constructor: function () {},
 		
 		createEnemies: function () {
-			EnemyConstants.enemyDefinitions = {};
+			EnemyConstants.enemyDefinitions = [];
 			
 			let templateSuffix = "__template";
 			
@@ -72,29 +72,35 @@ define([
 				
 				let causedInjuryTypes = EnemyConstants.enemyInjuries[enemyClass];
 				def.causedInjuryTypes = (def.causedInjuryTypes || []).concat(causedInjuryTypes);
+				def.curseProbability = def.curseProbability || 0;
 				
-				let type = def.environment || template.environment;
+				let environment = def.environment || template.environment || [];
+
 				let enemyVO = this.createEnemy(
 					enemyID,
 					def.name,
-					type,
+					environment,
 					def.nouns, def.groupNouns, def.verbsActive, def.verbsDefeated,
 					def.campOrdinal || 0, def.difficulty || 5,
 					def.attackRatio || 0.5, def.shieldRatio || 0, def.healthFactor || 1, def.shieldFactor || 1, def.size || 1, def.speed || 1,
 					def.rarity || 1,
 					def.droppedResources, def.droppedIngredients, def.causedInjuryTypes
 				);
+
+				let tags = def.tags || template.tags || [];
+				enemyVO.tags = tags;
 				
 				enemyVO.enemyClass = enemyClass;
-				enemyVO.requiredTags = def.requiredTags || [];
+				enemyVO.curseProbability = def.curseProbability || 0;
 				
-				if (!EnemyConstants.enemyDefinitions[type]) EnemyConstants.enemyDefinitions[type] = [];
-			 	EnemyConstants.enemyDefinitions[type].push(enemyVO.cloneWithIV(50));
+			 	EnemyConstants.enemyDefinitions.push(enemyVO.cloneWithIV(50));
+
+				EnemyConstants.enemyUsage[enemyID] = { numCandidateSectors: 0, numPresentSectors: 0, presentLevels: [], presentCampOrdinals: [] };
 			}
 		},
 
 		// Enemy definitions (speed: around 1, rarity: 0-100)
-		createEnemy: function (id, name, type, nouns, groupN, activeV, defeatedV, campOrdinal, normalizedDifficulty, attRatio, shieldRatio, healthFactor, shieldFactor, size, speed, rarity, droppedResources, droppedIngredients, causedInjuryTypes) {
+		createEnemy: function (id, name, environment, nouns, groupN, activeV, defeatedV, campOrdinal, normalizedDifficulty, attRatio, shieldRatio, healthFactor, shieldFactor, size, speed, rarity, droppedResources, droppedIngredients, causedInjuryTypes) {
 			// normalizedDifficulty (1-10) -> camp step and difficulty within camp step
 			normalizedDifficulty = MathUtils.clamp(normalizedDifficulty, 1, 10);
 			let step = 0;
@@ -161,7 +167,7 @@ define([
 			
 			// log.i("goal strength: " + strength + " | actual strength: " + FightConstants.getStrength(att, def, speed));
 
-			return new EnemyVO(id, name, type, nouns, groupN, activeV, defeatedV, size, att, def, hp, shield, speed, rarity, droppedResources, droppedIngredients, causedInjuryTypes);
+			return new EnemyVO(id, name, environment, nouns, groupN, activeV, defeatedV, size, att, def, hp, shield, speed, rarity, droppedResources, droppedIngredients, causedInjuryTypes);
 		},
 		
 		getStatBase: function (campOrdinal, step, difficultyFactor, statfunc) {
@@ -201,15 +207,15 @@ define([
 		getPlayerAtt: function (campOrdinal, step) {
 			let playerStamina = this.getTypicalStamina(campOrdinal, step);
 			let itemsComponent = this.getTypicalItems(campOrdinal, step);
-			let followersComponent = this.getTypicalFollowers(campOrdinal, step);
-			return FightConstants.getPlayerAtt(playerStamina, itemsComponent, followersComponent);
+			let explorersComponent = this.getTypicalExplorers(campOrdinal, step);
+			return FightConstants.getPlayerAtt(playerStamina, itemsComponent, explorersComponent);
 		},
 		
 		getPlayerDef: function (campOrdinal, step) {
 			let playerStamina = this.getTypicalStamina(campOrdinal, step);
 			let itemsComponent = this.getTypicalItems(campOrdinal, step);
-			let followersComponent = this.getTypicalFollowers(campOrdinal, step);
-			return FightConstants.getPlayerDef(playerStamina, itemsComponent, followersComponent);
+			let explorersComponent = this.getTypicalExplorers(campOrdinal, step);
+			return FightConstants.getPlayerDef(playerStamina, itemsComponent, explorersComponent);
 		},
 		
 		getPlayerSpeed: function (campOrdinal, step) {
@@ -242,8 +248,8 @@ define([
 			
 			let playerStamina = this.getTypicalStamina(campOrdinal, step);
 			let itemsComponent = this.getTypicalItems(campOrdinal, step);
-			let followersComponent = this.getTypicalFollowers(campOrdinal, step);
-			let playerAtt = FightConstants.getPlayerAtt(playerStamina, itemsComponent, followersComponent);
+			let explorersComponent = this.getTypicalExplorers(campOrdinal, step);
+			let playerAtt = FightConstants.getPlayerAtt(playerStamina, itemsComponent, explorersComponent);
 			
 			// average of two factors:
 			// - player hp and shield (should be comparable)
@@ -254,49 +260,58 @@ define([
 			return attFactor * playerAtt + (1-attFactor) * playerHPShield;
 		},
 
-		// get enemies by type (string) and difficulty (campOrdinal and step)
-		// by default will also include enemies of one difficulty lower, if restrictDifficulty, then not
-		// will return at least one enemy; if no matching enemy exists, one with lower difficulty is returned
-		getEnemies: function (type, difficulty, restrictDifficulty, tags) {
-			var enemies = [];
-			if (difficulty <= 0) return enemies;
-
-			var enemyList = [];
-			if (type) {
-				enemyList = EnemyConstants.enemyDefinitions[type];
-			} else {
-				for (var type in EnemyConstants.enemyTypes) {
-					enemyList = enemyList.concat(EnemyConstants.enemyDefinitions[type]);
-				}
-			}
+		// difficulty: derived from campOrdinal and step
+		// tags: tags describing the environment (sector) which need to match those on the enemy (ignored if null)
+		// min: minimum number of enemies to return (if not enough matching found, lower difficulties added)
+		getEnemies: function (difficulty, tags, min) {
+			let result = [];
+			
+			if (difficulty <= 0) return result;
 			
 			let isMatchingTags = function (enemy) {
-				if (enemy.requiredTags.length > 0) {
-					if (tags.length < enemy.requiredTags.length) return false;
-					for (let j = 0; j < enemy.requiredTags.length; j++) {
-						if (tags.indexOf(enemy.requiredTags[j]) < 0) {
+				if (!tags) return true;
+
+				if (enemy.environment.length > 0) {
+					if (tags.length < enemy.environment.length) return false;
+					for (let i = 0; i < enemy.environment.length; i++) {
+						if (tags.indexOf(enemy.environment[i]) < 0) {
 							return false;
 						}
 					}
 				}
+
 				return true;
 			}
 			
+			let enemyList = EnemyConstants.enemyDefinitions;
 			for (let i = 0; i < enemyList.length; i++) {
 				let enemy = enemyList[i];
+
 				if (!isMatchingTags(enemy)) continue;
+				
 				let enemyDifficulty = Math.max(EnemyConstants.enemyDifficulties[enemy.id], 1);
+
 				if (enemyDifficulty === difficulty)
-					enemies.push(enemy);
-				if (enemyDifficulty === difficulty - 1 && difficulty > 1 && !restrictDifficulty)
-					enemies.push(enemy);
+					result.push(enemy);
+
+				if (enemyDifficulty === difficulty - 1 && difficulty > 1)
+					result.push(enemy);
 			}
 
-			if (enemies.length <= 0) {
-				return this.getEnemies(type, difficulty - 1, restrictDifficulty, tags);
+			if (result.length < min) {
+				let minFallbacks = min - result.length;
+				let fallbackEnemies = this.getEnemies(difficulty - 1, tags, minFallbacks);
+				// prefer fallbacks with lots of matching tags
+				fallbackEnemies.sort(function (a, b) { return b.environment.length - a.environment.length });
+				for (let i = 0; i < fallbackEnemies.length; i++) {
+					let fallbackEnemy = fallbackEnemies[i];
+					if (result.indexOf(fallbackEnemy) >= 0) continue;
+					result.push(fallbackEnemy);
+					if (result.length >= min) break;
+				}
 			}
 
-			return enemies;
+			return result;
 		},
 
 		// get the difficulty level (1-3*15, corresponding to camp ordinal and step) of a given enemy
@@ -339,23 +354,23 @@ define([
 			return typicalItems;
 		},
 		
-		getTypicalFollowers: function (campOrdinal, step) {
-			let typicalFollowers = new FollowersComponent();
-			if (!WorldConstants.isHigherOrEqualCampOrdinalAndStep(campOrdinal, step, FollowerConstants.FIRST_FOLLOWER_CAMP_ORDINAL, WorldConstants.CAMP_STEP_POI_2)) {
-				return typicalFollowers;
+		getTypicalExplorers: function (campOrdinal, step) {
+			let typicalExplorers = new ExplorersComponent();
+			if (!WorldConstants.isHigherOrEqualCampOrdinalAndStep(campOrdinal, step, ExplorerConstants.FIRST_EXPLORER_CAMP_ORDINAL, WorldConstants.CAMP_STEP_POI_2)) {
+				return typicalExplorers;
 			}
 			
 			if (campOrdinal <= GameGlobals.upgradeEffectsHelper.getCampOrdinalToUnlockBuilding(improvementNames.inn)) {
-				campOrdinal = FollowerConstants.FIRST_FOLLOWER_CAMP_ORDINAL;
+				campOrdinal = ExplorerConstants.FIRST_EXPLORER_CAMP_ORDINAL;
 				step = WorldConstants.CAMP_STEP_POI_2;
 			}
 			
-			// only considering fight related followers here
-			let follower = FollowerConstants.getTypicalFighter(campOrdinal, step);
-			typicalFollowers.addFollower(follower);
-			typicalFollowers.setFollowerInParty(follower, true);
+			// only considering fight related explorers here
+			let explorer = ExplorerConstants.getTypicalFighter(campOrdinal, step);
+			typicalExplorers.addExplorer(explorer);
+			typicalExplorers.setExplorerInParty(explorer, true);
 			
-			return typicalFollowers;
+			return typicalExplorers;
 		},
 		
 		getTypicalStamina: function (campOrdinal, step, isHardLevel) {
@@ -384,7 +399,55 @@ define([
 			typicalStamina.maxShield = typicalItems.getCurrentBonus(ItemConstants.itemBonusTypes.fight_shield);
 			
 			return typicalStamina;
-		}
+		},
+
+		registerEnemyAsCandidateForSector: function (enemyID, level, campOrdinal) {
+			EnemyConstants.enemyUsage[enemyID].numCandidateSectors++;
+		},
+
+		registerEnemyAsPresentForSector: function (enemyID, level, campOrdinal) {
+			let stats = EnemyConstants.enemyUsage;
+			stats[enemyID].numPresentSectors++;
+			if (stats[enemyID].presentLevels.indexOf(level) < 0) stats[enemyID].presentLevels.push(level);
+			if (stats[enemyID].presentCampOrdinals.indexOf(campOrdinal) < 0) stats[enemyID].presentCampOrdinals.push(campOrdinal);
+		},
+
+		printEnemyStatistics: function () {
+			let stats = EnemyConstants.enemyUsage;
+
+			let entries = Object.keys(stats).map(function(key) {
+				return { 
+					id: key, 
+					numCandidateSectors: stats[key].numCandidateSectors,
+					numPresentSectors: stats[key].numPresentSectors,
+					presentLevels: stats[key].presentLevels, 
+					presentCampOrdinals: stats[key].presentCampOrdinals 
+				};
+			});
+
+			entries.sort(function(first, second) {
+				return second.numPresentSectors - first.numPresentSectors;
+			});
+
+			let printEntry = function (entry) {
+				let enemy = EnemyConstants.getEnemy(entry.id);
+				let row = entry.id + " = ";
+				row += "numCandidateSectors: " + entry.numCandidateSectors;
+				row += ", ";
+				row += "numPresentSectors: " + entry.numPresentSectors;
+				row += ", ";
+				row += "presentLevels: " + entry.presentLevels.join(",");
+				row += ", ";
+				row += "presentCampOrdinals: " + entry.presentCampOrdinals.join(",");
+				row += ", ";
+				row += "rarity: " + enemy.rarity;
+				row += ", ";
+				row += "environment: " + enemy.environment.join(",");
+				return row;
+			}
+
+			console.log(entries.map(entry => printEntry(entry)));
+		},
 		
 	});
 

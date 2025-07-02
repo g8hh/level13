@@ -2,72 +2,109 @@
 // pass in the data to display and this takes care of creating, deleting and updating html elements as needed
 
 // TODO pooling
-// TODO two definitions of equality (data is the same, no update needed vs data has changed a bit but keep the same element anyway)
 // TODO animations
 
 define(['game/GameGlobals'], function (GameGlobals) {
 
 	let UIList = {
 		
+		// owner: object that controls the list - will be used to invoke list functions with owner as "this"
 		// container: element inside which list items will be added
 		// fnCreateItem: function () - should return new item that has a member called $root which will be added to container
 		// fnUpdateItem: function (li, data) - should update the given list item with the given data
-		// fnIsDataEqual: function (data1, data2) - optional - defines if a data is the same (no update needed)
-		create: function (container, fnCreateItem, fnUpdateItem, fnIsDataEqual) {
+		// fnIsDataSame: function (data1, data2) - optional - defines if a data is the same item (no new item neede)
+		// fnIsDataUnchanged: function (data1, data2) - optional - defines if data is unchanged (no update call needed) (performance optimization)
+		create: function (owner, container, fnCreateItem, fnUpdateItem, fnIsDataSame, fnIsDataUnchanged) {
 			let list = {};
+			list.owner = owner;
 			list.$container = $(container);
 			list.data = [];
 			list.items = [];
 			list.fnCreateItem = fnCreateItem;
 			list.fnUpdateItem = fnUpdateItem;
-			list.fnIsDataEqual = fnIsDataEqual;
+			list.fnIsDataSame = fnIsDataSame || ((d1, d2) => d1.id === d2.id);
+			list.fnIsDataUnchanged = fnIsDataUnchanged || ((d1, d2) => false);
 			return list;
 		},
 		
 		// list: a data structure returned by create
-		// data: an array of data entries that the list's fnUpdateItem and fnIsDataEqual can use
-		update: function (list, data) {
+		// data: an array of data entries that should be mapped to items and those items updated where needed
+		// forceUpdate: force all items to update even if data hasn't changed
+		update: function (list, data, forceUpdate) {
+			let newIndices = [];
 			let newItems = [];
 			let createdItems = [];
+
+			let foundDifferingIndex = false;
+
+			let li;
+			let newIndex;
 			
 			for (let i = 0; i < list.items.length; i++) {
-				let li = list.items[i];
-				let newIndex = this.getItemIndex(list, li, data);
-				
-				if (newIndex >= 0) {
-					li.$root.detach();
-					newItems[newIndex] = li;
-				} else {
-					li.data = null;
-					li.$root.remove();
+				li = list.items[i];
+				newIndex = this.getItemIndex(list, li, data);
+				if (newIndex != i) {
+					foundDifferingIndex = true;
 				}
+				newIndices[i] = newIndex;
 			}
-			
-			// go through data and add any missing items
-			for (let i = 0; i < data.length; i++) {
-				let d = data[i]
-				let li = newItems[i];
-				if (li) {
-					list.fnUpdateItem(li, d);
-				} else  {
-					li = list.fnCreateItem();
-					list.fnUpdateItem(li, d);
-					newItems[i] = li;
-					createdItems.push(li);
-				}
-				
-				li.data = data[i];
-			}
-			
-			// append and save new items
-			list.items = newItems;
-			let newRoots = newItems.map(item => item.$root);
-			list.$container.append(newRoots);
-			
-			// update any buttons (needs to be after they've been added to the DOM)
-			this.initButtonsInCreatedItems(list, createdItems);
 
-			return createdItems.length;
+			let keepItems = list.items.length == data.length && !foundDifferingIndex;
+
+			if (keepItems) {
+				for (let i = 0; i < list.items.length; i++) {
+					this.updateListItem(list, list.items[i], data[i], forceUpdate);
+				}
+			} else {
+				// remove or detach
+				for (let i = 0; i < list.items.length; i++) {
+					li = list.items[i];
+					newIndex = newIndices[i];
+					
+					if (newIndex >= 0) {
+						li.$root.detach();
+						newItems[newIndex] = li;
+					} else {
+						li.data = null;
+						li.$root.remove();
+					}
+				}
+				
+				// add back or create new one + update
+				for (let i = 0; i < data.length; i++) {
+					let d = data[i]
+					let li = newItems[i];
+					if (li) {
+						this.updateListItem(list, li, d, forceUpdate);
+					} else  {
+						li = list.fnCreateItem.apply(list.owner);
+						this.updateListItem(list, li, d, forceUpdate);
+						newItems[i] = li;
+						createdItems.push(li);
+					}
+				}
+				
+				// append to DOM and save new items
+				list.items = newItems;
+				let newRoots = newItems.map(item => item.$root);
+				list.$container.append(newRoots);
+				
+				// update any buttons (needs to be after they've been added to the DOM)
+				this.initButtonsInCreatedItems(list, createdItems);
+			}
+
+			return createdItems;
+		},
+
+		updateListItem: function (list, li, data, forced) {
+			let shouldUpdate = forced || !this.isDataUnchanged(list, li, data);
+
+			if (shouldUpdate) {
+				let newData = data;
+				if (typeof data === "object") newData = Object.assign({}, data);
+				list.fnUpdateItem.apply(list.owner, [li, newData]);
+				li.data = newData;
+			}
 		},
 		
 		initButtonsInCreatedItems: function (list, createdItems) {
@@ -77,33 +114,40 @@ define(['game/GameGlobals'], function (GameGlobals) {
 			// TODO fix assumption that container has an id
 			
 			let scope = "#" + list.$container.attr("id");
-			GameGlobals.uiFunctions.registerActionButtonListeners(scope);
-			GameGlobals.uiFunctions.generateButtonOverlays(scope);
-			GameGlobals.uiFunctions.generateCallouts(scope);
+			GameGlobals.uiFunctions.createButtons(scope);
 			
 			for (let i = 0; i < createdItems.length; i++) {
 				let li = createdItems[i];
-				list.fnUpdateItem(li, li.data);
+				this.updateListItem(list, li, li.data, true);
 			}
 		},
 		
 		getItemIndex: function (list, li, data) {
 			for (let i = 0; i < data.length; i++) {
 				let d = data[i]
-				if (this.isDataEqual(list, li.data, d)) {
+				if (this.isDataSame(list, li.data, d)) {
 					return i;
 				}
 			}
 			return -1;
 		},
 		
-		isDataEqual: function (list, d1, d2) {
-			if (list.fnIsDataEqual) {
-				return list.fnIsDataEqual(d1, d2);
+		isDataSame: function (list, d1, d2) {
+			if (list.fnIsDataSame) {
+				return list.fnIsDataSame.apply(list.owner, [d1, d2]);
 			} else {
 				return d1 === d2;
 			}
 		},
+
+		isDataUnchanged: function (list, li, data) {
+			if (!li.data) return false;
+			if (list.fnIsDataUnchanged) {
+				return list.fnIsDataUnchanged.apply(list.owner, [li.data, data]);
+			} else {
+				return false;
+			}
+		}
 		
 	};
 

@@ -96,11 +96,8 @@
 
 /* Responsive Stuff */
 @media screen and (max-width: 850px) {
-  
-	#grid-main > .unit, .sticky-footer > .unit {
-		width: 100% !important;
-        padding-left: 80px;
-	}
+
+	.grid .unit:first-child { padding-left: 15px !important }
   
 	#footer {
 		border-width: 2px 0px !important;
@@ -109,14 +106,6 @@
     #game-version, #game-msg {
         left: 10px !important;
     }
-  
-	div.grid-content {
-		border-width: 1px 0px !important;
-	}
-	
-	ul.tabs {
-		padding-left: 5px !important;
-	}
   
 	.limit-height {
 		max-height: 200px;
@@ -142,10 +131,6 @@
 		right: -10em !important;
 		width: 9em !important;
 	}
-
-    .popup .inventorybox ul {
-        width: 370px !important; /* 8 * 46px (li width) + padding */
-    }
 }
 
 @media screen and (max-width: 568px) {
@@ -155,15 +140,15 @@
     width: 100% !important;
   }
   .unit .grid .unit {
-    padding-left: 0px;
-    padding-right: 0px;
+    padding-left: 0px !important;
+    padding-right: 0px !important;
   }
   
 	ul#switch-tabs li {
 		border-radius: 0px 0px 0px 0px;
 		-webkit-border-radius: 0px 0px 0px 0px;
 		-moz-border-radius: 0px 0px 0px 0px;
-		margin: -1px 0;
+		margin: 4px 0 -1px 0;
 		border-bottom-width: 1px !important;
 		top: 0;
 	}
@@ -174,7 +159,6 @@
 	
 	ul#switch-tabs {
 		padding: 0;
-		margin: 0px 5px 5px 5px;
 		padding-left: 0px !important;
 	}
 

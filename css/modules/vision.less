@@ -1,10 +1,10 @@
 
 .opacity-transition() {
-	-webkit-transition: opacity 1.5s ease-in-out;
-	-moz-transition: opacity 1.5s ease-in-out;
-	-ms-transition: opacity 1.5s ease-in-out;
-	-o-transition: opacity 1.5s ease-in-out;
-	transition: opacity 1.5s ease-in-out;
+	-webkit-transition: opacity 1s ease-in-out;
+	-moz-transition: opacity 1s ease-in-out;
+	-ms-transition: opacity 1s ease-in-out;
+	-o-transition: opacity 1s ease-in-out;
+	transition: opacity 1s ease-in-out;
 }
 
 .opacity-transition-reset() {
@@ -19,14 +19,17 @@ img, p, span, h1, h2, h3, div, span, canvas {
 	.opacity-transition();
 }
 
+.ui-transition-element {
+	.opacity-transition-reset();
+}
+
 .vision_steps(@counter) when (@counter >= 0) {
 	.vision_steps(@counter - 1);
 	.vision-step-@{counter} {
 		@is-low-vision: @counter < 3;
 		@is-high-vision: @counter > 9;
 		
-		#grid-main {
-			
+		#grid-main {			
 			// all game elements
 			opacity: min(1, 0.5 + @counter * 0.09);
 			
@@ -44,7 +47,7 @@ img, p, span, h1, h2, h3, div, span, canvas {
 			}
 			
 			// test
-			p, h1, h2, h3, .vision-text, .stats-indicator, .list-amount, .item-name, #mainmap-sector-details-content td, #log span {
+			p, h1, h2, h3, .vision-text, .stat-indicator, .list-amount, .item-name, #mainmap-sector-details-content td, #log span {
 				opacity: min(1, 0.5 + @counter * 0.10);
 			}
 		}

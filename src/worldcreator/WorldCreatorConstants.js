@@ -26,6 +26,7 @@ function (Ash, WorldCreatorLogger, PlayerStatConstants, WorldConstants, MathUtil
 		MIN_CAMP_ORDINAL_HAZARD_RADIATION: 5,
 		MIN_CAMP_ORDINAL_HAZARD_POISON: 3,
 		MIN_CAMP_ORDINAL_HAZARD_DEBRIS: 7,
+		MIN_CAMP_ORDINAL_HAZARD_FLOODED: 2,
 		WASTE_HAZARD_RADIUS: 2,
 		
 		CONNECTION_POINTS_PATH_END: "p-end",
@@ -123,7 +124,7 @@ function (Ash, WorldCreatorLogger, PlayerStatConstants, WorldConstants, MathUtil
 			return Math.floor(maxLength);
 		},
 		
-		getPopulationFactor: function (campOrdinal) {
+		getHabitability: function (campOrdinal) {
 			if (campOrdinal <= 0) return 0;
 			switch (campOrdinal) {
 				// outposts
@@ -161,7 +162,7 @@ function (Ash, WorldCreatorLogger, PlayerStatConstants, WorldConstants, MathUtil
 					return 1.5;
 				
 				default:
-					return this.getPopulationFactor(campOrdinal);
+					return this.getHabitability(campOrdinal);
 			}
 		},
 		

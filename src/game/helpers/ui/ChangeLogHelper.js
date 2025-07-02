@@ -7,7 +7,9 @@ function (Ash, GameGlobals, GlobalSignals, GameConstants) {
 		loadingSuccesfull: undefined,
 		versions: null,
 		
-		constructor: function () {
+		constructor: function () { },
+
+		loadVersion: function () {
 			var helper = this;
 			$.getJSON('changelog.json', function (json) {
 				helper.loadingSuccessful = true;
@@ -28,7 +30,9 @@ function (Ash, GameGlobals, GlobalSignals, GameConstants) {
 				if (error) err += ", " + error;
 				gtag('set', { 'app_version': 'unknown' });
 				GlobalSignals.changelogLoadedSignal.dispatch(false);
-				helper.displayVersionWarnings();
+				if (!GameConstants.isMobileOverlayShown) {
+					helper.displayVersionWarnings();
+				}
 			});
 		},
 		
@@ -77,7 +81,7 @@ function (Ash, GameGlobals, GlobalSignals, GameConstants) {
 		},
 		
 		getVersion: function (version) {
-			for (let i = 0; i < this.versions.legnth; i++) {
+			for (let i = 0; i < this.versions.length; i++) {
 				if (this.versions[i].version == version) {
 					return this.versions[i];
 				}
@@ -92,6 +96,8 @@ function (Ash, GameGlobals, GlobalSignals, GameConstants) {
 		},
 		
 		isOldVersion: function (version) {
+			if (!version) return true;
+			
 			var currentVersionNumber = this.getCurrentVersionNumber();
 			var currentVersionDetails = this.getCurrentVersion();
 			var requiredVersion = currentVersionDetails && currentVersionDetails.requiredVersion || currentVersionNumber;

@@ -1,5 +1,6 @@
 define([
 	'ash',
+	'text/Text',
 	'game/GameGlobals',
 	'game/GlobalSignals',
 	'game/constants/TradeConstants',
@@ -16,7 +17,7 @@ define([
 	'game/vos/ResourcesVO',
 	'game/vos/OutgoingCaravanVO'
 ], function (
-	Ash, GameGlobals, GlobalSignals, TradeConstants, ItemConstants, OccurrenceConstants, UIConstants, PlayerLocationNode, ItemsNode, TribeUpgradesNode, PositionComponent, OutgoingCaravansComponent, TraderComponent, SectorImprovementsComponent, ResourcesVO, OutgoingCaravanVO
+	Ash, Text, GameGlobals, GlobalSignals, TradeConstants, ItemConstants, OccurrenceConstants, UIConstants, PlayerLocationNode, ItemsNode, TribeUpgradesNode, PositionComponent, OutgoingCaravansComponent, TraderComponent, SectorImprovementsComponent, ResourcesVO, OutgoingCaravanVO
 ) {
 	var UIOutTradeSystem = Ash.System.extend({
 
@@ -66,7 +67,7 @@ define([
 
 			GameGlobals.uiFunctions.toggle("#trade-caravans-incoming-empty-message", this.currentIncomingTraders === 0);
 			GameGlobals.uiFunctions.toggle("#trade-caravans-incoming-container", this.currentIncomingTraders > 0);
-			$("#tab-header h2").text("Trade");
+			$("#tab-header h2").text(Text.t("ui.main.tab_trade_header"));
 		},
 		
 		refresh: function () {
@@ -83,12 +84,11 @@ define([
 
 		updateBubble: function () {
 			if (GameGlobals.gameState.uiStatus.isBlocked) return;
-			var newBubbleNumber = this.availableTradingPartnersCount - this.lastShownTradingPartnersCount;
-			if (this.lastShownTradingPartnersCount === -1)
-				newBubbleNumber = 0;
+
+			let newBubbleNumber = this.availableTradingPartnersCount - this.lastShownTradingPartnersCount;
+			if (this.lastShownTradingPartnersCount === -1) newBubbleNumber = 0;
 			newBubbleNumber += this.currentIncomingTraders;
-			if (this.bubbleNumber === newBubbleNumber)
-				return;
+			if (!GameGlobals.gameState.hasSeenTab(GameGlobals.uiFunctions.elementIDs.tabs.trade)) newBubbleNumber = "!";
 			
 			GameGlobals.uiFunctions.updateBubble("#switch-trade .bubble", this.bubbleNumber, newBubbleNumber);
 			this.bubbleNumber = newBubbleNumber;
@@ -196,6 +196,7 @@ define([
 			// TODO animate transitions
 			var sys = this;
 			$(".btn-trade-caravans-outgoing-toggle").click(function () {
+				GlobalSignals.triggerSoundSignal.dispatch(UIConstants.soundTriggerIDs.buttonClicked);
 				var ordinal = $(this).attr("id").split("_")[3];
 				var tr = $("#trade-caravans-outgoing-plan-" + ordinal);
 				var wasVisible = $(tr).is(":visible");
@@ -211,13 +212,12 @@ define([
 			});
 
 			$(".btn-trade-caravans-outgoing-send").click(function () {
+				GlobalSignals.triggerSoundSignal.dispatch(UIConstants.soundTriggerIDs.buttonClicked);
 				var ordinal = $(this).attr("action").split("_")[2];
 				sys.confirmPendingCaravan();
 			});
 
-			GameGlobals.uiFunctions.generateButtonOverlays("#trade-caravans-outgoing-container table");
-			GameGlobals.uiFunctions.generateCallouts("#trade-caravans-outgoing-container table");
-			GameGlobals.uiFunctions.registerActionButtonListeners("#trade-caravans-outgoing-container table");
+			GameGlobals.uiFunctions.createButtons("#trade-caravans-outgoing-container table");
 		},
 		
 		updateOutgoingCaravansHints: function () {
@@ -272,7 +272,8 @@ define([
 				return;
 			}
 
-			var itemsComponent = this.itemNodes.head.items;
+			let itemsComponent = this.itemNodes.head.items;
+			let isSmallLayout = $("body").hasClass("layout-small");
 
 			// TODO show currency / more information about the trader
 
@@ -293,7 +294,7 @@ define([
 				}
 
 				for (var itemID in itemCounts) {
-					var item = ItemConstants.getItemByID(itemID);
+					var item = ItemConstants.getNewItemInstanceByID(itemID);
 					if (item && numLis < 6) {
 						inventoryUL += UIConstants.getItemSlot(itemsComponent, item, null, false, true);
 						numLis++;
@@ -326,20 +327,23 @@ define([
 
 				inventoryUL += "</ul>";
 				var inventoryTD = "<td><div style='margin-right: 5px'>" + inventoryUL + "</div></td>";
-				var buttonsTD = "<td class='nowrap'><button class='trade-caravans-incoming-trade'>Trade</button>";
+				var buttonsTD = "<td class='nowrap-on-regular-layout'><button class='trade-caravans-incoming-trade'>Trade</button>";
 				buttonsTD += "<button class='trade-caravans-incoming-dismiss btn-secondary'>Dismiss</button></td>";
-				var tr = "<tr>" + nameTD + inventoryTD + buttonsTD + "</tr>";
+
+				var tr = "<tr>" + nameTD + (isSmallLayout ? "" : inventoryTD) + buttonsTD + "</tr>";
 				$("#trade-caravans-incoming-container table").append(tr);
 
 				var uiFunctions = GameGlobals.uiFunctions;
 				$(".trade-caravans-incoming-trade").click(function () {
+				GlobalSignals.triggerSoundSignal.dispatch(UIConstants.soundTriggerIDs.buttonClicked);
 					uiFunctions.showIncomingCaravanPopup();
 				});
 				$(".trade-caravans-incoming-dismiss").click(function () {
+				GlobalSignals.triggerSoundSignal.dispatch(UIConstants.soundTriggerIDs.buttonClicked);
 					traderComponent.isDismissed = true;
 				});
 
-				GameGlobals.uiFunctions.generateCallouts("#trade-caravans-incoming-container table");
+				GameGlobals.uiFunctions.generateInfoCallouts("#trade-caravans-incoming-container table");
 				GlobalSignals.elementCreatedSignal.dispatch();
 			}
 

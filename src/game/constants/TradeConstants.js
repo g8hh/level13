@@ -23,8 +23,8 @@ function (Ash, PlayerActionConstants, ItemConstants, UpgradeConstants, BagConsta
 			new TradingPartnerVO(4, "Slugger Town", [resourceNames.food], [resourceNames.metal], false, true, [], ["exploration", "shoes" ]),
 			new TradingPartnerVO(6, "Old Waterworks", [resourceNames.fuel], [], true, false, [], [ "clothing_over", "clothing_upper", "clothing_lower", "clothing_hands", "clothing_head" ]),
 			new TradingPartnerVO(7, "Mill Road Academy", [resourceNames.water, resourceNames.food], [resourceNames.metal], true, false, [], [ "weapon", "artefact" ]),
-			new TradingPartnerVO(10, "Pinewood", [resourceNames.medicine, resourceNames.herbs, resourceNames.rubber], [], true, false, [], [ "artefact", "exploration" ]),
-			new TradingPartnerVO(12, "Highgate", [resourceNames.tools], [resourceNames.metal], true, false, [], [ "clothing_over", "clothing_upper", "clothing_lower", "clothing_hands", "clothing_head" ]),
+			new TradingPartnerVO(10, "Pinewood", [resourceNames.medicine, resourceNames.herbs, resourceNames.rubber], [resourceNames.rope], true, false, [], [ "artefact", "exploration" ]),
+			new TradingPartnerVO(12, "Highgate", [resourceNames.tools], [resourceNames.rope, resourceNames.herbs], true, false, [], [ "clothing_over", "clothing_upper", "clothing_lower", "clothing_hands", "clothing_head" ]),
 			new TradingPartnerVO(14, "Factory 32", [resourceNames.concrete], [resourceNames.metal], true, false, [], [ "exploration" ]),
 		],
 		
@@ -87,7 +87,7 @@ function (Ash, PlayerActionConstants, ItemConstants, UpgradeConstants, BagConsta
 					var min = Math.min(amountLeft, 1);
 					var amount = Math.floor(Math.random() * max) + min;
 					for (let j = 0; j < amount; j++) {
-						result.gainedItems.push(ingredient.clone());
+						result.gainedItems.push(ItemConstants.getNewItemInstanceByDefinition(ingredient));
 					}
 					amountLeft -= amount;
 				}
@@ -134,19 +134,20 @@ function (Ash, PlayerActionConstants, ItemConstants, UpgradeConstants, BagConsta
 				case resourceNames.water: value = 0.01; break;
 				case resourceNames.food: value = 0.01; break;
 				case resourceNames.metal: value = 0.01; break;
-				
 				case resourceNames.rope: value = 0.015; break;
+
 				case resourceNames.fuel: value = 0.02; break;
 				
-				case resourceNames.rubber: value = 0.03; break;
-				case resourceNames.herbs: value = 0.03; break;
+				case resourceNames.rubber: value = 0.02; break;
+				case resourceNames.herbs: value = 0.02; break;
 
-				case resourceNames.medicine: value = 0.04; break;
-				case resourceNames.tools: value = 0.04; break;
-				case resourceNames.concrete: value = 0.04; break;
+				case resourceNames.medicine: value = 0.03; break;
+				case resourceNames.tools: value = 0.02; break;
+				case resourceNames.concrete: value = 0.02; break;
 				
 				case resourceNames.robots: value = 0.1; break;
 			}
+			
 			if (isTrader)
 				value = value + value * TradeConstants.VALUE_MARKUP_INCOMING_CARAVANS;
 				
@@ -178,7 +179,7 @@ function (Ash, PlayerActionConstants, ItemConstants, UpgradeConstants, BagConsta
 		},
 		
 		getItemBaseValue: function (item, isTrader) {
-			if (item.tradePrice) return item.tradePrice;
+			if (item.tradePrice || item.tradePrice === 0) return item.tradePrice;
 			switch (item.type) {
 				case ItemConstants.itemTypes.light:
 				case ItemConstants.itemTypes.weapon:
@@ -217,6 +218,7 @@ function (Ash, PlayerActionConstants, ItemConstants, UpgradeConstants, BagConsta
 					return this.getItemValueByRarity(item) || 0;
 					
 				case ItemConstants.itemTypes.voucher:
+				case ItemConstants.itemTypes.note:
 					return this.getItemValueByRarity(item) || 0;
 				
 				case ItemConstants.itemTypes.uniqueEquipment:
@@ -230,14 +232,14 @@ function (Ash, PlayerActionConstants, ItemConstants, UpgradeConstants, BagConsta
 		getItemValueByBonuses: function (item) {
 			switch (item.type) {
 				case ItemConstants.itemTypes.light:
-					var lightBonus = item.getBaseTotalBonus(ItemConstants.itemBonusTypes.light);
+					var lightBonus = ItemConstants.getDefaultBonus(item, ItemConstants.itemBonusTypes.light);
 					if (lightBonus <= 25)
 						return 0.1;
 					else
 						return (lightBonus - 10) / 30;
 					
 				case ItemConstants.itemTypes.weapon:
-					var attackBonus = item.getBaseTotalBonus(ItemConstants.itemBonusTypes.fight_att);
+					var attackBonus = ItemConstants.getDefaultBonus(item, ItemConstants.itemBonusTypes.fight_att);
 					if (attackBonus <= 3)
 						return 0.1;
 					else
@@ -248,15 +250,15 @@ function (Ash, PlayerActionConstants, ItemConstants, UpgradeConstants, BagConsta
 				case ItemConstants.itemTypes.clothing_lower:
 				case ItemConstants.itemTypes.clothing_hands:
 				case ItemConstants.itemTypes.clothing_head:
-					return Math.max(0.1, (item.getBaseTotalBonus() / 12));
+					return Math.max(0.1, (ItemConstants.getDefaultTotalBonus(item) / 12));
 					
 				case ItemConstants.itemTypes.shoes:
-					var shoeBonus = 1 - item.getBaseBonus(ItemConstants.itemBonusTypes.movement);
-					var otherBonus = item.getBaseTotalBonus() - shoeBonus;
-					return Math.pow(((shoeBonus) * 5), 2) + otherBonus / 10;
+					let shoeBonus = 1 - ItemConstants.getDefaultBonus(item, ItemConstants.itemBonusTypes.movement);
+					let otherBonus = ItemConstants.getDefaultTotalBonus(item) - shoeBonus;
+					return Math.pow(((shoeBonus) * 6), 2) + otherBonus / 10;
 					
 				case ItemConstants.itemTypes.bag:
-					return Math.pow(((item.getBaseTotalBonus() - 25) / 15), 1.75);
+					return Math.pow(((ItemConstants.getDefaultTotalBonus(item) - 25) / 15), 1.75);
 			}
 			
 			return null;
@@ -270,7 +272,7 @@ function (Ash, PlayerActionConstants, ItemConstants, UpgradeConstants, BagConsta
 			let ingredients = ItemConstants.getIngredientsToCraft(item.id);
 			for (let i = 0; i < ingredients.length; i++) {
 				let def = ingredients[i];
-				let ingredient = ItemConstants.getItemByID(def.id);
+				let ingredient = ItemConstants.getItemDefinitionByID(def.id);
 				result += def.amount * this.getItemValue(ingredient);
 			}
 			
@@ -284,18 +286,25 @@ function (Ash, PlayerActionConstants, ItemConstants, UpgradeConstants, BagConsta
 		},
 		
 		getItemValueByRarity: function (item) {
-			let rarity = -1;
+			let rarity = 99;
+
 			if (item.tradeRarity > 0) {
-				rarity = item.tradeRarity;
-			} else if (item.scavengeRarity > 0) {
-				rarity = item.scavengeRarity;
-			} else if (item.localeRarity > 0) {
-				rarity = item.localeRarity;
-			} else if (item.investigateRarity > 0) {
-				rarity = item.investigateRarity;
+				rarity = Math.min(item.tradeRarity);
+			} 
+			
+			if (item.scavengeRarity > 0) {
+				rarity = Math.min(rarity, item.scavengeRarity);
+			} 
+			
+			if (item.localeRarity > 0) {
+				rarity = Math.min(rarity, item.localeRarity);
 			}
 			
-			if (rarity > 0) {
+			if (item.investigateRarity > 0) {
+				rarity = Math.min(rarity, item.investigateRarity);
+			}
+			
+			if (rarity < 99) {
 				return Math.ceil(rarity / 1.5);
 			} else {
 				return null;

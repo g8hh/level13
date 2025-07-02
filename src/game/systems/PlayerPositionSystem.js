@@ -2,12 +2,14 @@
 // and handles updating sector components related to the player's position
 define([
 	'ash',
+	'text/Text',
 	'game/GameGlobals',
 	'game/GlobalSignals',
 	'game/constants/GameConstants',
 	'game/constants/LevelConstants',
 	'game/constants/LogConstants',
 	'game/constants/PositionConstants',
+	'game/constants/StoryConstants',
 	'game/nodes/PlayerPositionNode',
 	'game/nodes/level/LevelNode',
 	'game/nodes/PlayerLocationNode',
@@ -20,18 +22,17 @@ define([
 	'game/components/sector/SectorFeaturesComponent',
 	'game/components/sector/SectorStatusComponent',
 	'game/components/sector/PassagesComponent',
-	'game/components/common/LogMessagesComponent',
+	'game/components/level/LevelStatusComponent',
 	'game/components/common/MovementComponent',
 	'game/components/common/PositionComponent',
-	'game/components/common/VisitedComponent',
 	'game/components/common/RevealedComponent',
 	'game/components/common/CampComponent',
 	'game/components/type/LevelComponent',
-], function (Ash, GameGlobals, GlobalSignals, GameConstants, LevelConstants, LogConstants, PositionConstants,
+], function (Ash, Text, GameGlobals, GlobalSignals, GameConstants, LevelConstants, LogConstants, PositionConstants, StoryConstants,
 	PlayerPositionNode, LevelNode, PlayerLocationNode, LastVisitedCampNode, SectorNode, CampNode,
 	CurrentPlayerLocationComponent, CurrentNearestCampComponent, LastVisitedCampComponent, SectorFeaturesComponent, SectorStatusComponent, PassagesComponent,
-	LogMessagesComponent, MovementComponent, PositionComponent,
-	VisitedComponent, RevealedComponent, CampComponent, LevelComponent) {
+	LevelStatusComponent, MovementComponent, PositionComponent,
+	RevealedComponent, CampComponent, LevelComponent) {
 
 	var PlayerPositionSystem = Ash.System.extend({
 
@@ -148,7 +149,7 @@ define([
 				levelpos = levelNode.level.position;
 				if (levelpos == playerPos.level && !levelNode.entity.has(CurrentPlayerLocationComponent)) {
 					levelNode.entity.add(new CurrentPlayerLocationComponent());
-					if (!levelNode.entity.has(VisitedComponent)) {
+					if (!GameGlobals.levelHelper.isVisited(levelNode.entity)) {
 						this.handleNewLevel(levelNode, levelpos);
 					}
 				} else if (levelpos != playerPos.level && levelNode.entity.has(CurrentPlayerLocationComponent)) {
@@ -197,8 +198,10 @@ define([
 			
 			sector.add(new CurrentPlayerLocationComponent());
 			
-			if (!sector.has(VisitedComponent)) {
+			if (!GameGlobals.sectorHelper.isVisited(sector)) {
 				this.handleNewSector(sector, true);
+			} else {
+				this.handleOldSector(sector, this.currentLocation);
 			}
 			
 			this.previousLocation = this.currentLocation;
@@ -228,7 +231,6 @@ define([
 			if (this.lastVisitedCampNodes.head && this.lastVisitedCampNodes.head.entity == entity) return;
 			if (this.lastVisitedCampNodes.head) this.lastVisitedCampNodes.head.entity.remove(LastVisitedCampComponent);
 			entity.add(new LastVisitedCampComponent());
-			log.i("updateLastVisitedCamp: " + entity.get(PositionComponent));
 		},
 
 		revealVisitedSectorsNeighbours: function () {
@@ -243,7 +245,7 @@ define([
 			for (let direction in neighbours) {
 				let revealedNeighbour = neighbours[direction];
 				if (!revealedNeighbour) continue;
-				if (revealedNeighbour.has(VisitedComponent)) continue;
+				if (GameGlobals.sectorHelper.isVisited(revealedNeighbour)) continue;
 				
 				if (!revealedNeighbour.has(RevealedComponent)) {
 					revealedNeighbour.add(new RevealedComponent());
@@ -253,7 +255,8 @@ define([
 		},
 
 		handleNewLevel: function (levelNode, levelPos) {
-			levelNode.entity.add(new VisitedComponent());
+			let levelStatus = levelNode.entity.get(LevelStatusComponent);
+			levelStatus.isVisited = true;
 			let levelOrdinal = GameGlobals.gameState.getLevelOrdinal(levelPos);
 			let campOrdinal = GameGlobals.gameState.getCampOrdinal(levelPos);
 			GameGlobals.gameState.level = Math.max(GameGlobals.gameState.level, levelOrdinal);
@@ -275,52 +278,110 @@ define([
 			}
 		},
 
-		getRegularLevelMessage: function (levelNode, levelPos) {
-			let levelEntity = levelNode.entity;
-			let levelComponent = levelEntity.get(LevelComponent);
-			let level = levelPos.level;
-			
+		getRegularLevelMessage: function (levelNode, levelPos) {			
 			let surfaceLevel = GameGlobals.gameState.getSurfaceLevel();
 			let groundLevel = GameGlobals.gameState.getGroundLevel();
 			
 			let playerPos = this.playerPositionNodes.head.position;
 			if (playerPos.inCamp) return;
+
+			let msgVO = { textFragments: [], delimiter: "ui.common.sentence_separator" };
+			msgVO.textFragments.push({ textKey: "ui.exploration.enter_level_message_intro", textParams: { level: levelPos} });
+
+			let isOddLevel = levelPos % 2 == 1;
+			let isRescueActive = GameGlobals.gameState.getStoryFlag(StoryConstants.flags.RESCUE_EXPLORER_LEFT) && !GameGlobals.gameState.getStoryFlag(StoryConstants.flags.RESCUE_EXPLORER_FOUND);
+			let isLookingForGroundEscapeActive = GameGlobals.gameState.getStoryFlag(StoryConstants.flags.ESCAPE_SEARCHING_FOR_GROUND);
+			let isInvestigatingFall = GameGlobals.gameState.getStoryFlag(StoryConstants.flags.FALL_INVESTIGATING);
 			
-			let msg = "Entered Level " + levelPos + ". ";
 			if (levelPos == surfaceLevel) {
-				msg += this.getSurfaceLevelDescription();
+				msgVO.textFragments.push({ textKey: "ui.exploration.enter_level_surface_message" });
 			} else if (levelPos == groundLevel) {
-				msg += this.getGroundLevelDescription();
+				msgVO.textFragments.push({ textKey: "ui.exploration.enter_level_ground_message" });
+			} else if (levelPos == 15) {
+				msgVO.textFragments.push({ textKey: "ui.exploration.enter_level_15_message" });
+			} else if (!isOddLevel && isRescueActive) {
+				msgVO.textFragments.push({ textKey: "ui.exploration.enter_level_rescue_message" });
+			} else if (isOddLevel && isLookingForGroundEscapeActive) {
+				msgVO.textFragments.push({ textKey: "ui.exploration.enter_level_escape_message" });
+			} else if (isOddLevel && isInvestigatingFall && levelPos > 15) {
+				msgVO.textFragments.push({ textKey: "ui.exploration.enter_level_fall_message" });
 			} else {
-				msg += "The streets are indifferent to your presence.";
+				msgVO.textFragments.push({ textKey: "ui.exploration.enter_level_default_message" });
 			}
 			
-			return msg;
+			return msgVO;
 		},
 
 		handleNewSector: function (sectorEntity, isNew) {
-			let previousSectorEntity = this.previousLocation;
+			let statusComponent = sectorEntity.get(SectorStatusComponent);
 			
 			sectorEntity.remove(RevealedComponent);
-			sectorEntity.add(new VisitedComponent());
+			statusComponent.visited = true;
 
 			let sectorPos = sectorEntity.get(PositionComponent);
+			let isGround = this.isGroundLevel(sectorPos.level);
 
 			this.visitedSectorsPendingRevealNeighbours.push(sectorEntity);
 
 			if (isNew) {
 				GameGlobals.gameState.numVisitedSectors++;
 				GameGlobals.playerActionFunctions.unlockFeature("sectors");
+				if (isGround) GameGlobals.playerActionFunctions.unlockFeature("ground");
+				this.logNewSector(sectorEntity);
+				GlobalSignals.sectorVisitedSignal.dispatch();
+			}
+		},
+
+		logNewSector: function (sectorEntity) {
+			let sectorPos = sectorEntity.get(PositionComponent);
+			let featuresComponentCurrent = sectorEntity.get(SectorFeaturesComponent);
+
+			let previousSectorEntity = this.previousLocation;
+
+			let levelCampOrdinal = GameGlobals.gameState.getCampOrdinal(sectorPos.level);
+			let isLevelCampable = GameGlobals.levelHelper.isLevelCampable(sectorPos.level);
+
+			let isEarlyZone = featuresComponentCurrent.isEarlyZone();
+			
+			let isSearchingForGreenHouse = 
+				GameGlobals.gameState.getStoryFlag(StoryConstants.flags.GREENHOUSE_SEARCHING_FOR_CURE) 
+				&& !GameGlobals.gameState.getStoryFlag(StoryConstants.flags.GREENHOUSE_FOUND);
+
+			if (!isLevelCampable && levelCampOrdinal < 6) {
+				let levelSectors = GameGlobals.levelHelper.getSectorsByLevel(sectorPos.level);
+				let levelVisitedSectors = levelSectors.filter(s => GameGlobals.sectorHelper.isVisited(s));
+				if (levelVisitedSectors.length == 15) {
+					this.addLogMessage(LogConstants.getUniqueID(), "Another inhospitable street. There won't be a place for a camp on this level.");
+					return;
+				}
 			}
 			
-			if (isNew && previousSectorEntity != null && previousSectorEntity != sectorEntity && GameGlobals.levelHelper.isLevelCampable(sectorPos.level)) {
+			if (previousSectorEntity != null && previousSectorEntity != sectorEntity && isLevelCampable) {
 				let featuresComponentPrevious = previousSectorEntity.get(SectorFeaturesComponent);
-				let featuresComponentCurrent = sectorEntity.get(SectorFeaturesComponent);
 				
 				let isPreviousEarlyZone = featuresComponentPrevious.isEarlyZone();
-				let isEarlyZone = featuresComponentCurrent.isEarlyZone();
 				if (isPreviousEarlyZone && !isEarlyZone && !GameGlobals.playerHelper.isAffectedByHazardAt(sectorEntity)) {
 					this.addLogMessage(LogConstants.MSG_ID_ENTER_OUTSKIRTS, "Entering the outskirts.");
+					return;
+				}
+			}
+			
+			if (!isEarlyZone && isSearchingForGreenHouse && Math.random() < 0.01) {
+				this.addLogMessage(LogConstants.getUniqueID(), "Need to find a Greenhouse.");
+				return;
+			}
+		},
+
+		handleOldSector: function (sector, previousSector) {
+			let logAmbient = Math.random() < 0.01;
+
+			if (sector && !sector.has(CampComponent) && previousSector && previousSector.has(CampComponent) && logAmbient) {
+				if (GameGlobals.gameState.getStoryFlag(StoryConstants.flags.GREENHOUSE_SEARCHING_FOR_CURE)) {
+					this.addLogMessage(LogConstants.getUniqueID(), "Out into the City again. Somewhere out there is a cure waiting to be found.");
+				} else if (GameGlobals.gameState.getStoryFlag(StoryConstants.flags.ESCAPE_SEARCHING_FOR_GROUND)) {
+					this.addLogMessage(LogConstants.getUniqueID(), "Out into the City again. The camp is comfortable, but you have a goal.");
+				} else {
+					this.addLogMessage(LogConstants.getUniqueID(), "Out into the City again. The darkness envelops you like water.");
 				}
 			}
 		},
@@ -332,18 +393,17 @@ define([
 			log.w("Player location could not be found (" + playerPos.level + "." + playerPos.sectorId() + ").");
 			if (this.lastValidPosition) {
 				log.w("Moving to a known valid position " + this.lastValidPosition);
-				GameGlobals.playerHelper.moveTo(this.lastValidPosition.level, this.lastValidPosition.sectorX, this.lastValidPosition.sectorY, this.lastValidPosition.inCamp);
+				GameGlobals.playerHelper.moveTo(this.lastValidPosition.level, this.lastValidPosition.sectorX, this.lastValidPosition.sectorY, this.lastValidPosition.inCamp, "system", false);
 			} else {
 				let sectors = GameGlobals.levelHelper.getSectorsByLevel(playerPos.level);
 				let newPos = sectors[0].get(PositionComponent);
 				log.w("Moving to random position " + newPos);
-				GameGlobals.playerHelper.moveTo(newPos.level, newPos.sectorX, newPos.sectorY, false);
+				GameGlobals.playerHelper.moveTo(newPos.level, newPos.sectorX, newPos.sectorY, false, "system", false);
 			}
 			this.lastUpdatePosition = null;
 		},
 		
 		showLevelPopup: function (title, msg) {
-			if (GameGlobals.gameState.isAutoPlaying) return;
 			setTimeout(function () {
 				GameGlobals.uiFunctions.showInfoPopup(title, msg, "Continue", null, null, true, false);
 			}, 300);
@@ -358,24 +418,15 @@ define([
 		},
 
 		getGroundMessage: function () {
-			return this.getGroundLevelDescription();
+			return Text.t("ui.exploration.enter_level_ground_message");
 		},
 
 		getSurfaceMessage: function () {
-			return this.getSurfaceLevelDescription();
-		},
-		
-		getGroundLevelDescription: function () {
-			return "The floor here is different - uneven, organic, continuous. There seems to be no way further down. There are plants, mud, stone and signs of animal life.";
-		},
-		
-		getSurfaceLevelDescription: function () {
-			return "There is no ceiling here, the whole level is open to the elements. Sun glares down from an impossibly wide blue sky all above.";
+			return Text.t("ui.exploration.enter_level_surface_message");
 		},
 
-		addLogMessage: function (msgID, msg, replacements, values) {
-			let logComponent = this.playerPositionNodes.head.entity.get(LogMessagesComponent);
-			logComponent.addMessage(msgID, msg, replacements, values);
+		addLogMessage: function (msgID, msg) {
+			GameGlobals.playerHelper.addLogMessage(msgID, msg);
 		},
 
 	});

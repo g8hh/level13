@@ -2,20 +2,20 @@ define([
 	'ash',
 	'game/GameGlobals',
 	'game/constants/ItemConstants',
-	'game/constants/UpgradeConstants',
 	'game/constants/PlayerActionConstants',
 	'game/constants/WorldConstants',
 ], function (
 	Ash,
 	GameGlobals,
 	ItemConstants,
-	UpgradeConstants,
 	PlayerActionConstants,
 	WorldConstants,
 ) {
-	var ItemsHelper = Ash.Class.extend({
+	let ItemsHelper = Ash.Class.extend({
 		
 		MAX_SCA_RARITY_DEFAULT_CLOTHING: 1,
+		
+		requiredCampAndStepToCraftCache: {},
 
 		constructor: function () {},
 		
@@ -96,7 +96,8 @@ define([
 				ItemConstants.itemDefinitions.clothing_upper,
 				ItemConstants.itemDefinitions.clothing_lower,
 				ItemConstants.itemDefinitions.clothing_hands,
-				ItemConstants.itemDefinitions.clothing_head
+				ItemConstants.itemDefinitions.clothing_head,
+				ItemConstants.itemDefinitions.shoes,
 			];
 			
 			var bestAvailableItem;
@@ -194,6 +195,15 @@ define([
 			}
 			return poisonProtection;
 		},
+
+		getMaxHazardFloodedForLevel: function (campOrdinal, step, isHardLevel) {
+			let defaultClothing = this.getDefaultClothing(campOrdinal, step, ItemConstants.itemBonusTypes.res_water, isHardLevel);
+			let waterProtection = 0;
+			for (let i = 0; i < defaultClothing.length; i++) {
+				waterProtection += defaultClothing[i].getBaseBonus(ItemConstants.itemBonusTypes.res_water);
+			}
+			return waterProtection;
+		},
 		
 		getMaxHazardColdForLevel: function (campOrdinal, step, isHardLevel) {
 			var defaultClothing = this.getDefaultClothing(campOrdinal, step, ItemConstants.itemBonusTypes.res_cold, isHardLevel);
@@ -218,7 +228,7 @@ define([
 			// all equipment required to clear a level (all hazards), even if multiple per slot
 			let result = [];
 			var addedIDs = [];
-			var bonusTypes = [ ItemConstants.itemBonusTypes.res_poison, ItemConstants.itemBonusTypes.res_cold, ItemConstants.itemBonusTypes.res_radiation ];
+			var bonusTypes = [ ItemConstants.itemBonusTypes.res_poison, ItemConstants.itemBonusTypes.res_cold, ItemConstants.itemBonusTypes.res_radiation, ItemConstants.itemBonusTypes.res_water ];
 			for (let i = 0; i < bonusTypes.length; i++) {
 				var neededClothing = this.getDefaultClothing(campOrdinal, step, bonusTypes[i], isHardLevel);
 				for (let j = 0; j < neededClothing.length; j++) {
@@ -232,8 +242,6 @@ define([
 			result.push(weapon);
 			return result;
 		},
-		
-		requiredCampAndStepToCraftCache: {},
 		
 		getRequiredCampAndStepToCraft: function (item) {
 			var cache = this.requiredCampAndStepToCraftCache;
@@ -268,22 +276,22 @@ define([
 						if (resultIds.indexOf(def.id) < 0) {
 							if (itemsComponent.getCountById(def.id, true) < (isStrict ? def.amount : Math.max(def.amount, 3))) {
 								resultIds.push(def.id);
-								result.push(ItemConstants.getItemByID(def.id));
+								result.push(ItemConstants.getNewItemInstanceByID(def.id));
 							}
 						}
 					}
 				}
 			}
 			
-			checkItem(ItemConstants.getItemByID("exploration_1"));
+			checkItem(ItemConstants.getNewItemInstanceByID("exploration_1"));
 			checkItem(this.getDefaultWeapon(campOrdinal, step));
 			
-			let bonusTypes = [ ItemConstants.itemBonusTypes.res_poison, ItemConstants.itemBonusTypes.res_cold, ItemConstants.itemBonusTypes.res_radiation ];
+			let bonusTypes = [ ItemConstants.itemBonusTypes.res_poison, ItemConstants.itemBonusTypes.res_cold, ItemConstants.itemBonusTypes.res_radiation, ItemConstants.itemBonusTypes.res_water ];
 			
 			for (let i = 0; i < bonusTypes.length; i++) {
 				var neededClothing = this.getDefaultClothing(campOrdinal, step, bonusTypes[i], isHardLevel);
 				for (let j = 0; j < neededClothing.length; j++) {
-					checkItem(ItemConstants.getItemByID(neededClothing[j].id));
+					checkItem(ItemConstants.getNewItemInstanceByID(neededClothing[j].id));
 				}
 			}
 			
@@ -360,9 +368,13 @@ define([
 			if (!itemVO.equippable) return false;
 
 			// if the player already has one, equipped or not -> obsolete
-			var owned = itemsComponent.getUnique(inCamp);
+			let owned = itemsComponent.getUniqueByIDAndState(inCamp);
 			for (let j = 0; j < owned.length; j++) {
-				if (owned[j].id === itemVO.id) return true;
+				let ownedItem = owned[j];
+				if (ownedItem.broken) continue;
+				let ownedQuality = ItemConstants.getItemQuality(ownedItem);
+				if (ownedQuality == ItemConstants.itemQuality.low) continue;
+				if (ownedItem.id === itemVO.id) return true;
 			}
 			
 			// if the player has a better item of same type -> obsolete

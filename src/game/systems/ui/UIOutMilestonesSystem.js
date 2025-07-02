@@ -1,5 +1,6 @@
 define([
 	'ash',
+	'text/Text',
 	'game/GameGlobals',
 	'game/GlobalSignals',
 	'game/constants/UIConstants',
@@ -15,17 +16,14 @@ define([
 	'game/components/common/PositionComponent',
 	'game/components/common/ResourcesComponent',
 	'game/components/common/ResourceAccumulationComponent',
-	'game/components/player/DeityComponent',
+	'game/components/player/HopeComponent',
 	'game/components/type/LevelComponent',
 	'game/components/sector/improvements/SectorImprovementsComponent',
-	'game/components/sector/events/RecruitComponent',
-	'game/components/sector/events/TraderComponent',
-	'game/components/sector/events/RaidComponent',
 	'game/components/sector/OutgoingCaravansComponent'
 ], function (
-	Ash, GameGlobals, GlobalSignals, UIConstants, CampConstants, ImprovementConstants, OccurrenceConstants, TextConstants, WorldConstants,
+	Ash, Text, GameGlobals, GlobalSignals, UIConstants, CampConstants, ImprovementConstants, OccurrenceConstants, TextConstants, WorldConstants,
 	CampNode, PlayerPositionNode, PlayerStatsNode, TribeUpgradesNode,
-	PositionComponent, ResourcesComponent, ResourceAccumulationComponent, DeityComponent, LevelComponent, SectorImprovementsComponent, RecruitComponent, TraderComponent, RaidComponent, OutgoingCaravansComponent
+	PositionComponent, ResourcesComponent, ResourceAccumulationComponent, HopeComponent, LevelComponent, SectorImprovementsComponent, OutgoingCaravansComponent
 ) {
 	var UIOutMilestonesSystem = Ash.System.extend({
 
@@ -70,13 +68,16 @@ define([
 		},
 
 		refresh: function () {
-			$("#tab-header h2").text("Milestones");
+			$("#tab-header h2").text(Text.t("ui.main.tab_milestones_header"));
 			this.updateMilestones();
+			this.updateBubble();
 		},
 
 		updateBubble: function () {
 			let bubbleNumber = 0;
 			if (this.canClaimMilestone()) bubbleNumber++;
+
+			if (!GameGlobals.gameState.hasSeenTab(GameGlobals.uiFunctions.elementIDs.tabs.milestones)) bubbleNumber = "!";
 			
 			GameGlobals.uiFunctions.updateBubble("#switch-milestones .bubble", this.bubbleNumber, bubbleNumber);
 			
@@ -87,7 +88,7 @@ define([
 			let currentMilestone = GameGlobals.tribeHelper.getCurrentMilestone();
 			let nextMilestone = GameGlobals.tribeHelper.getNextMilestone();
 			let action = this.getUnlockMilestoneAction(nextMilestone);
-			let hasDeity = this.playerStatsNodes.head.entity.has(DeityComponent);
+			let hasDeity = GameGlobals.tribeHelper.hasDeity();
 			let hasInsight = this.playerStatsNodes.head.insight.value > 0;
 			let hasNextMilestone = nextMilestone.name && nextMilestone.name.length > 0;
 			
@@ -102,9 +103,15 @@ define([
 			if (!hasNextMilestone) return;
 			
 			// unlocks
+			$("#milestone-current-unlocks").empty();
+			let oldUnlocksDiv = "<div class='p-meta'>";
+			oldUnlocksDiv += UIConstants.getMilestoneUnlocksDescriptionHTML(currentMilestone, null, false, false, hasDeity, hasInsight);
+			oldUnlocksDiv += "</div>";
+			$("#milestone-current-unlocks").append(oldUnlocksDiv);
+
 			$("#milestone-next-unlocks").empty();
 			let unlocksDiv = "<div class='p-meta'>";
-			unlocksDiv += UIConstants.getMilestoneUnlocksDescriptionHTML(nextMilestone, currentMilestone, false, false, hasDeity, hasInsight);
+			unlocksDiv += UIConstants.getMilestoneUnlocksDescriptionHTML(nextMilestone, currentMilestone, true, false, hasDeity, hasInsight);
 			unlocksDiv += "</div>";
 			$("#milestone-next-unlocks").append(unlocksDiv);
 			
@@ -118,8 +125,9 @@ define([
 				if (reqs.tribe && reqs.tribe.improvements) {
 					for (let improvementID in reqs.tribe.improvements) {
 						let improvementLevel = GameGlobals.campHelper.getCurrentMaxBuiltImprovementLevel(improvementID);
-						let getImprovementDisplayName = ImprovementConstants.getImprovementDisplayName(improvementID, improvementLevel);
-						requirementsDiv += this.getMilestoneReqsListEntry(getImprovementDisplayName, reqs.tribe.improvements[improvementID][0], GameGlobals.playerActionsHelper.getCurrentImprovementCountTotal(improvementID));
+						let improvementDisplayNameKey = ImprovementConstants.getImprovementDisplayNameKey(improvementID, improvementLevel);
+						let improvementDisplayName = Text.t(improvementDisplayNameKey);
+						requirementsDiv += this.getMilestoneReqsListEntry(improvementDisplayName, reqs.tribe.improvements[improvementID][0], GameGlobals.playerActionsHelper.getCurrentImprovementCountTotal(improvementID));
 					}
 				}
 				if (reqs.tribe && reqs.tribe.projects) {
@@ -137,10 +145,7 @@ define([
 			$("#milestone-next-button-container").empty();
 			$("#milestone-next-button-container").append("<div><button class='action' action='" + action + "'>Unlock</button></div>");
 			
-			GameGlobals.uiFunctions.generateButtonOverlays("#milestone-next-button-container");
-			GameGlobals.uiFunctions.generateCallouts("#milestone-next-button-container");
-			GameGlobals.uiFunctions.setInitialButtonState("#milestone-next-button-container");
-			GameGlobals.uiFunctions.registerActionButtonListeners("#milestone-next-button-container");
+			GameGlobals.uiFunctions.createButtons("#milestone-next-button-container");
 		},
 		
 		updatePopulation: function () {
@@ -159,9 +164,8 @@ define([
 				
 				// - requirements: population
 				let populationProgress = Math.min(currentPopulation / requiredPopulation, 1);
-				let populationProgressLabel = "population: " + currentPopulation + " / " + requiredPopulation;
 				$("#milestone-population-bar").data("progress-percent", populationProgress * 100);
-				$("#milestone-population-bar .progress-label").text(populationProgressLabel);
+				$("#milestone-population-bar .progress-label").text(Text.t("ui.milestones.population_progress_label", { current: currentPopulation, max: requiredPopulation }));
 			}
 		},
 		
@@ -192,6 +196,7 @@ define([
 		
 		onMilestoneClaimed: function () {
 			if (GameGlobals.gameState.uiStatus.isHidden) return;
+			this.updateBubble();
 			if (GameGlobals.gameState.uiStatus.currentTab === GameGlobals.uiFunctions.elementIDs.tabs.milestones) {
 				this.updateMilestones();
 			}

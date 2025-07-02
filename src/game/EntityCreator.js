@@ -1,6 +1,5 @@
 define([
 	'ash',
-	'game/constants/LogConstants',
 	'game/constants/PerkConstants',
 	'game/constants/ItemConstants',
 	'game/constants/PositionConstants',
@@ -12,8 +11,8 @@ define([
 	'game/components/player/RumoursComponent',
 	'game/components/player/EvidenceComponent',
 	'game/components/player/InsightComponent',
-	'game/components/player/DeityComponent',
-	'game/components/player/FollowersComponent',
+	'game/components/player/HopeComponent',
+	'game/components/player/ExplorersComponent',
 	'game/components/player/ItemsComponent',
 	'game/components/player/PerksComponent',
 	'game/components/type/GangComponent',
@@ -34,8 +33,13 @@ define([
 	'game/components/sector/improvements/SectorImprovementsComponent',
 	'game/components/sector/improvements/SectorCollectorsComponent',
 	'game/components/sector/improvements/WorkshopComponent',
+	'game/components/sector/events/DisasterComponent',
+	'game/components/sector/events/DiseaseComponent',
+	'game/components/sector/events/RaidComponent',
 	'game/components/sector/events/RecruitComponent',
+	'game/components/sector/events/RefugeesComponent',
 	'game/components/sector/events/TraderComponent',
+	'game/components/sector/events/VisitorComponent',
 	'game/components/sector/SectorStatusComponent',
 	'game/components/sector/SectorControlComponent',
 	'game/components/sector/EnemiesComponent',
@@ -52,7 +56,6 @@ define([
 	'game/components/level/LevelStatusComponent'
 ], function (
 	Ash,
-	LogConstants,
 	PerkConstants,
 	ItemConstants,
 	PositionConstants,
@@ -64,8 +67,8 @@ define([
 	RumoursComponent,
 	EvidenceComponent,
 	InsightComponent,
-	DeityComponent,
-	FollowersComponent,
+	HopeComponent,
+	ExplorersComponent,
 	ItemsComponent,
 	PerksComponent,
 	GangComponent,
@@ -86,8 +89,13 @@ define([
 	SectorImprovementsComponent,
 	SectorCollectorsComponent,
 	WorkshopComponent,
+	DisasterComponent,
+	DiseaseComponent,
+	RaidComponent,
 	RecruitComponent,
+	RefugeesComponent,
 	TraderComponent,
+	VisitorComponent,
 	SectorStatusComponent,
 	SectorControlComponent,
 	EnemiesComponent,
@@ -121,14 +129,15 @@ define([
 				.add(new BagComponent(0))
 				.add(new VisionComponent(0))
 				.add(new ItemsComponent())
-				.add(new FollowersComponent())
+				.add(new ExplorersComponent())
 				.add(new PerksComponent())
 				.add(new StaminaComponent(1000))
-				.add(new ResourcesComponent(ItemConstants.PLAYER_DEFAULT_STORAGE))
+				.add(new ResourcesComponent(ItemConstants.PLAYER_DEFAULT_STORAGE, false))
 				.add(new CurrencyComponent(0))
 				.add(new ResourceAccumulationComponent(saveKey))
 				.add(new RumoursComponent())
 				.add(new EvidenceComponent())
+				.add(new HopeComponent())
 				.add(new InsightComponent())
 				.add(new PositionComponent(13, 0, 0, false))
 				.add(new LogMessagesComponent())
@@ -138,7 +147,7 @@ define([
 					CurrencyComponent,
 					VisionComponent,
 					ItemsComponent,
-					FollowersComponent,
+					ExplorersComponent,
 					PerksComponent,
 					StaminaComponent,
 					PositionComponent,
@@ -148,7 +157,7 @@ define([
 					LogMessagesComponent,
 					PlayerActionComponent,
 					ExcursionComponent,
-					DeityComponent
+					HopeComponent
 				]));
 
 			this.engine.addEntity(player);
@@ -157,11 +166,11 @@ define([
 
 		createLevel: function (saveKey, pos, levelVO) {
 			var level = new Ash.Entity()
-				.add(new LevelComponent(pos, levelVO.isCampable, levelVO.isHard, levelVO.notCampableReason, levelVO.populationFactor, levelVO.raidDangerFactor, levelVO.minX, levelVO.maxX, levelVO.minY, levelVO.maxY))
+				.add(new LevelComponent(pos, levelVO.isCampable, levelVO.isHard, levelVO.notCampableReason, levelVO.habitability, levelVO.raidDangerFactor, levelVO.minX, levelVO.maxX, levelVO.minY, levelVO.maxY))
 				.add(new PositionComponent(pos))
 				.add(new LevelPassagesComponent())
 				.add(new LevelStatusComponent())
-				.add(new SaveComponent(saveKey, [CampComponent, VisitedComponent,LevelStatusComponent]));
+				.add(new SaveComponent(saveKey, [CampComponent, VisitedComponent, LevelStatusComponent]));
 			this.engine.addEntity(level);
 			return level;
 		},
@@ -169,7 +178,7 @@ define([
 		createSector: function (saveKey, level, posX, posY, passageOptions, movementBlockers, sectorFeatures, locales, criticalPaths, enemies, hasRegularEnemies, localeEnemyNum) {
 			var sector = new Ash.Entity()
 				.add(new SectorComponent())
-				.add(new ResourcesComponent(0))
+				.add(new ResourcesComponent(0, true))
 				.add(new ResourceAccumulationComponent(saveKey))
 				.add(new EnemiesComponent(hasRegularEnemies, enemies))
 				.add(new SectorImprovementsComponent())
@@ -181,29 +190,7 @@ define([
 					passageOptions.passageUpType,
 					passageOptions.passageDownType,
 					movementBlockers))
-				.add(new SectorFeaturesComponent(
-					level,
-					sectorFeatures.criticalPaths,
-					sectorFeatures.zone,
-					sectorFeatures.buildingDensity,
-					sectorFeatures.wear,
-					sectorFeatures.damage,
-					sectorFeatures.sectorType,
-					sectorFeatures.sunlit,
-					sectorFeatures.ground,
-					sectorFeatures.surface,
-					sectorFeatures.hazards,
-					sectorFeatures.isCamp,
-					sectorFeatures.notCampableReason,
-					sectorFeatures.resourcesScavengable,
-					sectorFeatures.resourcesCollectable,
-					sectorFeatures.itemsScavengeable,
-					sectorFeatures.hasSpring,
-					sectorFeatures.hasTradeConnectorSpot,
-					sectorFeatures.isInvestigatable,
-					sectorFeatures.stashes,
-					sectorFeatures.waymarks
-				))
+				.add(new SectorFeaturesComponent(level, sectorFeatures))
 				.add(new SectorLocalesComponent(locales))
 				.add(new SaveComponent(saveKey, [
 					ResourcesComponent,
@@ -215,8 +202,12 @@ define([
 					SectorImprovementsComponent,
 					SectorStatusComponent,
 					SectorControlComponent,
+					DisasterComponent,
+					DiseaseComponent, 
 					RecruitComponent,
+					RefugeesComponent,
 					TraderComponent,
+					VisitorComponent,
 					VisitedComponent,
 					RevealedComponent,
 					LastVisitedCampComponent
@@ -233,7 +224,7 @@ define([
 		createTribe: function (saveKey) {
 			var tribe = new Ash.Entity()
 				.add(new TribeComponent())
-				.add(new ResourcesComponent(0))
+				.add(new ResourcesComponent(0, false))
 				.add(new CurrencyComponent(0))
 				.add(new UpgradesComponent())
 				.add(new ResourceAccumulationComponent(saveKey))
@@ -251,24 +242,38 @@ define([
 			return gang;
 		},
 
-		initPlayer: function (entity) {
-			var defaultInjury = PerkConstants.perkDefinitions.injury[0].clone();
+		initPlayer: function (entity, metaState) {
+			let perksComponent = entity.get(PerksComponent);
+			let defaultInjury = PerkConstants.perkDefinitions.injury[0].clone();
 			defaultInjury.startTimer = PerkConstants.TIMER_DISABLED;
 			defaultInjury.removeTimer = PerkConstants.TIMER_DISABLED;
-			var perksComponent = entity.get(PerksComponent);
 			perksComponent.addPerk(defaultInjury);
+
+			if (metaState.hasCompletedGame) {
+				perksComponent.addPerk(PerkConstants.getPerk(PerkConstants.perkIds.restartBonusCompletion));
+			} else if (metaState.maxCampOrdinalReached > 2) {
+				perksComponent.addPerk(PerkConstants.getPerk(PerkConstants.perkIds.restartBonusSmall));
+			}
+
 			perksComponent.addPerk(PerkConstants.getPerk(PerkConstants.perkIds.hunger));
 			perksComponent.addPerk(PerkConstants.getPerk(PerkConstants.perkIds.thirst));
-			entity.add(new ExcursionComponent());
 
-			var logComponent = entity.get(LogMessagesComponent);
-			logComponent.addMessage(LogConstants.MSG_ID_START, "You are alone in a massive dark corridor, far below sunlight.");
+			entity.add(new ExcursionComponent());
 		},
 		
 		syncPlayer: function (entity) {
 			var inCamp = entity.get(PositionComponent).inCamp;
 			if (!inCamp && !entity.has(ExcursionComponent)) {
 				entity.add(new ExcursionComponent());
+			}
+			
+			let explorers = entity.get(ExplorersComponent).getAll();
+			
+			for (let i = 0; i < explorers.length; i++) {
+				let explorerVO = explorers[i];
+				explorerVO.icon = explorerVO.icon.replace("followers", "explorers");
+				explorerVO.trust = explorerVO.trust || 0;
+				explorerVO.dialogueSource = explorerVO.dialogueSource || "explorer_generic_01";
 			}
 		},
 

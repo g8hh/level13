@@ -8,7 +8,7 @@
 }
 
 .hidden {
-	display: none;
+	display: none !important;
 }
 
 .container-disabled {
@@ -16,6 +16,10 @@
 }
 
 .nowrap {
+	white-space: nowrap;
+}
+
+.layout-regular .nowrap-on-regular-layout { 
 	white-space: nowrap;
 }
 
@@ -44,7 +48,17 @@
 	opacity: 0.5;
 }
 
-span.icon {
+.info-icon {
+	width: 1em;
+	height: 1em;
+	background: url(../img/eldorado/icon-detail.png);
+}
+
+.info-icon img {
+	height: 1em;
+	width: 1em;
+	line-height: 1em;
+	vertical-align: middle;
 }
 
 img.icon-ui-generic {
@@ -79,12 +93,24 @@ span.hl-functionality {
 	font-weight: bold;
 }
 
+span.text-style-highlight {
+	font-weight: bold;
+}
+
+span.text-style-nowrap {
+	white-space: nowrap;
+}
+
 .p-meta {
 	color: @color-text-meta;
 }
 
 .dimmed {
 	color: @color-text-dimmed;
+}
+
+.secondary {
+	color: @color-text-secondary;
 }
 
 .columns-container {
@@ -253,10 +279,22 @@ td.item-name {
 	min-width: 8em;
 }
 
+.layout-small td.item-name {
+	min-width: 6em;
+}
+
 td.text-overflow {
 	font-size: @font-size-tiny;
 	width: 6em;
 	max-width: 6em;
+	overflow: hidden;
+    white-space: nowrap;
+}
+
+td.text-overflow-wide {
+	font-size: @font-size-tiny;
+	width: 10em;
+	max-width: 10em;
 	overflow: hidden;
     white-space: nowrap;
 }

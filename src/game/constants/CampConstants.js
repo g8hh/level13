@@ -1,4 +1,4 @@
-define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
+define(['ash', 'text/Text', 'game/vos/ResourcesVO'], function (Ash, Text, ResourcesVO) {
 	
 	var CampConstants = {
 	
@@ -8,6 +8,9 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 		POPULATION_PER_HOUSE2_LEVEL_2: 8,
 		POOL_RUMOURS_PER_POPULATION: 3,
 		POPULATION_DECREASE_COOLDOWN: 60,
+		POPULATION_DECREASE_COOLDOWN_REFUGEES: 60 * 5,
+
+		POPULATION_FOR_UNLOCK_MILESTONES: 2,
 		
 		// Storage
 		BASE_STORAGE: 50,
@@ -34,14 +37,17 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 		EVIDENCE_BONUS_PER_LIBRARY_LEVEL: 0.15,
 		EVIDENCE_BONUS_PER_RESEARCH_CENTER_LEVEL: 0.25,
 		
-		// Favour
-		FAVOUR_BONUS_PER_TEMPLE_LEVEL: 0.1,
-		FAVOUR_PER_DONATION: 5,
+		// Hope
+		HOPE_BONUS_PER_TEMPLE_LEVEL: 0.1,
+		HOPE_PER_DONATION: 5,
 		
 		// Cost of workers
 		CONSUMPTION_WATER_PER_WORKER_PER_S: 0.02,
 		CONSUMPTION_FOOD_PER_WORKER_PER_S: 0.01,
-		CONSUMPTION_HERBS_PER_WORKER_PER_S: 0.05,
+		CONSUMPTION_HERBS_PER_REGULAR_WORKER_PER_S: 0.0005,
+		CONSUMPTION_MEDICINE_PER_WORKER_PER_S: 0.0002,
+
+		CONSUMPTION_HERBS_PER_MEDICINE_WORKER_PER_S: 0.05,
 		CONSUMPTION_METAL_PER_TOOLSMITH_PER_S: 0.03,
 		CONSUMPTION_METAL_PER_CONCRETE_PER_S: 0.03,
 		CONSUMPTION_TOOLS_PER_ROBOT_MAKER_PER_S: 0.03,
@@ -53,38 +59,64 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 		PRODUCTION_ROPE_PER_WORKER_PER_S: 0.03,
 		PRODUCTION_FUEL_PER_WORKER_PER_S: 0.02,
 		PRODUCTION_RUBBER_PER_WORKER_PER_S: 0.02,
-		PRODUCTION_HERBS_PER_WORKER_PER_S: 0.02,
+		PRODUCTION_HERBS_PER_WORKER_PER_S: 0.05,
 		PRODUCTION_MEDICINE_PER_WORKER_PER_S: 0.005,
 		PRODUCTION_TOOLS_PER_WORKER_PER_S: 0.01,
 		PRODUCTION_CONCRETE_PER_WORKER_PER_S: 0.01,
 		PRODUCTION_ROBOTS_PER_WORKER_PER_S: 0.001,
 		PRODUCTION_EVIDENCE_PER_WORKER_PER_S: 0.00075,
-		PRODUCTION_FAVOUR_PER_WORKER_PER_S: 0.00075,
+		PRODUCTION_HOPE_PER_WORKER_PER_S: 0.00075,
 		
 		PRODUCTION_BONUS_PER_ROBOT_PER_SEC: 0.02,
 		
 		// reputation
-		REPUTATION_TO_POPULATION_FACTOR: 0.89,
-		REPUTATION_TO_POPULATION_OFFSET: -0.55,
+		REPUTATION_TO_POPULATION_FACTOR: 0.91,
+		REPUTATION_TO_POPULATION_OFFSET: -0.75,
 		REPUTATION_PER_RADIO_PER_SEC: 0.1,
 		REPUTATION_PER_HOUSE_FROM_GENERATOR: 0.3,
 		REPUTATION_PENALTY_DEFENCES_THRESHOLD: 0.25,
+		REPUTATION_FROM_HERBS: 1,
+		REPUTATION_FROM_MEDICINE: 2,
 		REPUTATION_PENALTY_TYPE_FOOD: "FOOD",
 		REPUTATION_PENALTY_TYPE_WATER: "WATER",
 		REPUTATION_PENALTY_TYPE_DEFENCES: "DEFENCES",
 		REPUTATION_PENALTY_TYPE_HOUSING: "HOUSING",
 		REPUTATION_PENALTY_TYPE_LEVEL_POP: "LEVEL_POPULATION",
 		REPUTATION_PENALTY_TYPE_SUNLIT: "SUNLIT",
+		REPUTATION_PENALTY_TYPE_DAMAGED_BUILDINGS: "DAMAGED_BUILDINGS",
+		REPUTATION_SOURCE_MILESTONES: "milestones",
+		REPUTATION_SOURCE_LUXURY_RESOURCES: "luxury-resources",
+		REPUTATION_SOURCE_LEVEL_POP: "level-population",
 		MAX_REPUTATION: 30,
 		
 		// raids
 		CAMP_BASE_DEFENCE: 7,
 		FORTIFICATION_1_DEFENCE: 6,
+
+		// other events
+		DISASTER_TYPE_EARTHQUAKE: "earthquake",
+		DISASTER_TYPE_STORM: "storm",
+		DISASTER_TYPE_FLOOD: "flood",
+		DISASTER_TYPE_COLLAPSE: "collapse",
+
+		DISABLED_POPULATION_REASON_DISEASE: "disease",
+		DISABLED_POPULATION_REASON_ACCIDENT: "accident",
+
+		DISEASE_UPDATE_TYPE_SPREAD: "spread",
+		DISEASE_UPDATE_TYPE_WANE: "wane",
+		DISEASE_UPDATE_TYPE_KILL: "kill",
+		DISEASE_UPDATE_TYPE_END: "end",
 		
 		// Workers per building
 		CHEMISTS_PER_WORKSHOP: 5,
 		RUBBER_WORKER_PER_WORKSHOP: 5,
 		GARDENER_PER_GREENHOUSE: 5,
+
+		// misc
+		MAX_DEITY_NAME_LENGTH: 20,
+		MAX_CAMP_NAME_LENGTH: 20,
+		MAX_IMPROVEMENTS_PER_TYPE: 100,
+		MIN_CAMP_ORDINAL_FOR_EXPEDITION_VISITORS: 12,
 	
 		workerTypes: {
 			scavenger: {
@@ -97,7 +129,6 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 			},
 			water: {
 				id: "water",
-				displayName: "water collector",
 				resourceProduced: resourceNames.water,
 			},
 			ropemaker: {
@@ -177,10 +208,15 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 		
 		// storage capacity of one camp
 		getStorageCapacity: function (storageCount, storageLevel) {
-			var storagePerImprovement = CampConstants.STORAGE_PER_IMPROVEMENT;
+			let storagePerImprovement = this.getStorageCapacityPerBuilding(storageLevel);
+			return CampConstants.BASE_STORAGE + storageCount * storagePerImprovement;
+		},
+
+		getStorageCapacityPerBuilding: function (storageLevel) {
+			let storagePerImprovement = CampConstants.STORAGE_PER_IMPROVEMENT;
 			if (storageLevel > 1) storagePerImprovement = CampConstants.STORAGE_PER_IMPROVEMENT_LEVEL_2;
 			if (storageLevel > 2) storagePerImprovement = CampConstants.STORAGE_PER_IMPROVEMENT_LEVEL_3;
-			return CampConstants.BASE_STORAGE + storageCount * storagePerImprovement;
+			return storagePerImprovement;
 		},
 		
 		getRobotStorageCapacity: function (factoryCount, factoryLevel) {
@@ -279,22 +315,23 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 			return 0.0015 * libraryCount * libraryLevelFactor;
 		},
 		
-		getResearchCenterEvidenceGenerationPerSecond: function (centerCount, centerLevel) {
-			var levelFactor = (1 + centerLevel * CampConstants.EVIDENCE_BONUS_PER_RESEARCH_CENTER_LEVEL);
-			return 0.0025 * centerCount * levelFactor;
+		getResearchCenterEvidenceGenerationPerSecond: function (centerCount, centerLevel, majorLevel) {
+			let majorLevelFactor = 1 + (majorLevel - 1) * 0.2;
+			let levelFactor = (1 + centerLevel * CampConstants.EVIDENCE_BONUS_PER_RESEARCH_CENTER_LEVEL);
+			return 0.0025 * centerCount * levelFactor * majorLevelFactor;
 		},
 		
-		getTempleFavourGenerationPerSecond: function (templeCount, templeLevel) {
+		getTempleHopeGenerationPerSecond: function (templeCount, templeLevel) {
 			if (templeCount <= 0) return 0;
 			templeLevel = templeLevel || 1;
-			var templeLevelFactor = (1 + templeLevel * CampConstants.FAVOUR_BONUS_PER_TEMPLE_LEVEL);
+			var templeLevelFactor = (1 + templeLevel * CampConstants.HOPE_BONUS_PER_TEMPLE_LEVEL);
 			return 0.0015 * templeCount * templeLevelFactor;
 		},
 		
 		getCampfireRumourGenerationPerSecond: function (campfireCount, campfireLevel, accSpeedPopulation) {
 			if (campfireCount <= 0) return 0;
 			if (accSpeedPopulation <= 0) return 0;
-			var campfireFactor = CampConstants.RUMOUR_BONUS_PER_CAMPFIRE_BASE;
+			let campfireFactor = CampConstants.RUMOUR_BONUS_PER_CAMPFIRE_BASE;
 			campfireFactor += campfireLevel > 1 ? (campfireLevel - 1) * CampConstants.RUMOURS_BONUS_PER_CAMPFIRE_PER_LEVEL : 0;
 			return campfireCount * campfireFactor * accSpeedPopulation - accSpeedPopulation;
 		},
@@ -314,17 +351,21 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 		getMeditationSuccessRate: function (shrineLevel, majorLevel) {
 			shrineLevel = shrineLevel || 1;
 			majorLevel = majorLevel || 1;
-			return 0.5 + (majorLevel - 1) * 0.2;
+			return 0.55 + (majorLevel - 1) * 0.2;
+		},
+
+		getNextDiseaseUpdateTimer: function () {
+			 // 3-7 min
+			return 60 * 3 + Math.floor(Math.random() * 60 * 7);
 		},
 		
 		getWorkerDisplayName: function (workerType) {
-			let def = CampConstants.workerTypes[workerType];
-			if (!def) {
-				log.w("no such workerType:" + workerType);
-				return workerType;
-			}
-			return def.displayName || workerType;
+			return Text.t(CampConstants.getWorkerDisplayNameKey(workerType));
 		},
+
+		getWorkerDisplayNameKey: function (workerType) {
+			return "game.workers." + workerType + "_name";
+		}
 	
 	};
 	

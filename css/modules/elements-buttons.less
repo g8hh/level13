@@ -21,6 +21,10 @@ button:hover {
 	background-color: @color-bg-clickable-button;
 }
 
+button:focus-visible {
+	outline: 2px solid @color-border-button-highlight;
+}
+
 button.btn-disabled:hover {
 	background-color: @color-bg-button !important;
 }
@@ -61,6 +65,10 @@ button.context {
 
 button.btn-wide {
 	width: 110pt;
+}
+
+button.btn-x-wide {
+	width: 180pt;
 }
 
 button.btn-narrow {
@@ -105,9 +113,13 @@ button.btn-glyph-big {
 	padding-right: 0;
 }
 
+.layout-small button.btn-glyph-big {
+	min-width: 2em;
+}
+
 button.btn-meta {
 	width: auto;
-	padding: 0px 7px;
+	padding: 0px 3px;
 	border-radius: 0px !important;
 	-webkit-box-shadow: none;
 	-moz-box-shadow: none;
@@ -221,8 +233,34 @@ button.btn-disabled-basic, button.btn-disabled-vision, button.btn-disabled-resou
 	color: @color-text-disabled !important;
 }
 
-// DETAIL LABEL
+// MISC ELEMENTS
 
 .button-detail-label {
 	margin: -4px 0 2px 0;
+}
+
+.hotkey-hint {
+	position: absolute;
+	top: 1px;
+	right: 1px;
+	text-transform: uppercase;
+	color: @color-text-secondary;
+	border: 1px solid @color-border-box-2;
+	border-radius: 0.25em;
+	height: 1em;
+	width: 1em;
+	font-size: @font-size-tiny;
+	pointer-events: none;
+}
+
+.container-btn-action .hotkey-hint {
+	display: none;
+}
+
+.container-btn-action:hover .hotkey-hint {
+    display: block;
+}
+
+button.btn-disabled .hotkey-hint {
+    display: none !important;
 }

@@ -1,14 +1,16 @@
 define([
+	'text/TextLoader',
 	'game/GameGlobals',
 	'game/GameState',
 	'game/GameFlowLogger',
+	'game/MetaState',
 	'game/PlayerActionFunctions',
 	'game/UIFunctions',
-	'game/helpers/AutoPlayHelper',
 	'game/helpers/CampHelper',
 	'game/helpers/CampBalancingHelper',
 	'game/helpers/CampVisHelper',
-	'game/helpers/EndingHelper',
+	'game/helpers/DialogueHelper',
+	'game/helpers/ExplorerHelper',
 	'game/helpers/FightHelper',
 	'game/helpers/ItemsHelper',
 	'game/helpers/LevelHelper',
@@ -20,6 +22,7 @@ define([
 	'game/helpers/ResourcesHelper',
 	'game/helpers/SaveHelper',
 	'game/helpers/SectorHelper',
+	'game/helpers/StoryHelper',
 	'game/helpers/TribeBalancingHelper',
 	'game/helpers/TribeHelper',
 	'game/helpers/UpgradeEffectsHelper',
@@ -28,16 +31,18 @@ define([
 	'game/helpers/ui/UIMapHelper',
 	'game/helpers/ui/UITechTreeHelper',
 ], function (
+	TextLoader,
 	GameGlobals,
 	GameState,
 	GameFlowLogger,
+	MetaState,
 	PlayerActionFunctions,
 	UIFunctions,
-	AutoPlayHelper,
 	CampHelper,
 	CampBalancingHelper,
 	CampVisHelper,
-	EndingHelper,
+	DialogueHelper,
+	ExplorerHelper,
 	FightHelper,
 	ItemsHelper,
 	LevelHelper,
@@ -49,6 +54,7 @@ define([
 	ResourcesHelper,
 	SaveHelper,
 	SectorHelper,
+	StoryHelper,
 	TribeBalancingHelper,
 	TribeHelper,
 	UpgradeEffectsHelper,
@@ -60,8 +66,11 @@ define([
 	var GameGlobalsInitializer = {
 		
 		init: function (engine) {
+			GameGlobals.engine = engine;
 			GameGlobals.gameState = new GameState();
+			GameGlobals.metaState = new MetaState();
 			GameGlobals.playerActionsHelper = new PlayerActionsHelper(engine);
+
 			if (engine) {
 				GameGlobals.playerActionFunctions = new PlayerActionFunctions(engine);
 			}
@@ -71,22 +80,24 @@ define([
 			GameGlobals.itemsHelper = new ItemsHelper();
 			GameGlobals.campHelper = new CampHelper(engine);
 			GameGlobals.campBalancingHelper = new CampBalancingHelper();
+			GameGlobals.dialogueHelper = new DialogueHelper(engine);
 			GameGlobals.tribeBalancingHelper = new TribeBalancingHelper();
+			GameGlobals.textLoader = new TextLoader();
 			
 			if (engine) {
-				GameGlobals.resourcesHelper = new ResourcesHelper(engine);
+				GameGlobals.changeLogHelper = new ChangeLogHelper();
+				GameGlobals.explorerHelper = new ExplorerHelper(engine);
+				GameGlobals.fightHelper = new FightHelper(engine);
+				GameGlobals.gameFlowLogger = new GameFlowLogger();
 				GameGlobals.levelHelper = new LevelHelper(engine);
 				GameGlobals.movementHelper = new MovementHelper(engine);
-				GameGlobals.sectorHelper = new SectorHelper(engine);
-				GameGlobals.fightHelper = new FightHelper(engine);
-				GameGlobals.endingHelper = new EndingHelper(engine);
-				GameGlobals.playerHelper = new PlayerHelper(engine);
-				GameGlobals.tribeHelper = new TribeHelper(engine);
 				GameGlobals.playerActionResultsHelper = new PlayerActionResultsHelper(engine);
-				GameGlobals.autoPlayHelper = new AutoPlayHelper();
+				GameGlobals.playerHelper = new PlayerHelper(engine);
+				GameGlobals.resourcesHelper = new ResourcesHelper(engine);
 				GameGlobals.saveHelper = new SaveHelper();
-				GameGlobals.changeLogHelper = new ChangeLogHelper();
-				GameGlobals.gameFlowLogger = new GameFlowLogger();
+				GameGlobals.sectorHelper = new SectorHelper(engine);
+				GameGlobals.storyHelper = new StoryHelper(engine);
+				GameGlobals.tribeHelper = new TribeHelper(engine);
 			}
 
 			if (engine) {

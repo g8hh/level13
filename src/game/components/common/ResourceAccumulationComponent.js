@@ -49,8 +49,8 @@ define(['ash', 'game/vos/ResourcesVO'], function (Ash, ResourcesVO) {
 			return this.resourceChange.getResource(resourceName);
 		},
 		
-		reset: function() {
-			this.resourceChange.reset();
+		reset: function(reason) {
+			this.resourceChange.reset(reason);
 			this.sources = {};
 		},
 	});

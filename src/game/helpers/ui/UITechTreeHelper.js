@@ -1,13 +1,16 @@
 // Creates and updates maps (mini-map and main)
 define(['ash',
+	'text/Text',
 	'utils/CanvasUtils',
 	'game/GameGlobals',
+	'game/GlobalSignals',
 	'game/constants/CanvasConstants',
 	'game/constants/ColorConstants',
 	'game/constants/PlayerActionConstants',
 	'game/constants/UpgradeConstants',
+	'game/constants/UIConstants',
 	'game/nodes/tribe/TribeUpgradesNode'],
-function (Ash, CanvasUtils, GameGlobals, CanvasConstants, ColorConstants, PlayerActionConstants, UpgradeConstants, TribeUpgradesNode) {
+function (Ash, Text, CanvasUtils, GameGlobals, GlobalSignals, CanvasConstants, ColorConstants, PlayerActionConstants, UpgradeConstants, UIConstants, TribeUpgradesNode) {
 	
 	var UITechTreeNode = Ash.Class.extend({
 		
@@ -81,32 +84,17 @@ function (Ash, CanvasUtils, GameGlobals, CanvasConstants, ColorConstants, Player
 		},
 		
 		pruneNodes: function (tribeNodes) {
-			var node;
-			for (var id in this.nodesById) {
-				node = this.nodesById[id];
-				
-				// unlocked
-				if (tribeNodes.head.upgrades.hasUpgrade(node.definition.id))
-					continue;
-				
-				// available
-				var isAvailable = GameGlobals.playerActionsHelper.checkRequirements(node.definition.id, false).value > 0;
-				if (isAvailable)
-					continue;
-					
-				// visible (requirements available)
-				var isVisible = false;
-				var reqs = GameGlobals.playerActionsHelper.getReqs(node.definition.id);
-				var isMissingBlueprint = reqs && reqs.blueprint && !tribeNodes.head.upgrades.hasAvailableBlueprint(node.definition.id);
-				if (!isMissingBlueprint) {
-					for (let i = 0; i < node.requires.length; i++) {
-						isVisible = isVisible || GameGlobals.playerActionsHelper.checkRequirements(node.requires[i].definition.id, false).value > 0;
-					}
-				} else {
-					isVisible = tribeNodes.head.upgrades.hasNewBlueprint(node.definition.id);
-				}
-				if (isVisible)
-					continue;
+			for (let id in this.nodesById) {
+				let node = this.nodesById[id];
+
+				let status = GameGlobals.tribeHelper.getUpgradeStatus(node.definition.id);
+
+				if (status == UpgradeConstants.upgradeStatus.UNLOCKED) continue;
+				if (status == UpgradeConstants.upgradeStatus.UNLOCKABLE) continue;
+				if (status == UpgradeConstants.upgradeStatus.VISIBLE_HINT) continue;
+				if (status == UpgradeConstants.upgradeStatus.VISIBLE_FULL) continue;
+				if (status == UpgradeConstants.upgradeStatus.BLUEPRINT_USABLE) continue;
+				if (status == UpgradeConstants.upgradeStatus.BLUEPRINT_IN_PROGRESS) continue;
 					
 				// none of the above - prune
 				this.removeNode(this.nodesById[id]);
@@ -232,10 +220,11 @@ function (Ash, CanvasUtils, GameGlobals, CanvasConstants, ColorConstants, Player
 			var xpx = this.getPixelPosX(node.x);
 			var ypx = this.getPixelPosY(node.y);
 			var data = "data-id='" + node.definition.id + "'";
-			var text = node.definition.name;
+			var text = Text.t(UpgradeConstants.getDisplayNameTextKey(node.definition.id))
 			var $div = $("<div class='canvas-overlay-cell upgrades-overlay-cell' style='top: " + ypx + "px; left: " + xpx + "px' " + data +"><p>" + text +"</p></div>");
 			var helper = this;
 			$div.click(function (e) {
+				GlobalSignals.triggerSoundSignal.dispatch(UIConstants.soundTriggerIDs.buttonClicked);
 				log.i("tech selected: " + node.definition.id);
 				vis.selectedID = node.definition.id;
 				vis.selectioncb();
@@ -278,8 +267,9 @@ function (Ash, CanvasUtils, GameGlobals, CanvasConstants, ColorConstants, Player
 			var grids = 1/this.minGridStep;
 			var gridX = Math.round(x*grids) / grids;
 			var gridY = Math.round(y*grids) / grids;
+			let name = Text.t(UpgradeConstants.getDisplayNameTextKey(node.definition.id));
 			if (!tree.grid[gridY]) tree.grid[gridY] = {};
-			if (this.isOccupiedArea(tree, gridX, gridY, 0.5, 0.5)) log.w("Overlapping position: " + gridX + "-" + gridY + " " + node.definition.name);
+			if (this.isOccupiedArea(tree, gridX, gridY, 0.5, 0.5)) log.w("Overlapping position: " + gridX + "-" + gridY + " " + name);
 			tree.grid[gridY][gridX] = node;
 		},
 		

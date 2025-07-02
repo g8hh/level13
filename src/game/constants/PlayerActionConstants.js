@@ -1,40 +1,103 @@
 define(['ash',
 	'json!game/data/PlayerActionData.json',
+	'utils/ObjectUtils',
 	'game/constants/GameConstants',
 	'game/constants/CampConstants',
 	'game/constants/ImprovementConstants',
 ],
-function (Ash, PlayerActionData, GameConstants, CampConstants, ImprovementConstants) {
+function (Ash, PlayerActionData, ObjectUtils, GameConstants, CampConstants, ImprovementConstants) {
 	
 	var PlayerActionConstants = {
 		
+		DISABLED_REASON_BAG_FULL: "ui.actions.disabled_reason_bag_full",
+		DISABLED_REASON_BUSY: "ui.actions.disabled_reason_busy",
+		DISABLED_REASON_EXPOSED: "DISABLED_REASON_EXPOSED",
+		DISABLED_REASON_IN_PROGRESS: "ui.actions.disabled_reason_action_in_progress",
 		DISABLED_REASON_INVALID_PARAMS: "DISABLED_REASON_INVALID_PARAMS",
-		DISABLED_REASON_IN_PROGRESS: "DISABLED_REASON_IN_PROGRESS",
-		DISABLED_REASON_LOCKED_RESOURCES: 'Requires undiscovered resources.',
-		DISABLED_REASON_BAG_FULL: 'Bag full.',
-		DISABLED_REASON_NOT_IN_CAMP: 'Must be in camp to do this.',
-		DISABLED_REASON_POPULATION: "DISABLED_REASON_POPULATION",
-		DISABLED_REASON_NOT_ENOUGH_LEVEL_POP: 'Not enough people on this level.',
-		DISABLED_REASON_NOT_REACHABLE_BY_TRADERS: "Camp not reachable by traders.",
-		DISABLED_REASON_BUSY: 'Busy',
+		DISABLED_REASON_INVALID_SECTOR: 'DISABLED_REASON_INVALID_SECTOR',
 		DISABLED_REASON_LAUNCHED: "Leaving the planet behind",
-		DISABLED_REASON_MAX_IMPROVEMENT_LEVEL: 'Max level',
-		DISABLED_REASON_MIN_IMPROVEMENTS: 'DISABLED_REASON_MIN_IMPROVEMENTS',
+		DISABLED_REASON_LOCKED_RESOURCES: 'Requires undiscovered resources.',
+		DISABLED_REASON_MAX_IMPROVEMENT_LEVEL: "ui.actions.disabled_reason_max_improvement_level",
 		DISABLED_REASON_MAX_IMPROVEMENTS: 'DISABLED_REASON_MAX_IMPROVEMENTS',
+		DISABLED_REASON_MILESTONE: 'DISABLED_REASON_MILESTONE',
+		DISABLED_REASON_MIN_IMPROVEMENTS: 'DISABLED_REASON_MIN_IMPROVEMENTS',
+		DISABLED_REASON_NOT_AWAKE: "DISABLED_REASON_NOT_AWAKE",
+		DISABLED_REASON_NOT_IN_CAMP: "ui.actions.disabled_reason_not_in_camp",
+		DISABLED_REASON_NOT_REACHABLE_BY_TRADERS: "Camp not reachable by traders.",
+		DISABLED_REASON_POPULATION: "DISABLED_REASON_POPULATION",
+		DISABLED_REASON_PROJECT_IN_PROGRESS: "ui.actions.disabled_reason_project_in_progress",
+		DISABLED_REASON_RAID: "ui.actions.disabled_reason_raid",
 		DISABLED_REASON_SCOUTED: 'DISABLED_REASON_SCOUTED',
 		DISABLED_REASON_SUNLIT: 'DISABLED_REASON_SUNLIT',
 		DISABLED_REASON_UPGRADE: 'DISABLED_REASON_UPGRADE',
-		DISABLED_REASON_INVALID_SECTOR: 'DISABLED_REASON_INVALID_SECTOR',
-		DISABLED_REASON_MILESTONE: 'DISABLED_REASON_MILESTONE',
-		DISABLED_REASON_EXPOSED: "DISABLED_REASON_EXPOSED",
 		DISABLED_REASON_VISION: "DISABLED_REASON_VISION",
 		
 		loadData: function (data) {
 			Object.assign(this, data);
+
+			this.applyTemplates(data);
+		},
+
+		applyTemplates: function (data) {
+			let templateActions = [];
+
+			let allActions = [];
+			allActions = allActions.concat(Object.keys(this.requirements));
+			allActions = allActions.concat(Object.keys(this.costs));
+
+			for (let i in allActions) {
+				let templateAction = allActions[i];
+				if (!this.isTemplateAction(templateAction)) continue;
+				
+				let templatePrefix = templateAction.replace("__", "");
+
+				let templateReqs = data.requirements[templateAction] || {};
+				let templateCosts = data.costs[templateAction] || {};
+				let templateDuration = data.durations[templateAction] || null;
+
+				let actionsToApply = [];
+
+				for (let j in allActions) {
+					let action = allActions[j];
+					if (this.isTemplateAction(action)) continue;
+					if (action.startsWith(templatePrefix)) {
+						actionsToApply.push(action);
+					}
+				}
+
+				for (let i in actionsToApply) {
+					let action = actionsToApply[i];
+
+					let oldReqs = data.requirements[action] || {};
+					let newReqs = Object.assign({}, oldReqs);
+					ObjectUtils.assignValues(newReqs, templateReqs);
+					
+					this.requirements[action] = newReqs;
+
+					let oldCosts = data.costs[action] || {};
+					let newCosts = Object.assign({}, templateCosts, oldCosts);
+					this.costs[action] = newCosts;
+
+					if (templateDuration && !this.durations[action]) this.durations[action] = templateDuration;
+				}
+
+				templateActions.push(templateAction);
+			}
+
+			for (let i in templateActions) {
+				let templateAction = templateActions[i];
+				delete this.requirements[templateAction];
+				delete this.costs[templateAction];
+				delete this.durations[templateAction];
+			}
+		},
+
+		isTemplateAction: function (action) {
+			return action.endsWith("__");
 		},
 
 		hasAction: function (action) {
-			return this.requirements[action] || this.costs[action] || this.cooldowns[action] || this.durations[action] || this.descriptions[action] || false;
+			return this.requirements[action] || this.costs[action] || this.cooldowns[action] || this.durations[action] || false;
 		},
 
 		getCooldown: function (action) {
@@ -47,7 +110,8 @@ function (Ash, PlayerActionData, GameConstants, CampConstants, ImprovementConsta
 		},
 
 		getDuration: function (action, baseActionID) {
-			var speed = this.isExplorationAction(baseActionID) ? GameConstants.gameSpeedExploration : GameConstants.gameSpeedCamp;
+			baseActionID = baseActionID || this.getBaseActionID(action);
+			let speed = this.isExplorationAction(baseActionID) ? GameConstants.gameSpeedExploration : GameConstants.gameSpeedCamp;
 
 			// TODO make send_caravan duration dependent on the trade partner's location
 			if (this.durations[baseActionID]) {
@@ -77,14 +141,19 @@ function (Ash, PlayerActionData, GameConstants, CampConstants, ImprovementConsta
 			return 0;
 		},
 
+		// sectorFactor is 0-2, usually 1, can be >1 for dangerous sectors
+		// actionFactor is 0-1, usually 1, typically 0 for things like scout_locale_i
 		getRandomEncounterProbability: function (baseActionID, vision, sectorFactor, actionFactor) {
 			if (vision === undefined) vision = 100;
 			if (actionFactor === undefined) actionFactor = 1;
 			if (this.randomEncounterProbabilities[baseActionID]) {
-				var baseProbability = this.randomEncounterProbabilities[baseActionID][0];
-				var visionFactor = Math.pow(1 - (vision / 100), 2);
-				var visionProbability = this.randomEncounterProbabilities[baseActionID][1] * visionFactor;
-				return Math.min(1, (baseProbability + visionProbability) * actionFactor * sectorFactor);
+				let baseProbability = this.randomEncounterProbabilities[baseActionID][0];
+				// 0-1, decreasing fast for higher vision, 0.25 for vision 50
+				let visionFactor = Math.pow(1 - (vision / 100), 2); 
+				let visionProbability = this.randomEncounterProbabilities[baseActionID][1] * visionFactor;
+				let hazardFactor = 1;
+				let result = Math.min(1, (baseProbability + visionProbability) * actionFactor * sectorFactor);
+				return this.roundProbability(result);
 			}
 			return 0;
 		},
@@ -97,8 +166,7 @@ function (Ash, PlayerActionData, GameConstants, CampConstants, ImprovementConsta
 				let luckFactor = this.getNegativeProbabiltityLuckFactor(luck);
 				let visionProbability = this.injuryProbabilities[action][1] * visionFactor;
 				let result = (baseProbability + visionProbability) * luckFactor;
-				if (result < 0.001) result = 0;
-				return result;
+				return this.roundProbability(result);
 			}
 			return 0;
 		},
@@ -111,10 +179,16 @@ function (Ash, PlayerActionData, GameConstants, CampConstants, ImprovementConsta
 				let luckFactor = this.getNegativeProbabiltityLuckFactor(luck);
 				let visionProbability = this.loseInventoryProbabilities[action][1] * visionFactor;
 				let result = (baseProbability + visionProbability) * luckFactor;
-				if (result < 0.001) result = 0;
-				return result;
+				return this.roundProbability(result);
 			}
 			return 0;
+		},
+
+		roundProbability: function (value) {
+			if (value > 1) return 1;
+			if (value < 0) return 0;
+			if (value < 0.001) value = 0;
+			return Math.round(value * 2000) / 2000;
 		},
 		
 		getNegativeProbabiltityLuckFactor: function (luck) {
@@ -147,7 +221,8 @@ function (Ash, PlayerActionData, GameConstants, CampConstants, ImprovementConsta
 			if (action.indexOf("build_in_") >= 0) return action;
 			if (action.indexOf("claim_milestone_") >= 0) return "claim_milestone";
 			if (action.indexOf("improve_in_") >= 0) return "improve_in";
-			if (action.indexOf("dismantle_in_") >= 0) return "dismantle_in";
+			if (action.indexOf("dismantle_") >= 0) return "dismantle";
+			if (action.indexOf("dismantle_out_") >= 0) return "dismantle_out";
 			if (action.indexOf("improve_out") >= 0) return "improve_out";
 			if (action.indexOf("scout_locale_i") >= 0) return "scout_locale_i";
 			if (action.indexOf("scout_locale_u") >= 0) return "scout_locale_u";
@@ -156,6 +231,7 @@ function (Ash, PlayerActionData, GameConstants, CampConstants, ImprovementConsta
 			if (action.indexOf("unequip_") >= 0) return "unequip";
 			if (action.indexOf("equip_") >= 0) return "equip";
 			if (action.indexOf("use_item_fight") >= 0) return "use_item_fight";
+			if (action.indexOf("use_explorer_fight") >= 0) return "use_explorer_fight";
 			if (action.indexOf("use_item") >= 0) return "use_item";
 			if (action.indexOf("repair_item") >= 0) return "repair_item";
 			if (action.indexOf("repair_in") >= 0) return "repair_in";
@@ -164,14 +240,25 @@ function (Ash, PlayerActionData, GameConstants, CampConstants, ImprovementConsta
 			if (action.indexOf("clear_waste_t") == 0) return "clear_waste_t";
 			if (action.indexOf("clear_waste_r") == 0) return "clear_waste_r";
 			if (action.indexOf("clear_debris_") == 0) return "clear_debris";
+			if (action.indexOf("clear_explosives_") == 0) return "clear_explosives";
+			if (action.indexOf("clear_gate_") == 0) return "clear_gate";
 			if (action.indexOf("fight_gang_") >= 0) return "fight_gang";
 			if (action.indexOf("send_caravan_") >= 0) return "send_caravan";
-			if (action.indexOf("recruit_follower_") >= 0) return "recruit_follower";
-			if (action.indexOf("dismiss_follower") >= 0) return "dismiss_follower";
-			if (action.indexOf("deselect_follower") >= 0) return "deselect_follower";
-			if (action.indexOf("select_follower") >= 0) return "select_follower";
+			if (action.indexOf("recruit_explorer_") >= 0) return "recruit_explorer";
+			if (action.indexOf("start_explorer_dialogue") >= 0) return "start_explorer_dialogue";
+			if (action.indexOf("start_visitor_dialogue") >= 0) return "start_visitor_dialogue";
+			if (action.indexOf("start_refugee_dialogue") >= 0) return "start_refugee_dialogue";
+			if (action.indexOf("start_in_npc_dialogue") >= 0) return "start_in_npc_dialogue";
+			if (action.indexOf("start_out_npc_dialogue") >= 0) return "start_out_npc_dialogue";
+			if (action.indexOf("dismiss_explorer") >= 0) return "dismiss_explorer";
+			if (action.indexOf("heal_explorer_") == 0) return "heal_explorer";
+			if (action.indexOf("deselect_explorer") >= 0) return "deselect_explorer";
+			if (action.indexOf("select_explorer") >= 0) return "select_explorer";
 			if (action.indexOf("dismiss_recruit_") >= 0) return "dismiss_recruit";
 			if (action.indexOf("move_camp_global_") >= 0) return "move_camp_global";
+			if (action.indexOf("start_dialogue") >= 0) return "start_dialogue";
+			if (action.indexOf("end_dialogue") >= 0) return "end_dialogue";
+			if (action.indexOf("select_dialogue_option") >= 0) return "select_dialogue_option";
 			if (action.indexOf("build_out_passage") >= 0) {
 				var parts = action.split("_");
 				if (isNaN(parts[parts.length-1]))
@@ -253,13 +340,40 @@ function (Ash, PlayerActionData, GameConstants, CampConstants, ImprovementConsta
 			return "";
 		},
 		
+		getActionBusyDescription: function (baseActionID) {
+			switch (baseActionID) {
+				case "use_in_home": return "resting";
+				case "use_in_campfire": return "conversing";
+				case "use_in_campfire_2": return "lighting";
+				case "use_in_hospital": return "recovering";
+				case "use_in_hospital_2": return "augmenting";
+				case "use_in_market": return "visiting";
+				case "use_in_library": return "studying";
+				case "use_in_temple": return "donating";
+				case "use_in_shrine": return "meditating";
+				case "clear_waste_t": return "clearing waste";
+				case "clear_waste_r": return "clearing waste";
+				case "launch": return "launch";	
+				default: return baseActionID;
+			}
+		},
+		
 		getImprovementIDForAction: function (actionName) {
 			let baseId = this.getBaseActionID(actionName);
 			if (this.isImproveBuildingAction(baseId)) {
 				return actionName.replace("improve_in_", "").replace("improve_out_", "");
 			}
+			if (this.isUseImprovementAction(baseId)) {
+				return actionName.replace("use_in_", "").replace("use_out_", "");
+			}
 			if (this.isRepairBuildingAction(baseId)) {
 				return actionName.replace("repair_in_", "").replace("repar_out_", "");
+			}
+			if (baseId == "dismantle") {
+				let result = actionName;
+				result = result.replace("dismantle_in_", "");
+				result = result.replace("dismantle_out_", "");
+				return result;
 			}
 			let improvementName = this.getImprovementNameForAction(actionName);
 			return ImprovementConstants.getImprovementID(improvementName);
@@ -323,6 +437,10 @@ function (Ash, PlayerActionData, GameConstants, CampConstants, ImprovementConsta
 			return baseActionID == "improve_in" || baseActionID == "improve_out";
 		},
 		
+		isUseImprovementAction: function (baseActionID) {
+			return baseActionID.indexOf("use_in_") >= 0 || baseActionID.indexOf("use_out_") >= 0
+		},
+		
 		isBuildImprovementAction: function (baseActionID) {
 			return baseActionID.indexOf("build_in_") >= 0 || baseActionID.indexOf("build_out_") >= 0
 		},
@@ -351,9 +469,16 @@ function (Ash, PlayerActionData, GameConstants, CampConstants, ImprovementConsta
 			return false;
 		},
 
+		isActionAllowedWhileNotAwake: function (action) {
+			if (action == "get_up") return true;
+
+			return false;
+		},
+
 		// defines if the action (with duration) marks the player as "busy" or if it can happen in the background
 		isBusyAction: function (baseActionID) {
 			if (baseActionID.indexOf('build_in') === 0) return false;
+			if (baseActionID.indexOf('improve_in') === 0) return false;
 			if (baseActionID.indexOf('build_out') === 0) {
 				let improvementName = this.getImprovementNameForAction(baseActionID);
 				let improvementID = ImprovementConstants.getImprovementID(improvementName);
@@ -364,6 +489,7 @@ function (Ash, PlayerActionData, GameConstants, CampConstants, ImprovementConsta
 			switch (baseActionID) {
 				case "send_caravan":
 				case "clear_debris":
+				case "clear_explosives":
 				case "bridge_gap":
 					return false;
 				default:

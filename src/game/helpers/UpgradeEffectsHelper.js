@@ -1,6 +1,7 @@
 // Helper to check effects of upgrades on workers and buildings
 define([
 	'ash',
+	'text/Text',
 	'game/GameGlobals',
 	'game/constants/CampConstants',
 	'game/constants/ImprovementConstants',
@@ -11,15 +12,17 @@ define([
 	'game/constants/OccurrenceConstants',
 	'game/constants/TextConstants',
 	'game/vos/ImprovementVO',
-], function (Ash, GameGlobals, CampConstants, ImprovementConstants, ItemConstants, UpgradeConstants, PlayerActionConstants, WorldConstants, OccurrenceConstants, TextConstants, ImprovementVO) {
+], function (Ash, Text, GameGlobals, CampConstants, ImprovementConstants, ItemConstants, UpgradeConstants, PlayerActionConstants, WorldConstants, OccurrenceConstants, TextConstants, ImprovementVO) {
 	
-	var UpgradeEffectsHelper = Ash.Class.extend({
+	let UpgradeEffectsHelper = Ash.Class.extend({
 		
 		improvementsByOccurrence: {},
 		
 		constructor: function () {
 			this.improvementsByOccurrence[OccurrenceConstants.campOccurrenceTypes.trader] = improvementNames.market;
 			this.improvementsByOccurrence[OccurrenceConstants.campOccurrenceTypes.recruit] = improvementNames.inn;
+			this.improvementsByOccurrence[OccurrenceConstants.campOccurrenceTypes.refugees] = improvementNames.inn;
+			this.improvementsByOccurrence[OccurrenceConstants.campOccurrenceTypes.visitor] = improvementNames.inn;
 		},
 		
 		getEffectDescription: function (upgradeID, showMultiline) {
@@ -27,10 +30,10 @@ define([
 			
 			let addGroup = function (title, items, getItemDisplayName) {
 				if (items.length == 0) return
-				if  (title && title.length > 0) effects += title + ": ";
-				if (showMultiline) effects += "<br/>";
+				if (title && title.length > 0) effects += title + ": ";
+				if (title && showMultiline) effects += "<br/>";
 				for (let i = 0; i < items.length; i++) {
-					if (i > 0) effects += ", ";
+					if (i > 0) effects += Text.t("ui.common.list_template_many_delimiter");
 					effects += getItemDisplayName(items[i]).toLowerCase();
 				}
 				if (showMultiline) effects += "<br/>";
@@ -63,7 +66,7 @@ define([
 			addGroup("new events", unlockedOccurrences, (e) => e);
 
 			let improvedOccurrences = GameGlobals.upgradeEffectsHelper.getImprovedOccurrences(upgradeID);
-			addGroup("", improvedOccurrences, (e) => "improved " + e);
+			addGroup("", improvedOccurrences, (e) => GameGlobals.upgradeEffectsHelper.getImproveOccurrenceText(e));
 
 			let unlockedActions = GameGlobals.upgradeEffectsHelper.getUnlockedGeneralActions(upgradeID);
 			addGroup("new actions", unlockedActions, (action) => {
@@ -78,11 +81,24 @@ define([
 			
 			return effects;
 		},
+
+		getImproveOccurrenceText: function (event) {
+			switch (event) {
+				case OccurrenceConstants.campOccurrenceTypes.disaster: 
+					return "migitated " + event;
+			}
+			return "improved " + event;
+		},
+
+		getUnlockedResearchIDs: function (upgradeID) {
+			return  UpgradeConstants.getUnlockedTech(upgradeID);
+		},
 		
 		getEffectHints: function (upgradeID) {
 			let result = "";
 			let unlockedActions = this.getUnlockedActions(upgradeID);
 			let unlockedProjects = GameGlobals.upgradeEffectsHelper.getUnlockedProjects(upgradeID);
+			let improvedOccurrences = GameGlobals.upgradeEffectsHelper.getImprovedOccurrences(upgradeID);
 			
 			if (unlockedActions.indexOf("clear_waste_t") >= 0) {
 				result += "Workers cannot clear toxic waste. You must go to the sector yourself. ";
@@ -94,6 +110,10 @@ define([
 			
 			if (unlockedProjects.indexOf(improvementNames.greenhouse) >= 0) {
 				result += "Greenhouses can only be built at certain locations with good conditions. If you've found those locations they will appear in the projects tab. ";
+			}
+
+			if (improvedOccurrences.indexOf(OccurrenceConstants.campOccurrenceTypes.disaster) >= 0) {
+				result += "Disasters like earthquakes and floods are now less like to damage buildings. ";
 			}
 			
 			return result;
@@ -411,12 +431,12 @@ define([
 				if (!costs) {
 					log.w("upgrade has no costs: " + upgrade);
 				} else {
-					if (costs.favour) {
+					if (costs.hope) {
 						costCampOrdinal = Math.max(costCampOrdinal, WorldConstants.CAMPS_BEFORE_GROUND);
 					}
 				}
 			}
-			if (costs.favour) {
+			if (costs.hope) {
 				costCampOrdinal = WorldConstants.CAMP_ORDINAL_GROUND;
 			}
 			
@@ -441,7 +461,7 @@ define([
 			}
 			
 			let costs = PlayerActionConstants.costs[upgrade];
-			if (costs && costs.favour) {
+			if (costs && costs.hope) {
 				result = WorldConstants.CAMP_STEP_POI_2;
 			}
 			

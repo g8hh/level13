@@ -17,7 +17,6 @@ define([
 	'game/components/sector/SectorStatusComponent',
 	'game/components/sector/SectorFeaturesComponent',
 	'game/components/sector/SectorControlComponent',
-	'game/components/sector/improvements/SectorImprovementsComponent',
 ], function (Ash,
 	GameGlobals,
 	GlobalSignals,
@@ -34,16 +33,17 @@ define([
 	PassagesComponent,
 	SectorStatusComponent,
 	SectorFeaturesComponent,
-	SectorControlComponent,
-	SectorImprovementsComponent) {
+	SectorControlComponent) {
 	
-	var SectorStatusSystem = Ash.System.extend({
+	let SectorStatusSystem = Ash.System.extend({
 		
 		sectorNodes: null,
 		playerLocationNodes: null,
 		itemsNodes: null,
 		
 		neighboursDict: {},
+
+		contest: "SectorStatusSystem",
 		
 		constructor: function () {
 		},
@@ -63,10 +63,19 @@ define([
 			GlobalSignals.gameShownSignal.add(function () {
 				sys.updateCurrentLocation();
 			});
+			GlobalSignals.gameStateReadySignal.add(function () {
+				sys.queueFindAllNeighbours();
+			});
+			GlobalSignals.gameStateRefreshSignal.add(function () {
+				sys.updateAllSectors();
+			});
 			GlobalSignals.sectorScoutedSignal.add(function () {
 				sys.updateCurrentLocation();
 			});
 			GlobalSignals.equipmentChangedSignal.add(function () {
+				sys.updateCurrentLocation();
+			});
+			GlobalSignals.improvementBuiltSignal.add(function () {
 				sys.updateCurrentLocation();
 			});
 			GlobalSignals.movementBlockerClearedSignal.add(function () {
@@ -78,16 +87,33 @@ define([
 		},
 	
 		removeFromEngine: function (engine) {
+			this.sectorsPendingFindNeighbours = null;
 			this.sectorNodes = null;
 		},
 	
 		updateCurrentLocation: function () {
 			if (!this.playerLocationNodes.head) return;
+			if (!this.playerLocationNodes.head.entity) return;
+			
+			log.i("update current location", this);
+			this.findNeighboursIfNotAlready(this.playerLocationNodes.head.entity);
 			this.updateSector(this.playerLocationNodes.head.entity);
+		},
+
+		update: function () {
+			this.findNeigbhoursForQueued();
 		},
 		
 		reset: function () {
+			this.sectorsPendingFindNeighbours = null;
 			this.neighboursDict = {};
+		},
+
+		updateAllSectors: function () {
+			log.i("update all sectors | " + Object.keys(this.neighboursDict).length, this);
+			for (let sectorNode = this.sectorNodes.head; sectorNode; sectorNode = sectorNode.next) {
+				this.updateSector(sectorNode.entity);
+			}
 		},
 		
 		updateSector: function (entity) {
@@ -97,13 +123,21 @@ define([
 			
 			if (!positionComponent) return;
 			
-			var levelEntity = GameGlobals.levelHelper.getLevelEntityForSector(entity);
+			let levelEntity = GameGlobals.levelHelper.getLevelEntityForSector(entity);
 			
-			var isScouted = sectorStatusComponent.scouted;
-			var hasCampLevel = levelEntity.has(CampComponent);
-			var hasCampSector = entity.has(CampComponent);
+			let isVisited = GameGlobals.sectorHelper.isVisited(entity);
+			let isScouted = sectorStatusComponent.scouted;
+			let hasCampLevel = levelEntity.has(CampComponent);
+			let hasCampSector = entity.has(CampComponent);
+
+			sectorStatusComponent.visited = isVisited;
+
+			entity.remove(VisitedComponent);
 			
-			this.updateGangs(entity);
+			if (isVisited) {
+				this.updateGangs(entity);
+			}
+
 			this.updateMovementOptions(entity);
 			this.updateHazardReduction(entity);
 			
@@ -114,19 +148,21 @@ define([
 		
 		updateGangs: function (entity) {
 			if (GameGlobals.gameState.uiStatus.isHidden) return;
-			var sectorControlComponent = entity.get(SectorControlComponent);
-			var positionComponent = entity.get(PositionComponent);
+			let sectorControlComponent = entity.get(SectorControlComponent);
+			let positionComponent = entity.get(PositionComponent);
 			
-			var sectorKey = this.getSectorKey(positionComponent);
-			if (!this.neighboursDict[sectorKey]) this.findNeighbours(entity);
-			var sys = this;
+			let sectorKey = this.getSectorKey(positionComponent);
+
+			if (!this.neighboursDict[sectorKey]) return;
+
+			let sys = this;
 			
 			function checkNeighbour(direction) {
-				var localeId = LocaleConstants.getPassageLocaleId(direction);
-				var currentEnemies = sectorControlComponent.getCurrentEnemies(localeId);
+				let localeId = LocaleConstants.getPassageLocaleId(direction);
+				let currentEnemies = sectorControlComponent.getCurrentEnemies(localeId);
 				if (currentEnemies <= 0) return;
 				
-				var neighbour = sys.getNeighbour(sectorKey, direction);
+				let neighbour = sys.getNeighbour(sectorKey, direction);
 				
 				if (neighbour) {
 					var neighbourSectorControlComponent = neighbour.get(SectorControlComponent);
@@ -142,7 +178,7 @@ define([
 			}
 			
 			for (let i in PositionConstants.getLevelDirections()) {
-				var direction = PositionConstants.getLevelDirections()[i];
+				let direction = PositionConstants.getLevelDirections()[i];
 				checkNeighbour(direction);
 			}
 		},
@@ -156,7 +192,8 @@ define([
 			var statusComponent = entity.get(SectorStatusComponent);
 			
 			var sectorKey = this.getSectorKey(positionComponent);
-			if (!this.neighboursDict[sectorKey]) this.findNeighbours(entity);
+
+			if (!this.neighboursDict[sectorKey]) return;
 			
 			var isAffectedByHazard = GameGlobals.sectorHelper.isAffectedByHazard(featuresComponent, statusComponent, this.itemsNodes.head.items);
 			
@@ -165,7 +202,7 @@ define([
 				var direction = PositionConstants.getLevelDirections()[i];
 				var neighbour = this.getNeighbour(sectorKey, direction);
 				var isNeighbourAffectedByHazard = neighbour ? GameGlobals.sectorHelper.isAffectedByHazard(neighbour.get(SectorFeaturesComponent), neighbour.get(SectorStatusComponent), this.itemsNodes.head.items) : false;
-				var isBlockedByHazard = neighbour ? isAffectedByHazard && !(neighbour.has(VisitedComponent) && !isNeighbourAffectedByHazard) : false;
+				var isBlockedByHazard = neighbour ? isAffectedByHazard && !(GameGlobals.sectorHelper.isVisited(neighbour) && !isNeighbourAffectedByHazard) : false;
 				movementOptions.canMoveTo[direction] = neighbour != null;
 				movementOptions.canMoveTo[direction] = movementOptions.canMoveTo[direction] && !isBlockedByHazard;
 				movementOptions.canMoveTo[direction] = movementOptions.canMoveTo[direction] && !GameGlobals.movementHelper.isBlocked(entity, direction);
@@ -189,6 +226,8 @@ define([
 			var passagesComponent = entity.get(PassagesComponent);
 			var positionComponent = entity.get(PositionComponent);
 			var sectorKey = this.getSectorKey(positionComponent);
+
+			if (!this.neighboursDict[sectorKey]) return;
 			
 			statusComponent.hazardReduction = { radiation: 0, poison: 0 };
 			
@@ -243,6 +282,37 @@ define([
 				default:
 					return null;
 			}
+		},
+
+		queueFindAllNeighbours: function () {
+			let queue = this.sectorsPendingFindNeighbours || [];
+
+			for (let sectorNode = this.sectorNodes.head; sectorNode; sectorNode = sectorNode.next) {
+				queue.push(sectorNode.entity);
+			}
+
+			this.sectorsPendingFindNeighbours = queue;
+		},
+
+		findNeigbhoursForQueued: function () {
+			if (!this.sectorsPendingFindNeighbours) return;
+
+			let sector = this.sectorsPendingFindNeighbours.pop();
+
+			if (!sector) return;
+
+			this.findNeighboursIfNotAlready(sector);
+
+			if (this.sectorsPendingFindNeighbours.length == 0) {
+				// queue cleared, update all
+				this.updateAllSectors();
+			}
+		},
+
+		findNeighboursIfNotAlready: function (entity) {
+			let positionComponent = entity.get(PositionComponent);
+			let sectorKey = this.getSectorKey(positionComponent);
+			if (!this.neighboursDict[sectorKey]) this.findNeighbours(entity);
 		},
 		
 		findNeighbours: function (entity) {

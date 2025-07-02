@@ -270,9 +270,7 @@ define(['ash', 'game/vos/PositionVO'], function (Ash, PositionVO) {
 		},
 		
 		isPerpendicular: function (direction1, direction2) {
-			return
-				this.getNextClockWise(this.getNextClockWise(direction1, true), true) == direction2 ||
-				this.getNextClockWise(this.getNextCounterClockWise(direction1, true), true) == direction2;
+			return this.getNextClockWise(this.getNextClockWise(direction1, true), true) == direction2 || this.getNextClockWise(this.getNextCounterClockWise(direction1, true), true) == direction2;
 		},
 		
 		isNeighbouringDirection: function (direction1, direction2, includeDiagonals) {
@@ -295,6 +293,27 @@ define(['ash', 'game/vos/PositionVO'], function (Ash, PositionVO) {
 				case this.DIRECTION_NONE: return "none";
 			}
 			return "unknown";
+		},
+		
+		getDirectionTextKey: function (direction, short) {
+			let key = null;
+
+			switch (direction) {
+				case this.DIRECTION_WEST: key = "west"; break;
+				case this.DIRECTION_NORTH: key = "north"; break;
+				case this.DIRECTION_SOUTH: key = "south"; break;
+				case this.DIRECTION_EAST: key = "east"; break;
+				case this.DIRECTION_NE: key = "ne"; break;
+				case this.DIRECTION_SE: key = "se"; break;
+				case this.DIRECTION_SW: key = "sw"; break;
+				case this.DIRECTION_NW: key = "nw"; break;
+			}
+
+			if (!key) return null;
+
+			let result = "ui.map.direction_" + key + "_name";
+			if (short) result += "_short";
+			return result;
 		},
 		
 		getLevelDirections: function (excludeDiagonals) {
@@ -346,6 +365,10 @@ define(['ash', 'game/vos/PositionVO'], function (Ash, PositionVO) {
 				default:
 					return false;
 			}
+		},
+
+		isWorldPillarPosition: function (pos) {
+			return pos.sectorX == 0 && pos.sectorY == 0;
 		}
 	
 	};

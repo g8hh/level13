@@ -4,7 +4,7 @@ define(
 	['ash', 'game/constants/GameConstants', 'game/constants/SectorConstants', 'game/constants/WorldConstants', 'game/vos/ResourcesVO'],
 	function (Ash, GameConstants, SectorConstants, WorldConstants, ResourcesVO) {
 	
-	var SectorFeaturesComponent = Ash.Class.extend({
+	let SectorFeaturesComponent = Ash.Class.extend({
 		
 		// primary attributes
 		level: 0,
@@ -16,6 +16,7 @@ define(
 		damage: 0,
 		sunlit: false,
 		ground: false,
+		surface: false,
 		
 		// pathfinding attributes
 		criticalPaths: [],
@@ -24,52 +25,63 @@ define(
 		// functionality
 		hazards: null,
 		campable: false,
+		notCampableReason: null,
+		hasSpring: false,
+		hasTradeConnectorSpot: false,
+		isInvestigatable: false,
 		stashes: [],
 		waymarks: [],
+		examineSpots: [],
 		
-		// resources
-		scacengeDifficulty: 3,
+		// resources and items
 		resourcesScavengable: null,
 		resourcesCollectable: null,
+		heapResource: null,
 		itemsScavengeable: [],
 		
-		constructor: function (level, criticalPaths, zone, buildingDensity, wear, damage, sectorType, sunlit, ground, surface, hazards,
-							   campable, notCampableReason, resourcesScavengable, resourcesCollectable, itemsScavengeable, hasSpring, hasTradeConnectorSpot, isInvestigatable, stashes, waymarks) {
+		constructor: function (level, features) {
 			this.level = level;
-			this.criticalPaths = criticalPaths;
-			this.zone = zone;
-			this.buildingDensity = buildingDensity;
-			this.wear = wear;
-			this.damage = damage;
-			this.sectorType = sectorType;
-			this.sunlit = sunlit;
-			this.ground = ground;
-			this.surface = surface;
-			this.hazards = hazards;
-			this.campable = campable;
-			this.notCampableReason = notCampableReason;
-			this.resourcesScavengable = resourcesScavengable || new ResourcesVO();
-			this.resourcesCollectable = resourcesCollectable || new ResourcesVO();
-			this.itemsScavengeable = itemsScavengeable || [];
-			this.hasSpring = hasSpring;
-			this.hasTradeConnectorSpot = hasTradeConnectorSpot;
-			this.isInvestigatable = isInvestigatable;
-			this.stashes = stashes || [];
-			this.waymarks = waymarks || [];
+			this.criticalPaths = features.criticalPaths || [];
+			this.zone = features.zone;
+			this.buildingDensity = features.buildingDensity;
+			this.wear = features.wear;
+			this.damage = features.damage;
+			this.sectorType = features.sectorType;
+			this.sunlit = features.sunlit || false;
+			this.ground = features.ground || false;
+			this.surface = features.surface || false;
+			this.hazards = features.hazards || null;
+			this.campable = features.isCamp || false;
+			this.notCampableReason = features.notCampableReason || null;
+			this.resourcesScavengable = features.resourcesScavengable || new ResourcesVO();
+			this.resourcesCollectable = features.resourcesCollectable || new ResourcesVO();
+			this.itemsScavengeable = features.itemsScavengeable || [];
+			this.hasSpring = features.hasSpring || false;
+			this.hasTradeConnectorSpot = features.hasTradeConnectorSpot || false;
+			this.isInvestigatable = features.isInvestigatable || false;
+			this.stashes = features.stashes || [];
+			this.waymarks = features.waymarks || [];
+			this.heapResource = features.heapResource || null;
+			this.examineSpots = features.examineSpots || [];
+			this.graffiti = features.graffiti || null;
 		},
 		
 		// Secondary attributes
 		
 		isOnCriticalPath: function (type) {
 			if (type) {
-				return this.criticalPathTypes.indexOf(type) >= 0;
+				return this.criticalPaths.indexOf(type) >= 0;
 			} else {
-				return this.criticalPathTypes.length > 0;
+				return this.criticalPaths.length > 0;
 			}
 		},
 		
 		canHaveCamp: function () {
 			return this.campable;
+		},
+
+		hasHazards: function () {
+			return this.hazards && this.hazards.hasHazards();
 		},
 		
 		getCondition: function () {

@@ -3,37 +3,17 @@ function (Ash, EnemyVO, PerkConstants) {
 
 	var EnemyConstants = {
 		
-		enemyTypes: {
-			global: "global",			// anywhere
-			nohazard: "nohazard",    	// sectors with no hazards
-			cold: "cold",            	// cold sectors
-			dark: "dark",            	// dark sectors
-			radiation: "radiation",  	// radiactive sectors
-			dense: "dense",          	// densely built sectors
-			sparse: "sparse",        	// sparsely built sectors
-			inhabited: "inhabited",  	// has fairly recent human habitation
-			uninhabited: "inhabited",	// no recent human habitation
-			sunlit: "sunlit",        	// sunlit sectors
-			toxic: "toxic",          	// polluted sectors
-			water: "water",          	// sectors with water (or neighbours)
-		},
-		
-		enemyDefinitions: {
-			global: [ ],
-			nohazard: [ ],
-			cold: [ ],
-			dark: [ ],
-			radiation: [ ],
-			dense: [ ],
-			sparse: [ ],
-			inhabited: [ ],
-			uninhabited: [ ],
-			sunlit: [ ],
-			toxic: [ ],
-			water: [ ],
-		},
+		enemyDefinitions: [],
+
+		enemyUsage: {}, // usage in current world, just for debug
 		
 		enemyTexts: {
+			apparition: {
+				nouns: [ "apparition", "entity" ],
+				groupNouns: [ "cloud", "group", "gathering" ],
+				verbsActive: [ "occupied by", "haunted by"],
+				verbsDefeated: [ "driven away", "defeated", "cleared"],
+			},
 			bandit: {
 				nouns: [ "bandit", "thug" ],
 				groupNouns: [ "mob", "gang"],
@@ -91,6 +71,9 @@ function (Ash, EnemyVO, PerkConstants) {
 		},
 		
 		enemyLoot: {
+			apparition: {
+				droppedResources: [ "water" ],
+			},
 			bandit: {
 				droppedResources: [ "food", "water", "rope" ],
 				droppedIngredients: [ "res_bands", "res_bottle", "res_hairpin", "res_leather", "res_silk", "res_tape" ],
@@ -101,11 +84,11 @@ function (Ash, EnemyVO, PerkConstants) {
 			},
 			bird: {
 				droppedResources: [ "food" ],
-				droppedIngredients: [ "res_bands", "res_bottle", "res_glowbug", "res_hairpin", "res_leather", "res_tape" ],
+				droppedIngredients: [ "res_bands", "res_bottle", "res_hairpin", "res_leather", "res_tape" ],
 			},
 			flora: {
 				droppedResources: [ "food" ],
-				droppedIngredients: [ "res_bottle", "res_glowbug", "res_silk" ],
+				droppedIngredients: [ "res_glowbug", "res_silk" ],
 			},
 			fungi: {
 				droppedResources: [ "food" ],
@@ -145,31 +128,40 @@ function (Ash, EnemyVO, PerkConstants) {
 		enemyDifficulties: {},
 		
 		getEnemy: function (enemyID) {
-			for (var type in this.enemyDefinitions) {
-				for (let i in this.enemyDefinitions[type]) {
-					var enemy = this.enemyDefinitions[type][i];
-					if (enemy.id == enemyID) {
-						return enemy;
-					}
+			let enemyVO = this.tryGetEnemy(enemyID);
+			if (enemyVO) return enemyVO;
+			log.w("no such enemy found: " + enemyID);
+			return null;
+		},
+
+		tryGetEnemy: function (enemyID) {
+			for (let i in this.enemyDefinitions) {
+				let enemy = this.enemyDefinitions[i];
+				if (enemy.id == enemyID) {
+					return enemy;
 				}
 			}
-			log.w("no such enemy found: " + enemyID);
 			return null;
 		},
 		
 		getAll: function () {
 			let result = [];
-			for (var type in this.enemyDefinitions ) {
-				for (let i in this.enemyDefinitions[type]) {
-					var enemy = this.enemyDefinitions[type][i];
-					result.push(enemy);
-				}
+			for (let i in this.enemyDefinitions) {
+				let enemy = this.enemyDefinitions[i];
+				result.push(enemy);
 			}
 			return result;
 		},
 		
 		getDifficulty: function (enemy) {
 			return this.enemyDifficulties[enemy.id];
+		},
+
+		getDropsCurrency: function (enemyVO) {
+			switch (enemyVO.enemyClass) {
+				case "bandit": return true;
+				default: return false;
+			}
 		}
 		
 	};

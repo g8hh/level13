@@ -2,7 +2,7 @@
 
 @header-side-width: 75px;
 @header-side-space: @header-side-width + 20px;
-@footer-height: 65px;
+@footer-height: 55px;
 
 html {
 	height: 100%;
@@ -15,41 +15,81 @@ body {
 	overflow-x: hidden;
 }
 
-.div-horizontal-space-filler {
-	visibility:hidden;
-	padding:1px;
-	height:1px
-}
-
 #grid-main {
 	height: 100%;
 }
 
-#unit-main, #footer {
+.layout-regular #unit-main, #footer {
 	padding-left: @header-side-space;
+}
+
+.layout-small #footer {
+	font-size: @font-size-small;
+}
+
+.layout-regular #mobile-header {
+	display: none;
+}
+
+.layout-small #header-side {
+	display: none;
+}
+
+.layout-small #grid-main-header {
+	display: none;
 }
 
 #header-side {
 	position: fixed;
-	width: @header-side-width;
 	z-index: 5;
+	width: @header-side-width;
 	margin-left: -@header-side-space;
 }
 
+#mobile-header {
+    position: fixed;
+    display: flex;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-content: center;
+    justify-content: center;
+    align-items: center;
+    z-index: 5;
+    top: 0;
+    left: 0;
+    padding: 10px 0px;
+	width: 100%;
+}
+
+#notification-player-mobile {
+	width: 95%;
+}
+
 #log {
-	max-width: 244px;
-	width: 25%;
 	padding-right: 50px;
 }
 
+.layout-regular #log {
+	max-width: 244px;
+	width: 25%;
+}
+
+.layout-small #log {
+	width: 100%;
+}
+
 #switch, #switch-content {
-	padding: 0;
+	padding: 0 !important;
 }
 
 #grid-switch {
 	margin: 0px !important;
 	border: 0;
 	padding: 0;
+}
+	
+ul.tabs {
+	padding: 0 !important;
 }
 
 #tab-header {
@@ -90,4 +130,17 @@ div.grid-content {
 div.grid-content .grid .unit {
 	padding-top: 0;
 	padding-bottom: 0;
+}
+
+.layout-small .hide-in-small-layout {
+	display: none;
+	visibility: hidden;
+}
+
+.hide-from-visual-layout {
+	position: absolute;
+	left: -10000px;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
 }

@@ -11,11 +11,10 @@ define([
 	'game/nodes/tribe/TribeUpgradesNode',
 	'game/components/sector/improvements/SectorImprovementsComponent',
 	'game/components/sector/SectorFeaturesComponent',
-	'game/components/common/LogMessagesComponent',
 	'game/components/type/LevelComponent',
 ], function (
 	Ash, GameGlobals, GlobalSignals, GameConstants, CampConstants, LogConstants, OccurrenceConstants, CampNode,
-	PlayerPositionNode, TribeUpgradesNode, SectorImprovementsComponent, SectorFeaturesComponent, LogMessagesComponent,
+	PlayerPositionNode, TribeUpgradesNode, SectorImprovementsComponent, SectorFeaturesComponent,
 	LevelComponent) {
 	var ReputationSystem = Ash.System.extend({
 	
@@ -65,7 +64,6 @@ define([
 				var sectorImprovements = campNode.entity.get(SectorImprovementsComponent);
 				
 				reputationComponent.accSources = [];
-				reputationComponent.targetValueSources = [];
 				reputationComponent.accumulation = 0;
 				
 				this.applyReputationAccumulation(campNode, time);
@@ -96,14 +94,16 @@ define([
 			
 			let isSunlit = sectorFeatures.sunlit;
 			
-			let targetReputation = GameGlobals.campHelper.getTargetReputation(campNode.entity, baseValue, sectorImprovements, resources, campNode.camp.population, levelComponent.populationFactor, danger, isSunlit);
+			let targetReputation = GameGlobals.campHelper.getTargetReputation(campNode.entity, baseValue, sectorImprovements, resources, campNode.camp.population, levelComponent.habitability, danger, isSunlit);
 			
 			let sources = targetReputation.sources;
 			let percentages = targetReputation.percentages;
 			let penalties = targetReputation.penalties;
+			let isStatic = targetReputation.isStatic;
 			
+			campNode.reputation.targetValueSources = [];
 			for (let key in sources) {
-				campNode.reputation.addTargetValueSource(key, sources[key], percentages[key] != 0, percentages[key]);
+				campNode.reputation.addTargetValueSource(key, sources[key], percentages[key] != 0, percentages[key], isStatic[key]);
 			}
 			
 			for (let key in penalties) {
@@ -123,20 +123,20 @@ define([
 			// improvements
 			var accRadio = sectorImprovements.getCount(improvementNames.radio) * CampConstants.REPUTATION_PER_RADIO_PER_SEC * GameConstants.gameSpeedCamp;
 			var accTargetDiff = reputationComponent.targetValue - reputationComponent.value;
-			if (Math.abs(accTargetDiff) < 0.01) accTargetDiff = 0;
+			if (Math.abs(accTargetDiff) < 0.001) accTargetDiff = 0;
 			if (accTargetDiff > 0) accTargetDiff = Math.min(10, Math.max(1, accTargetDiff));
 			if (accTargetDiff < 0) accTargetDiff = Math.max(-10, Math.min(-1, accTargetDiff));
-			var accTarget = (accTargetDiff < 0 ? accTargetDiff * 0.05 : accTargetDiff * 0.01) * GameConstants.gameSpeedCamp;
+			let accTarget = accTargetDiff * 0.01 * GameConstants.gameSpeedCamp;
 			
-			// level population factor
+			// level habitability
 			var accLevelPop = 0;
 			if (accTarget > 0) {
-				accLevelPop += accTarget * levelComponent.populationFactor - accTarget;
-				accTarget *= levelComponent.populationFactor;
+				accLevelPop += accTarget * levelComponent.habitability - accTarget;
+				accTarget *= levelComponent.habitability;
 			}
 			if (accRadio > 0) {
-				accLevelPop += accRadio * levelComponent.populationFactor - accRadio;
-				accRadio *= levelComponent.populationFactor;
+				accLevelPop += accRadio * levelComponent.habitability - accRadio;
+				accRadio *= levelComponent.habitability;
 			}
 			
 			// limits
@@ -154,14 +154,6 @@ define([
 			
 			// apply accumulation
 			reputationComponent.value += time * accSpeed;
-			if (accTargetDiff === 0) {
-				reputationComponent.value = reputationComponent.targetValue;
-			} else if (reputationComponent.value > reputationComponent.targetValue && accTargetDiff > 0) {
-				reputationComponent.value = reputationComponent.targetValue;
-			}
-			else if (reputationComponent.value < reputationComponent.targetValue && accTargetDiff < 0) {
-				reputationComponent.value = reputationComponent.targetValue;
-			}
 		},
 		
 		onImprovementBuilt: function () {
@@ -181,17 +173,24 @@ define([
 			var hadPenalty = this.lastUpdatePenalties[campID][penaltyType];
 			if (hasPenalty === hadPenalty) return;
 			
+			let playerPosition = this.playerNodes.head.position;
+			if (!playerPosition.inCamp) return false;
+			
 			if (hasPenalty && !hadPenalty) {
-				var playerPosition = this.playerNodes.head.position;
-				var campPosition = campNode.position;
+				let campPosition = campNode.position;
+				let messagePosition = campPosition.getPosition();
+				messagePosition.inCamp = true;
+				
 				if (playerPosition.level === campNode.position.level && playerPosition.sectorId() === campPosition.sectorId()) {
-					var logComponent = this.playerNodes.head.entity.get(LogMessagesComponent);
+					let msg = "";
 					switch (penaltyType) {
 						case CampConstants.REPUTATION_PENALTY_TYPE_DEFENCES:
-							logComponent.addMessage(LogConstants.MSG_ID_REPUTATION_PENALTY_DEFENCES, "People are anxious. They say the camp needs better defences.");
+							msg = "People are anxious. They say the camp needs better defences.";
+							GameGlobals.playerHelper.addLogMessageWithPosition(LogConstants.MSG_ID_REPUTATION_PENALTY_DEFENCES, msg, messagePosition);
 							break;
 						case CampConstants.REPUTATION_PENALTY_TYPE_HOUSING:
-							logComponent.addMessage(LogConstants.MSG_ID_REPUTATION_PENALTY_HOUSING, "People are unhappy because the camp is over-crowded.");
+							msg = "People are unhappy because the camp is over-crowded.";
+							GameGlobals.playerHelper.addLogMessageWithPosition(LogConstants.MSG_ID_REPUTATION_PENALTY_HOUSING, msg, messagePosition);
 							break;
 					}
 				}

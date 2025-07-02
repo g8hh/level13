@@ -1,15 +1,17 @@
 // A system that updates the player's resource storage capacity based on their currently equipped bag
 define([
 	'ash',
+	'text/Text',
 	'game/GameGlobals',
 	'game/GlobalSignals',
 	'game/constants/TutorialConstants',
-	'game/nodes/LogNode'
-], function (Ash, GameGlobals, GlobalSignals, TutorialConstants, LogNode) {
+	'game/nodes/PlayerLocationNode',
+], function (Ash, Text, GameGlobals, GlobalSignals, TutorialConstants, PlayerLocationNode) {
 	
 	let TutorialSystem = Ash.System.extend({
 		
-		logNodes: null,
+		playerLocationNodes: null,
+
 		tutorialsByTrigger: {},
 		
 		context: "tutorial",
@@ -20,13 +22,17 @@ define([
 
 		addToEngine: function (engine) {
 			this.engine = engine;
-			this.logNodes = engine.getNodeList(LogNode);
-			this.registerListeners();
+
+			this.playerLocationNodes = engine.getNodeList(PlayerLocationNode);
+			
+			GlobalSignals.add(this, GlobalSignals.triggerSignal, this.onTrigger);
 		},
 
 		removeFromEngine: function (engine) {
 			this.engine = null;
-			this.logNodes = null;
+
+			this.playerLocationNodes = null;
+
 			GlobalSignals.removeAll(this);
 		},
 		
@@ -45,24 +51,12 @@ define([
 			}
 		},
 		
-		registerListeners: function () {
-			GlobalSignals.add(this, GlobalSignals.sectorScavengedSignal, function () { this.onTutorialTrigger("action_scavenge"); });
-			GlobalSignals.add(this, GlobalSignals.sectorScoutedSignal, function () { this.onTutorialTrigger("action_scout"); });
-			GlobalSignals.add(this, GlobalSignals.improvementBuiltSignal, function () { this.onTutorialTrigger("action_build"); });
-			GlobalSignals.add(this, GlobalSignals.actionCompletedSignal, function () { this.onTutorialTrigger("action_any"); });
-			GlobalSignals.add(this, GlobalSignals.playerEnteredCampSignal, function () { this.onTutorialTrigger("action_enter_camp"); });
-			GlobalSignals.add(this, GlobalSignals.actionRewardsCollectedSignal, function () { this.onTutorialTrigger("action_collect_rewards"); });
-			GlobalSignals.add(this, GlobalSignals.inventoryChangedSignal, function () { this.onTutorialTrigger("change_inventory"); });
-			GlobalSignals.add(this, GlobalSignals.playerPositionChangedSignal, function () { this.onTutorialTrigger("change_position"); });
-			GlobalSignals.add(this, GlobalSignals.featureUnlockedSignal, function () { this.onTutorialTrigger("feature_unlocked"); });
+		onTrigger: function (triggerID) {
+			this.triggerTutorials(triggerID);
 		},
 		
-		onTutorialTrigger: function (tutorialTriggerID) {
-			this.triggerTutorials(tutorialTriggerID);
-		},
-		
-		triggerTutorials: function (tutorialTriggerID) {
-			let tutorialIDs = this.tutorialsByTrigger[tutorialTriggerID];
+		triggerTutorials: function (triggerID) {
+			let tutorialIDs = this.tutorialsByTrigger[triggerID];
 			if (!tutorialIDs || tutorialIDs.length == 0) return;
 			
 			for (let i = 0; i < tutorialIDs.length; i++) {
@@ -95,7 +89,9 @@ define([
 			let startDelay = isNaN(tutorial.delay) ? 0 : tutorial.delay;
 			
 			setTimeout(() => {
-				this.showTutorialLogMessage(tutorialID, tutorial.logMessage);
+				if (!startDelay || this.isTutorialConditionsMet(tutorial.conditions)) {
+					this.showTutorialLogMessage(tutorialID, tutorial.logMessage, tutorial.logMessageParams);
+				}
 			}, startDelay);
 			
 			this.completeTutorial(tutorialID, tutorial.group);
@@ -187,8 +183,24 @@ define([
 			return GameGlobals.gameState.completedTutorialGroups[tutorialID] || null;
 		},
 		
-		showTutorialLogMessage: function (tutorialID, msg) {
-			this.logNodes.head.logMessages.addMessage(tutorialID, msg);
+		showTutorialLogMessage: function (tutorialID, msgID, msgParams) {
+			let p = {};
+			if (msgParams) {
+				for (let key in msgParams) {
+					p[key] = this.getTutorialMessageParam(msgParams[key]);
+				}
+			}
+			GameGlobals.playerHelper.addLogMessage(tutorialID, { textKey: msgID, textParams: p });
+		},
+
+		getTutorialMessageParam: function (paramID) {
+			let sector = this.playerLocationNodes.head ? this.playerLocationNodes.head.entity : null;
+
+			switch (paramID) {
+				case "RESOURCE_AT_CAPACITY": return GameGlobals.campHelper.getCampInventoryFullResource(sector);
+			}
+			log.w("unknown tutorial message param: " + paramID);
+			return "";
 		},
 		
 	});

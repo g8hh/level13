@@ -1,32 +1,27 @@
 define([
 	'ash',
+	'text/Text',
 	'game/GameGlobals',
 	'game/GlobalSignals',
 	'game/constants/GameConstants',
 	'game/constants/UIConstants',
-	'game/constants/PlayerStatConstants',
 	'game/constants/PlayerActionConstants',
-	'game/constants/PerkConstants',
 	'game/nodes/PlayerLocationNode',
 	'game/nodes/player/PlayerStatsNode',
-	'game/nodes/player/AutoPlayNode',
 ], function (Ash,
+	Text,
 	GameGlobals,
 	GlobalSignals,
 	GameConstants,
 	UIConstants,
-	PlayerStatConstants,
 	PlayerActionConstants,
-	PerkConstants,
 	PlayerLocationNode,
-	PlayerStatsNode,
-	AutoPlayNode,
+	PlayerStatsNode
 ) {
 	var UIOutElementsSystem = Ash.System.extend({
 		
 		playerLocationNodes: null,
 		playerStatsNodes: null,
-		autoPlayNodes: null,
 
 		engine: null,
 		
@@ -45,7 +40,6 @@ define([
 			this.engine = engine;
 			this.playerLocationNodes = engine.getNodeList(PlayerLocationNode);
 			this.playerStatsNodes = engine.getNodeList(PlayerStatsNode);
-			this.autoPlayNodes = engine.getNodeList(AutoPlayNode);
 			
 			GlobalSignals.add(this, GlobalSignals.slowUpdateSignal, this.slowUpdate);
 
@@ -57,9 +51,10 @@ define([
 			GlobalSignals.add(this, GlobalSignals.tabChangedSignal, this.onElementsVisibilityChanged);
 			GlobalSignals.add(this, GlobalSignals.elementCreatedSignal, this.onElementsVisibilityChanged);
 			GlobalSignals.add(this, GlobalSignals.actionButtonClickedSignal, this.onElementsVisibilityChanged);
-			GlobalSignals.add(this, GlobalSignals.elementToggledSignal, this.onElementsVisibilityChanged);
 			GlobalSignals.add(this, GlobalSignals.popupOpenedSignal, this.onElementsVisibilityChanged);
+			GlobalSignals.add(this, GlobalSignals.popupClosedSignal, this.onPopupClosed);
 			
+			GlobalSignals.add(this, GlobalSignals.elementToggledSignal, this.onElementToggled);
 			GlobalSignals.add(this, GlobalSignals.updateButtonsSignal, this.onButtonStatusChanged);
 			GlobalSignals.add(this, GlobalSignals.improvementBuiltSignal, this.onButtonStatusChanged);
 			GlobalSignals.add(this, GlobalSignals.actionStartedSignal, this.onButtonStatusChanged);
@@ -75,11 +70,12 @@ define([
 			this.engine = null;
 			this.playerLocationNodes = null;
 			this.playerStatsNodes = null;
-			this.autoPlayNodes = null;
 		},
 
 		update: function (time) {
 			if (GameGlobals.gameState.uiStatus.isHidden) return;
+			if (GameGlobals.gameState.uiStatus.isTransitioning) return;
+			
 			if (this.elementsVisibilityChanged) {
 				this.updateVisibleButtonsList();
 				this.updateVisibleProgressbarsList();
@@ -98,7 +94,7 @@ define([
 			}
 
 			if (this.elementsVisibilityChangedFrames > 5) {
-				log.w("element visibility updated too often");
+				if (GameConstants.isDebugVersion) log.w("element visibility updated too often");
 			}
 
 			this.updateProgressbars();
@@ -135,15 +131,14 @@ define([
 
 		updateButtonDisabledState: function ($button, action, buttonStatus, buttonElements) {
 			var playerVision = this.playerStatsNodes.head.vision.value;
-			var isAutoPlaying = this.autoPlayNodes.head;
-			return GameGlobals.buttonHelper.updateButtonDisabledState($button, buttonElements.container, playerVision, isAutoPlaying);
+			return GameGlobals.buttonHelper.updateButtonDisabledState($button, buttonElements.container, playerVision);
 		},
 
 		updateButtonCallout: function ($button, action, buttonStatus, buttonElements, isHardDisabled) {
-			var $enabledContent = buttonElements.calloutContentEnabled;
-			var $disabledContent = buttonElements.calloutContentDisabled;
+			let $enabledContent = buttonElements.calloutContentEnabled;
+			let $disabledContent = buttonElements.calloutContentDisabled;
 
-			var costs = GameGlobals.playerActionsHelper.getCosts(action);
+			let costs = GameGlobals.playerActionsHelper.getCosts(action);
 
 			let costsStatus = {};
 			costsStatus.hasCostBlockers = false;
@@ -154,14 +149,18 @@ define([
 			let disabledReason = GameGlobals.playerActionsHelper.checkRequirements(action, false, sectorEntity).reason;
 			let hasCooldown = GameGlobals.buttonHelper.hasButtonCooldown($button);
 			let isDisabledOnlyForCooldown = !disabledReason && hasCooldown;
-			let showDescription = disabledReason != PlayerActionConstants.DISABLED_REASON_MAX_IMPROVEMENT_LEVEL;
+			let showDescription = disabledReason.baseReason != PlayerActionConstants.DISABLED_REASON_MAX_IMPROVEMENT_LEVEL;
 			
 			this.updateButtonCalloutDescription($button, action, buttonStatus, buttonElements, showDescription);
+
+			// override empty callout for buttons that normally don't have callout but show disabled reason when disabled (such as "take all")
+			let showReason = isHardDisabled || isDisabledOnlyForCooldown;
+			buttonElements.container.parent().toggleClass("container-btn-action-disabled-reason", showReason);
 			
 			if (!isHardDisabled && !isDisabledOnlyForCooldown) {
 				GameGlobals.uiFunctions.toggle($enabledContent, true, this.buttonCalloutSignalParams);
 				GameGlobals.uiFunctions.toggle($disabledContent, false, this.buttonCalloutSignalParams);
-				var hasCosts = action && costs && Object.keys(costs).length > 0;
+				let hasCosts = action && costs && Object.keys(costs).length > 0;
 				if (hasCosts) {
 					this.updateButtonCalloutCosts($button, action, buttonStatus, buttonElements, costs, costsStatus);
 				}
@@ -169,7 +168,7 @@ define([
 				this.updateButtonSpecialReqs($button, action, buttonElements);
 			} else {
 				let lastReason = buttonStatus.disabledReason;
-				let displayReason = disabledReason;
+				let displayReason = Text.t(disabledReason);
 				if (isDisabledOnlyForCooldown) {
 					displayReason = "Cooldown " + PlayerActionConstants.getCooldown(action) + "s";
 				}
@@ -189,6 +188,14 @@ define([
 		
 		updateButtonCalloutDescription: function ($button, action, buttonStatus, buttonElements, showDescription) {
 			let baseActionID = GameGlobals.playerActionsHelper.getBaseActionID(action);
+			let dynamicDescription = GameGlobals.playerActionsHelper.getEffectDescription(action);
+			let showDynamicDescription = showDescription && dynamicDescription && dynamicDescription.length > 0;
+
+			GameGlobals.uiFunctions.toggle(buttonElements.dynamicDescriptionSpanContainer, showDynamicDescription);
+			if (showDynamicDescription) {
+				buttonElements.dynamicDescriptionSpan.html(dynamicDescription);
+			}
+
 			if (!GameGlobals.playerActionsHelper.isImproveBuildingAction(baseActionID) && !GameGlobals.playerActionsHelper.isBuildImprovementAction(baseActionID)) {
 				return;
 			}
@@ -206,29 +213,27 @@ define([
 		updateButtonCalloutRisks: function ($button, action, buttonElements) {
 			var sectorEntity = GameGlobals.buttonHelper.getButtonSectorEntity($button) || this.playerLocationNodes.head.entity;
 			var playerVision = this.playerStatsNodes.head.vision.value;
-			let perksComponent = this.playerStatsNodes.head.perks;
-			let playerLuck = perksComponent.getTotalEffect(PerkConstants.perkTypes.luck);
 			var hasEnemies = GameGlobals.fightHelper.hasEnemiesCurrentLocation(action);
 			var baseActionId = GameGlobals.playerActionsHelper.getBaseActionID(action);
 			var encounterFactor = GameGlobals.playerActionsHelper.getEncounterFactor(action);
 			var sectorDangerFactor = GameGlobals.sectorHelper.getDangerFactor(sectorEntity);
 
-			var injuryRisk = PlayerActionConstants.getInjuryProbability(action, playerVision, playerLuck);
-			var injuryRiskBase = injuryRisk > 0 ? PlayerActionConstants.getInjuryProbability(action) : 0;
-			var injuryRiskVision = injuryRisk - injuryRiskBase;
-			var inventoryRisk = PlayerActionConstants.getLoseInventoryProbability(action, playerVision, playerLuck);
-			var inventoryRiskBase = inventoryRisk > 0 ? PlayerActionConstants.getLoseInventoryProbability(action) : 0;
-			var inventoryRiskVision = inventoryRisk - inventoryRiskBase;
+			let inCamp = GameGlobals.playerHelper.isInCamp();
+
+			let injuryRisk = inCamp ? 0 : GameGlobals.playerActionsHelper.getInjuryProbability(action);
+			let inventoryRisk = inCamp ? 0 : GameGlobals.playerActionsHelper.getLoseInventoryProbability(action);
+			
 			var fightRisk = hasEnemies ? PlayerActionConstants.getRandomEncounterProbability(baseActionId, playerVision, sectorDangerFactor, encounterFactor) : 0;
 			var fightRiskBase = fightRisk > 0 ? PlayerActionConstants.getRandomEncounterProbability(baseActionId, playerVision, sectorDangerFactor, encounterFactor) : 0;
 			var fightRiskVision = fightRisk - fightRiskBase;
+			
 			GameGlobals.uiFunctions.toggle(buttonElements.calloutRiskInjury, injuryRisk > 0, this.buttonCalloutSignalParams);
 			if (injuryRisk > 0)
-				buttonElements.calloutRiskInjuryValue.text(UIConstants.roundValue((injuryRiskBase + injuryRiskVision) * 100, true, true));
+				buttonElements.calloutRiskInjuryValue.text(UIConstants.roundValue(injuryRisk * 100, true, true));
 
 			GameGlobals.uiFunctions.toggle(buttonElements.calloutRiskInventory, inventoryRisk > 0, this.buttonCalloutSignalParams);
 			if (inventoryRisk > 0)
-				buttonElements.calloutRiskInventoryValue.text(UIConstants.roundValue((inventoryRiskBase + inventoryRiskVision) * 100, true, true));
+				buttonElements.calloutRiskInventoryValue.text(UIConstants.roundValue(inventoryRisk * 100, true, true));
 
 			GameGlobals.uiFunctions.toggle(buttonElements.calloutRiskFight, fightRisk > 0, this.buttonCalloutSignalParams);
 			if (fightRisk > 0)
@@ -300,29 +305,34 @@ define([
 		},
 
 		updateInfoCallouts: function () {
+			let sys = this;
 			$.each(this.elementsCalloutContainers, function () {
-				let targets = $(this).children(".info-callout-target");
-				if (targets.length > 0) {
-					var visible = true;
-					$.each(targets, function() {
-						visible = visible && $(this).css("display") !== "none";
-					});
-					$.each(targets.children(), function () {
-						visible = visible && $(this).css("display") !== "none";
-					});
-					GameGlobals.uiFunctions.toggle($(this), visible, this.buttonCalloutSignalParams);
-				}
-				let sideTargets = $(this).children(".info-callout-target-side");
-				if (sideTargets.length > 0) {
-					$(this).children(".info-callout").css("left", $(this).width() + "px")
-				}
+				sys.updateInfoCallout($(this));
 			});
+		},
+
+		updateInfoCallout: function ($elem) {
+			let targets = $elem.children(".info-callout-target");
+			if (targets.length > 0) {
+				var visible = true;
+				$.each(targets, function() {
+					visible = visible && $elem.css("display") !== "none";
+				});
+				$.each(targets.children(), function () {
+					visible = visible && $elem.css("display") !== "none";
+				});
+				GameGlobals.uiFunctions.toggle($elem, visible, this.buttonCalloutSignalParams);
+			}
+			let sideTargets = $elem.children(".info-callout-target-side");
+			if (sideTargets.length > 0) {
+				$elem.children(".info-callout").css("left", $elem.width() + "px")
+			}
 		},
 
 		// TODO performance
 		updateButtonContainer: function (button, isVisible) {
 			$(button).siblings(".cooldown-reqs").css("display", isVisible ? "block" : "none");
-			var container = $(button).parent().parent(".callout-container");
+			let container = $(button).parent().parent(".callout-container");
 			if (container) {
 				$(container).css("display", $(button).css("display"));
 			}
@@ -334,10 +344,19 @@ define([
 			this.buttonElements = [];
 			var buttonActions = [];
 			var sys = this;
+
+			let currentTab = GameGlobals.gameState.uiStatus.currentTab;
+
 			$.each($("button.action"), function () {
-				var $button = $(this);
-				var action = $button.attr("action");
-				var isVisible = GameGlobals.uiFunctions.isElementToggled($button) === true || GameGlobals.uiFunctions.isElementVisible($button);
+				let $button = $(this);
+
+				let buttonTab = $button.data("tab");
+				if (buttonTab && buttonTab !== currentTab) return;
+
+				let action = $button.attr("action");
+
+				let isVisible = GameGlobals.uiFunctions.isElementToggled($button) === true || GameGlobals.uiFunctions.isElementVisible($button);
+
 				sys.updateButtonContainer($button, isVisible);
 				if (isVisible) {
 					sys.elementsVisibleButtons.push($button);
@@ -357,7 +376,11 @@ define([
 					elements.calloutRiskFight = elements.calloutContentEnabled.children(".action-risk-fight");
 					elements.calloutRiskFightValue = elements.calloutRiskFight.children(".action-risk-value");
 					elements.calloutSpecialReqs = elements.calloutContentEnabled.children(".action-special-reqs")
+					elements.calloutCostsCountdownContainer = elements.calloutContentEnabled.children(".action-costs-countdown-container")
+					elements.calloutCostsCountdown = elements.calloutCostsCountdownContainer.children(".action-costs-countdown")
 					elements.descriptionSpan = elements.calloutContent.children(".action-description");
+					elements.dynamicDescriptionSpanContainer = elements.calloutContent.children(".action-effect-description-container");
+					elements.dynamicDescriptionSpan = elements.dynamicDescriptionSpanContainer.children(".action-effect-description");
 					elements.cooldownReqs = $button.siblings(".cooldown-reqs");
 					elements.cooldownDuration = $button.children(".cooldown-duration");
 					elements.cooldownAction = $button.children(".cooldown-action");
@@ -384,6 +407,17 @@ define([
 				}
 			});
 		},
+
+		onElementToggled: function ($elem, show, params) {
+			this.onElementsVisibilityChanged($elem, show, params);
+
+			$elem = $($elem);
+
+			// if an info callout target was toggled, toggle its parent container asap instead of waiting for general update
+			if ($elem && $elem.hasClass("info-callout-target")) {
+				this.updateInfoCallout($elem.parent(".callout-container"))
+			}
+		},
 		
 		onElementsVisibilityChanged: function (elements, show, params) {
 			if (params && params.isButtonCalloutElement) {
@@ -394,6 +428,11 @@ define([
 		
 		onButtonStatusChanged: function () {
 			this.buttonStatusChanged = true;
+		},
+
+		onPopupClosed: function () {
+			this.elementsVisibilityChanged = true;
+			GameGlobals.uiFunctions.updateButtonCooldowns();
 		}
 		
 	});

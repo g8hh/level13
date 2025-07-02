@@ -2,47 +2,59 @@
 define([
 	'ash',
 	'game/GameGlobals',
+	'game/constants/GameConstants',
 	'game/constants/ItemConstants',
 	'game/constants/LocaleConstants',
 	'game/constants/PerkConstants',
 	'game/constants/PositionConstants',
 	'game/constants/SectorConstants',
 	'game/constants/ExplorationConstants',
+	'game/constants/MovementConstants',
+	'game/constants/TextConstants',
+	'game/constants/TradeConstants',
 	'game/nodes/sector/SectorNode',
 	'game/nodes/PlayerLocationNode',
 	'game/components/common/CampComponent',
 	'game/components/common/PositionComponent',
-	'game/components/common/VisitedComponent',
 	'game/components/common/RevealedComponent',
+	'game/components/common/VisitedComponent',
+	'game/components/sector/PassagesComponent',
 	'game/components/sector/SectorControlComponent',
 	'game/components/sector/SectorStatusComponent',
 	'game/components/sector/SectorFeaturesComponent',
 	'game/components/sector/SectorLocalesComponent',
+	'game/components/sector/improvements/SectorImprovementsComponent',
 	'game/components/sector/improvements/WorkshopComponent',
 	'game/components/type/LevelComponent',
 ], function (
 	Ash,
 	GameGlobals,
+	GameConstants,
 	ItemConstants,
 	LocaleConstants,
 	PerkConstants,
 	PositionConstants,
 	SectorConstants,
 	ExplorationConstants,
+	MovementConstants,
+	TextConstants,
+	TradeConstants,
 	SectorNode,
 	PlayerLocationNode,
 	CampComponent,
 	PositionComponent,
-	VisitedComponent,
 	RevealedComponent,
+	VisitedComponent,
+	PassagesComponent,
 	SectorControlComponent,
 	SectorStatusComponent,
 	SectorFeaturesComponent,
 	SectorLocalesComponent,
+	SectorImprovementsComponent,
 	WorkshopComponent,
 	LevelComponent
 ) {
-	var SectorHelper = Ash.Class.extend({
+	let SectorHelper = Ash.Class.extend({
 		
 		engine: null,
 		sectorNodes: null,
@@ -52,6 +64,24 @@ define([
 			this.engine = engine;
 			this.sectorNodes = engine.getNodeList(SectorNode);
 			this.playerLocationNodes = engine.getNodeList(PlayerLocationNode);
+		},
+
+		getCurrentActionSector: function (sector) {
+			if (sector) return sector;
+			if (this.playerLocationNodes && this.playerLocationNodes.head) return this.playerLocationNodes.head.entity;
+			if (this.sectorNodes.head) return this.sectorNodes.head.entity;
+			return null;
+		},
+
+		getCurrentActionPosition: function (sector) {
+			sector = this.getCurrentActionSector(sector);
+			return sector ? sector.get(PositionComponent) : null;
+		},
+
+		isVisited: function (sector) {
+			if (!sector) return false;
+			let statusComponent = sector.get(SectorStatusComponent);
+			return statusComponent.visited || sector.has(VisitedComponent);
 		},
 		
 		getTextFeatures: function (sector) {
@@ -74,10 +104,12 @@ define([
 			
 			var features = Object.assign({}, featuresComponent);
 			features.level = position.level;
+			features.sectorX = position.sectorX;
+			features.sectorY = position.sectorY;
 			features.levelOrdinal = levelOrdinal;
 			features.campOrdinal = campOrdinal;
 			features.condition = featuresComponent.getCondition();
-			features.populationFactor = levelComponent.populationFactor;
+			features.habitability = levelComponent.habitability;
 			features.raidDangerFactor = levelComponent.raidDangerFactor;
 			features.isSurfaceLevel = position.level == GameGlobals.gameState.getSurfaceLevel();
 			features.isGroundLevel = position.level == GameGlobals.gameState.getGroundLevel();
@@ -86,6 +118,7 @@ define([
 			features.radiation = featuresComponent.hazards.radiation;
 			features.poison = featuresComponent.hazards.poison;
 			features.debris = featuresComponent.hazards.debris;
+			features.flooded = featuresComponent.hazards.flooded;
 			return features;
 		},
 		
@@ -105,6 +138,8 @@ define([
 			result.radiation = Math.max(0, result.radiation - sectorStatus.getHazardReduction("radiation"));
 			result.poison = Math.max(0, result.poison - sectorStatus.getHazardReduction("poison"));
 			result.cold = Math.max(0, result.cold - sectorStatus.getHazardReduction("cold"));
+			result.flooded = Math.max(0, result.flooded - sectorStatus.getHazardReduction("flooded"));
+			result.territory = Math.max(0, result.territory - sectorStatus.getHazardReduction("territory"));
 			return result;
 		},
 		
@@ -122,6 +157,7 @@ define([
 			if (hazards.poison > 0 && hazards.poison > GameGlobals.itemsHelper.getMaxHazardPoisonForLevel(campOrdianl2, 0, false)) return true;
 			if (hazards.cold > 0 && hazards.cold > GameGlobals.itemsHelper.getMaxHazardColdForLevel(campOrdianl2, 0, false)) return true;
 			if (hazards.debris > 0) return true;
+			if (hazards.flooded > 0) return true;
 			
 			return false;
 		},
@@ -139,6 +175,7 @@ define([
 		},
 		
 		getHazardDisabledReason: function (featuresComponent, statusComponent, itemsComponent) {
+			if (GameConstants.cheatModeHazards) return null;
 			var hazards = this.getEffectiveHazards(featuresComponent, statusComponent);
 			if (hazards.radiation > itemsComponent.getCurrentBonus(ItemConstants.itemBonusTypes.res_radiation))
 				return "area too radioactive";
@@ -146,6 +183,8 @@ define([
 				return "area too polluted";
 			if (hazards.cold > itemsComponent.getCurrentBonus(ItemConstants.itemBonusTypes.res_cold))
 				return "area too cold";
+			if (hazards.flooded > itemsComponent.getCurrentBonus(ItemConstants.itemBonusTypes.res_water))
+				return "area too flooded";
 			return null;
 		},
 		
@@ -180,14 +219,48 @@ define([
 			}
 			return perkBonus;
 		},
+
+		getHazardsMovementMalus: function (sector) {
+			return this.getDebrisMovementMalus(sector) * this.getFloodedMovementMalus(sector);
+		},
 		
 		getDebrisMovementMalus: function (sector) {
 			let featuresComponent = sector.get(SectorFeaturesComponent);
 			return featuresComponent.hazards.debris > 0 ? 2 : 1;
 		},
+
+		getFloodedMovementMalus: function (sector) {
+			let featuresComponent = sector.get(SectorFeaturesComponent);
+			return featuresComponent.hazards.flooded > 0 ? 2 : 1;
+		},
 		
 		canHaveBeacon: function (sector) {
 			return GameGlobals.playerActionsHelper.isRequirementsMet("build_out_beacon", sector);
+		},
+
+		getNumUnscoutedLocales: function (sector) {
+			let statusComponent = sector.get(SectorStatusComponent);
+			let localesComponent = sector.get(SectorLocalesComponent);
+			return localesComponent.locales.length - statusComponent.getNumLocalesScouted();
+		},
+
+		getNumVisibleUnscoutedLocales: function (sector) {
+			if (!sector) return 0;
+			let statusComponent = sector.get(SectorStatusComponent);
+			if (!statusComponent.scouted) return 0;
+			let localesComponent = sector.get(SectorLocalesComponent);
+			return localesComponent.locales.length - statusComponent.getNumLocalesScouted();
+		},
+
+		isLocaleVisible: function (sector, localeVO) {
+			if (localeVO.type == localeTypes.grove) {
+				let forcedExplorerID = GameGlobals.explorerHelper.getForcedExplorerID();
+				if (forcedExplorerID == "gambler") {
+					let explorerVO = GameGlobals.playerHelper.getExplorerByID(forcedExplorerID);
+					return !explorerVO || explorerVO.inParty;
+				}
+			}
+			return true;
 		},
 				
 		hasSectorKnownResource: function (sector, resourceName, min) {
@@ -258,6 +331,39 @@ define([
 			return sectorFeatures.resourcesScavengable.getNames();
 		},
 		
+		hasScavengeableResource: function (resourceName) {
+			var discoveredResources = GameGlobals.sectorHelper.getLocationKnownResources();
+			if (discoveredResources.indexOf(resourceName) > 0) {
+				return true;
+			}
+			return false;
+		},
+		
+		hasCollectibleResource: function (resourceName, includeUnbuilt) {
+			var featuresComponent = this.playerLocationNodes.head.entity.get(SectorFeaturesComponent);
+			var statusComponent = this.playerLocationNodes.head.entity.get(SectorStatusComponent);
+			var improvements = this.playerLocationNodes.head.entity.get(SectorImprovementsComponent);
+			
+			var isScouted = statusComponent.scouted;
+				
+			if (isScouted && featuresComponent.resourcesCollectable.getResource(resourceName) > 0) {
+				return includeUnbuilt || improvements.getVO(this.getCollectorName(resourceName)).count > 0;
+			}
+			if (isScouted && resourceName == resourceNames.water && featuresComponent.hasSpring) {
+				return includeUnbuilt || improvements.getVO(this.getCollectorName(resourceName)).count > 0;
+			}
+		},
+		
+		getCollectorName: function (resourceName) {
+			if (resourceName == resourceNames.water) {
+				return improvementNames.collector_water;
+			}
+			if (resourceName == resourceNames.food) {
+				return improvementNames.collector_food;
+			}
+			return null;
+		},
+		
 		resourceSortFunc: function (a, b) {
 			if (a === b) return 0;
 			if (a === resourceNames.metal) return -1;
@@ -289,9 +395,8 @@ define([
 			var statusComponent = sector.get(SectorStatusComponent);
 			
 			if (statusComponent.scouted) {
-				var localesComponent = sector.get(SectorLocalesComponent);
 				var workshopComponent = sector.get(WorkshopComponent);
-				var unScoutedLocales = localesComponent.locales.length - statusComponent.getNumLocalesScouted();
+				var unScoutedLocales = this.getNumUnscoutedLocales(sector);
 				var sectorControlComponent = sector.get(SectorControlComponent);
 				var hasUnclearedWorkshop = workshopComponent != null && workshopComponent.isClearable && !sectorControlComponent.hasControlOfLocale(LocaleConstants.LOCALE_ID_WORKSHOP);
 				let canBeInvestigated = this.canBeInvestigated(sector);
@@ -308,7 +413,7 @@ define([
 				return SectorConstants.MAP_SECTOR_STATUS_REVEALED_BY_MAP;
 			}
 			
-			var isVisited = sector.has(VisitedComponent);
+			var isVisited = this.isVisited(sector);
 			if (isVisited) {
 				return SectorConstants.MAP_SECTOR_STATUS_VISITED_UNSCOUTED;
 			} else {
@@ -325,6 +430,20 @@ define([
 			let statusComponent = sector.get(SectorStatusComponent);
 			let featuresComponent = sector.get(SectorFeaturesComponent);
 			return (ignoreScoutedStatus || statusComponent.scouted) && (featuresComponent.isInvestigatable || statusComponent.isFallbackInvestigateSector) && statusComponent.getInvestigatedPercent() < 100;
+		},
+
+		getNumUnexaminedSpots: function (sector) {
+			let featuresComponent = sector.get(SectorFeaturesComponent);
+
+			let result = 0;
+			for (let i = 0; i < featuresComponent.examineSpots.length; i++) {
+				let spotID = featuresComponent.examineSpots[i];
+				if (!GameGlobals.levelHelper.isExamineSpotExamined(sector, spotID)) {
+					result++;
+				}
+			}
+
+			return result;
 		},
 		
 		getLocationDiscoveredItems: function (sector) {
@@ -365,6 +484,114 @@ define([
 			let sectorFeatures = sector.get(SectorFeaturesComponent);
 			return sectorFeatures.itemsScavengeable;
 		},
+
+		getPOIData: function (sector, poiType, isScouted) {
+			let sectorPosition = sector.get(PositionComponent);
+			let sectorFeatures = sector.get(SectorFeaturesComponent);
+			let sectorStatus = sector.get(SectorStatusComponent);
+			let sectorLocales = sector.get(SectorLocalesComponent);
+			let passagesComponent = sector.get(PassagesComponent);
+
+			if (isScouted !== null && typeof isScouted !== "undefined") {
+				if (isScouted && !sectorStatus.scouted) return null;
+				if (!isScouted && sectorStatus.scouted) return null;
+			}
+			
+			let campOrdinal = GameGlobals.gameState.getCampOrdinal(sectorPosition.level);
+
+			switch (poiType) {
+				case "campable":
+					if (sectorFeatures.campable) return {};
+					break;
+				case "settlement":
+					if (sectorLocales.hasLocale(localeTypes.tradingpartner)) {
+						let partner = TradeConstants.getTradePartner(campOrdinal);
+						return { nameTextKey: partner.name };
+					}
+					break;
+				case "spring":
+					if (sectorFeatures.hasSpring) {
+						let springName = TextConstants.getSpringName(sectorFeatures);
+						return { nameTextKey: springName };
+					}
+					break;
+				case "grove":
+					if (sectorLocales.hasLocale(localeTypes.grove)) {
+						return { nameTextKey: "grove" };
+					}
+					break;
+				case "ingredients": 
+					if (sectorFeatures.itemsScavengeable.length > 0) return {};
+					break;
+				case "hazard_pollution": 
+					if (sectorFeatures.hazards.poison > 0) return {};
+					break;
+				case "hazard_radiation": 
+					if (sectorFeatures.hazards.radiation > 0) return {};
+					break;
+				case "hazard_cold": 
+					if (sectorFeatures.hazards.cold > 0) return {};
+					break;
+				case "hazard_debris": 
+					if (sectorFeatures.hazards.debris > 0) return {};
+					break;
+				case "hazard_flooded": 
+					if (sectorFeatures.hazards.flooded > 0) return {};
+					break;
+				case "hazard_territory": 
+					if (sectorFeatures.hazards.territory > 0) return {};
+					break;
+				case "blocker_debris": 
+					if (this.hasBlockingBlockerInAnyDirection(sector, MovementConstants.BLOCKER_TYPE_DEBRIS)) return {};
+					break;
+				case "blocker_explosives": 
+					if (this.hasBlockingBlockerInAnyDirection(sector, MovementConstants.BLOCKER_TYPE_EXPLOSIVES)) return {};
+					break;
+				case "blocker_gap": 
+					if (this.hasBlockingBlockerInAnyDirection(sector, MovementConstants.BLOCKER_TYPE_GAP)) return {};
+					break;
+				case "blocker_gate": 
+					if (this.hasBlockingBlockerInAnyDirection(sector, MovementConstants.BLOCKER_TYPE_TOLL_GATE)) return {};
+					break;
+				case "blocker_waste": 
+					if (this.hasBlockingBlockerInAnyDirection(sector, MovementConstants.BLOCKER_TYPE_WASTE_RADIOACTIVE)) return {};
+					if (this.hasBlockingBlockerInAnyDirection(sector, MovementConstants.BLOCKER_TYPE_WASTE_TOXIC)) return {};
+					break;
+				case "passage":
+					if (passagesComponent.hasLevelPassage()) return {};
+					break;
+				case "center":
+					if (Math.abs(sectorPosition.sectorX) <= 1 && Math.abs(sectorPosition.sectorY) <= 1) return {};
+					break;
+				case "poi":
+					if (this.getNumUnscoutedLocales(sector) > 0) return {};
+					if (this.getNumUnexaminedSpots(sector) > 0) return {};
+					if (passagesComponent.hasLevelPassage()) return {};
+					break;
+				default:
+					log.w("no such poi type defined: " + poiType);
+					break;
+			}
+
+			return null;
+		},
+
+		hasBlockingBlockerInAnyDirection: function (sector, blockerType) {
+			let passagesComponent = sector.get(PassagesComponent);
+
+			for (let i in PositionConstants.getLevelDirections()) {
+				let direction = PositionConstants.getLevelDirections()[i];
+				let blocker = passagesComponent.getBlocker(direction);
+
+				if (!blocker) continue;
+				if (blocker.type != blockerType) continue;
+				if (!GameGlobals.movementHelper.isBlocked(sector, direction)) continue;
+
+				return true;
+			}
+
+			return false;
+		},
 		
 		isInDetectionRange: function (sector, itemBonusType) {
 			if (!this.playerLocationNodes.head) return false;
@@ -380,10 +607,18 @@ define([
 			if (!sectorEntity) return 1;
 			let levelEntity = GameGlobals.levelHelper.getLevelEntityForSector(sectorEntity);
 			let levelComponent = levelEntity.get(LevelComponent);
+			let sectorStatus = sectorEntity.get(SectorStatusComponent);
+			let sectorFeatures = sectorEntity.get(SectorFeaturesComponent);
+			let hazards = this.getEffectiveHazards(sectorFeatures, sectorStatus);
+
 			let result = 1;
 			if (!levelComponent.isCampable) {
 				result *= 2;
 			}
+			if (hazards.territory > 0) {
+				result *= 2;
+			}
+
 			return result;
 		}
 		

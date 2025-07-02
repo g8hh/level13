@@ -21,7 +21,7 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 			s = s.trim();
 			if (s.length > 0) {
 				if (s.endsWith(", ")) s = s.slice(0, -2);
-				if (s[s.length - 1] != ".") s = s + ".";
+				if (!this.isPunctuation(s[s.length - 1])) s = s + ".";
 				if (s[s.length - 1] != " ") s = s + " ";
 			}
 			return s;
@@ -30,9 +30,14 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 		pluralify: function (s) {
 			return Text.pluralify(s);
 		},
+
+		isPunctuation: function (c) {
+			return c == "." || c == "!" || c == "?";
+		},
 		
 		getActionName: function (baseActionID) {
 			switch (baseActionID) {
+				case "scavenge_heap": return "Scavenge";
 				case "scout_locale_i":
 				case "scout_locale_u":
 					return "Scout";
@@ -97,26 +102,28 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 					options[param].push(values[i]);
 				}
 			};
+
 			// - general: options always available
 			addOptions("a-street", [ "quiet" ]);
 			addOptions("n-building", [ "building", "structure" ]);
 			addOptions("n-buildings", [ "buildings" ]);
-			addOptions("a-building", [ "towering", "tall", "gloomy", "abandoned", "nondescript", "small", "typical", "monolithic", "blocky", "massive", "colossal", "immense" ]);
+			addOptions("a-building", [ "towering", "tall", "gloomy", "abandoned", "nondescript", "small", "typical", "monolithic", "blocky", "massive", "colossal", "immense", "ghostly", "narrow", "bulky", "windowless" ]);
 			addOptions("an-decos", [ "stranded benches", "broken elevators" ]);
 			addOptions("an-items", [ "debris" ]);
+
 			// - sector type: determines n-sector and affects many others
 			switch (features.sectorType) {
 				case SectorConstants.SECTOR_TYPE_RESIDENTIAL:
-					addOptions("n-sector", [ "apartment complex" ]);
-					addOptions("a-street-past", [ "beautiful", "calm", "orderly", "relaxed" ]);
-					addOptions("n-building", [ "residential tower", "apartment house", "residential building with countless of rows of identical balconies", "housing block" ]);
-					addOptions("n-buildings", [ "residential towers", "apartments", "tower blocks", "identical residential towers" ]);
+					addOptions("n-sector", [ "apartment complex", "residential cluster", "residential quarter" ]);
+					addOptions("a-street-past", [ "beautiful", "calm", "orderly", "relaxed", "pleasant" ]);
+					addOptions("n-building", [ "residential tower", "apartment house", "residential building with countless of rows of identical balconies", "housing block", "residence" ]);
+					addOptions("n-buildings", [ "residential towers", "apartments", "tower blocks", "identical residential towers", "residences" ]);
 					addOptions("an-decos", [ "tram tracks" ]);
-					addOptions("a-building", [ "silent", "regular", "enourmous", "symmetrical" ]);
+					addOptions("a-building", [ "silent", "regular", "enormous", "symmetrical" ]);
 					addOptions("an-items", [ "garbage" ]);
 					break;
 				case SectorConstants.SECTOR_TYPE_INDUSTRIAL:
-					addOptions("n-sector", [ "industrial complex" ]);
+					addOptions("n-sector", [ "industrial complex", "industrial area", "industrial block" ]);
 					addOptions("a-street", [ "plain" ]);
 					addOptions("a-street-past", [ "high-security" ]);
 					addOptions("n-building", [ "power plant", "factory", "storehouse", "workshop" ]);
@@ -126,7 +133,7 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 					break;
 				case SectorConstants.SECTOR_TYPE_MAINTENANCE:
 					addOptions("n-sector", [ "transport hall", "maintenance area", "transport hub" ]);
-					addOptions("a-street", [ "strange", "chaotic", "cluttered" ]);
+					addOptions("a-street", [ "chaotic", "cluttered", "bare", "queitly thrumming" ]);
 					addOptions("a-street-past", [ "orderly" ]);
 					addOptions("n-building", [ "maintenace hub", "cable car station", "utility building", "water treatment station" ]);
 					addOptions("n-buildings", [ "utility buildings", "data centers", "control rooms", "automated control units" ]);
@@ -135,11 +142,11 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 					addOptions("an-items", [ "electrical wiring" ]);
 					break;
 				case SectorConstants.SECTOR_TYPE_COMMERCIAL:
-					addOptions("n-sector", [ "shopping mall", "shopping center", "office complex" ]);
-					addOptions("a-street-past", [ "glamorous", "buzzling" ]);
-					addOptions("n-building", [ "shopping center", "department store", "office building", "cafe", "bar" ]);
+					addOptions("n-sector", [ "shopping mall", "shopping center", "office complex", "commercial quarter" ]);
+					addOptions("a-street-past", [ "glamorous", "buzzling", "vibrant" ]);
+					addOptions("n-building", [ "shopping center", "department store", "office building", "cafe", "bar", "office building" ]);
 					addOptions("n-buildings", [ "shopping towers", "shopping malls", "shops", "stores", "offices", "office towers" ]);
-					addOptions("a-building", [ "empty", "deserted", "ransacked", "ensormous", "bizarre", "symmetrical" ]);
+					addOptions("a-building", [ "empty", "deserted", "ransacked", "ensormous", "bizarre", "symmetrical", "colourful" ]);
 					addOptions("an-decos", [ "empty fountains", "abandoned stalls" ]);
 					addOptions("an-items", [ "broken glass" ]);
 					break;
@@ -155,16 +162,17 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 					if (features.level > 13) addOptions("an-items", [ "research samples" ]);
 					break;
 				case SectorConstants.SECTOR_TYPE_SLUM:
-					addOptions("n-sector", [ "shanty town", "landfill site" ]);
+					addOptions("n-sector", [ "shanty town", "landfill site", "slum village" ]);
 					addOptions("a-street", [ "shabby", "chaotic" ]);
 					addOptions("a-street-past", [ "gloomy", "crowded", "lively" ]);
 					addOptions("n-building", [ "apartment building" ]);
-					addOptions("a-building", [ "abandoned", "sketchy", "depressing", "dishevelled" ]);
+					addOptions("a-building", [ "abandoned", "sketchy", "depressing", "dishevelled", "grey", "graffiti-covered", "haphazardly built" ]);
 					addOptions("n-buildings", [ "shacks", "huts", "slum residences", "apartment buildings", "residential towers that don't seem to have ever been connected to the grid" ]);
 					addOptions("an-decos", [ "collapsed shacks", "garbage piles" ]);
-					addOptions("an-items", [ "rusted pipes" ]);
+					addOptions("an-items", [ "rusted pipes", "empty cans" ]);
 					break;
 			}
+
 			// - building density
 			if (features.buildingDensity < 3) {
 				addOptions("n-street", [ "sector", "space", "square" ]);
@@ -174,47 +182,50 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 			} else if (features.buildingDensity < 6) {
 				addOptions("n-street", [ "square", "area", "hall" ]);
 				if (features.sectorType == SectorConstants.SECTOR_TYPE_RESIDENTIAL || features.sectorType == SectorConstants.SECTOR_TYPE_COMMERCIAL)
-					addOptions("n-street", [ "boulevard", "avenue" ]);
+					addOptions("n-street", [ "boulevard", "avenue", "arcade" ]);
 				if (features.sectorType != SectorConstants.SECTOR_TYPE_SLUM)
 					addOptions("n-street", [ "throughfare" ]);
 				addOptions("a-street", [ "wide", "spacious" ]);
 			} else if (features.buildingDensity < 9) {
-				addOptions("n-street", [ "street", "street", "alley", "complex", "sector" ]);
+				addOptions("n-street", [ "street", "street", "alley", "complex", "sector", "passageway", "arcade", "tunnel" ]);
 				addOptions("a-street", [ "narrow" ]);
 			} else {
 				addOptions("n-street", [ "corridor", "passage", "alley" ]);
 				addOptions("a-street", [ "narrow", "cramped", "dense", "low" ]);
 			}
+
 			// - wear and damage
 			switch (features.condition) {
 				case SectorConstants.SECTOR_CONDITION_RUINED:
 					addOptions("a-street", [ "ruined", "crumbling" ]);
 					addOptions("n-buildings", [ "crumbling ruins" ]);
 					addOptions("n-buildings", [ "crumbling ruins" ]);
-					addOptions("a-building", [ "ruined", "skeletal" ]);
+					addOptions("a-building", [ "ruined", "skeletal", "brick" ]);
 					break;
 				case SectorConstants.SECTOR_CONDITION_DAMAGED:
 					addOptions("a-street", [ "damaged", "destroyed", "broken" ]);
-					addOptions("a-building", [ "damaged" ]);
+					addOptions("a-building", [ "damaged", "badly damaged" ]);
 					addOptions("an-decos", [ "collapsed tunnels" ]);
 					break;
 				case SectorConstants.SECTOR_CONDITION_ABANDONED:
-					addOptions("a-street", [ "desolate", "bleak" ]);
-					addOptions("a-building", [ "decaying", "desolate", "slowly decomposing", "long since abandoned", "crumbling" ]);
+					addOptions("a-street", [ "desolate", "bleak", "eerily quiet" ]);
+					addOptions("a-building", [ "decaying", "desolate", "slowly decomposing", "long since abandoned", "crumbling", "long-abandoned", "wooden", "dull" ]);
 					break;
 				case SectorConstants.SECTOR_CONDITION_WORN:
-					addOptions("a-building", [ "desolate", "abandoned", "bleak" ]);
+					addOptions("a-building", [ "desolate", "abandoned", "bleak", "colorful" ]);
 					break;
 				case SectorConstants.SECTOR_CONDITION_RECENT:
-					addOptions("a-building", [ "well-preserved", "modern" ]);
+					addOptions("a-building", [ "well-preserved", "modern", "comfortable looking", "reinforced plastic", "brick", "glass-walled" ]);
 					break;
 				case SectorConstants.SECTOR_CONDITION_MAINTAINED:
-					addOptions("a-street", [ "modern", "slick" ]);
+					addOptions("a-street", [ "modern", "slick", "geometric", "humming" ]);
+					addOptions("a-building", [ "aereographite", "screen-covered" ]);
 					break;
 			}
+
 			// - sunlight
 			if (features.sunlit) {
-				addOptions("a-street", [ "sunlit", "sun-swathed", "dazzling", "bright", "windy", "" ]);
+				addOptions("a-street", [ "sunlit", "sun-swathed", "dazzling", "bright", "windy" ]);
 				if (features.wear < 5 && features.damage < 5)
 					addOptions("a-street", [ "gleaming", "glistening" ]);
 				if (features.wear > 5)
@@ -224,9 +235,10 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 			} else {
 				addOptions("a-street", [ "dark", "dark", "gloomy", "shadowy", "dull" ]);
 			}
+
 			// - hazards
 			if (features.hazards.cold > 0) {
-				addOptions("a-street", [ "cold" ]);
+				addOptions("a-street", [ "cold", "drafty" ]);
 			}
 			if (features.hazards.radiation > 0) {
 				addOptions("a-street", [ "desolate" ]);
@@ -240,51 +252,72 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 				addOptions("a-building", [ "polluted" ]);
 				addOptions("na-items", [ "used medical masks" ]);
 			}
+			if (features.hazards.flooded > 0) {
+				addOptions("a-street", [ "flooded", "water-logged", "soggy", "watery" ]);
+				addOptions("a-building", [ "flooded" ]);
+			}
 			if (features.hazards.debris) {
 				addOptions("a-street", [ "destroyed", "damaged", "ruined" ]);
 				addOptions("n-building", [ "building" ]);
 				addOptions("a-building", [ "destroyed", "unrecognizable", "hollowed out" ]);
 				addOptions("na-items", [ "debris" ]);
 			}
+			if (features.hazards.territory) {
+				addOptions("na-items", [ "trash" ]);
+			}
+
 			// - level population
-			if (features.populationFactor == 0) {
+			if (features.habitability == 0) {
 				addOptions("a-street", [ "empty", "uninhabited", "desolate", "deserted", "dusty" ] )
 				addOptions("a-building", [ "long abandoned", "empty", "polluted" ]);
-			} else if (features.populationFactor < 1) {
+			} else if (features.habitability < 1) {
 				addOptions("a-street", [ "calm" ]);
 				addOptions("a-building", [ "empty" ]);
 			} else {
 				addOptions("a-building", [ "recently looted" ]);
 				addOptions("na-items", [ "signs of recent scavengers" ]);
 			}
+
 			// - level raid danger factor
 			if (features.raidDangerFactor > 1) {
 				addOptions("a-street", [ "looted" ]);
 				addOptions("a-building", [ "ransacked", "damaged", "plundered", "looted" ]);
 			}
+
 			// - level: architectural style / age
 			if (features.level < 6) {
 				addOptions("a-street", [ "ancient", "quaint" ]);
-				addOptions("a-building", [ "ancient", "obsolete", "quaint", "historical", "ornate", "baroque" ]);
+				addOptions("a-building", [ "ancient", "obsolete", "quaint", "historical", "ornate", "baroque", "decorative" ]);
+				addOptions("an-decos", [ "wooden elements" ])
 			} else if (features.level < 14) {
 				addOptions("a-street", [ "dated" ]);
 				addOptions("a-building", [ "dated" ]);
+				addOptions("an-decos", [ "faux windows" ])
 			} else if (features.level < 18) {
-				addOptions("a-street", [ "modern" ]);
-				addOptions("a-building", [ "modern", "stylish", "functional" ]);
+				if (features.sectorType != SectorConstants.SECTOR_TYPE_SLUM) {
+					addOptions("a-street", [ "modern" ]);
+					addOptions("a-building", [ "modern", "stylish", "functional" ]);
+				}
+			} else {
+				if (features.sectorType != SectorConstants.SECTOR_TYPE_SLUM) {
+					addOptions("a-street", [ "modern" ]);
+					addOptions("a-building", [ "glass-walled", "stylish" ]);
+				}
+				addOptions("an-decos", [ "dead signs" ])
 			}
 			
 			// 2) Build final result by selecting from options
-			let result = {};
-			var rand = (features.buildingDensity + features.wear + features.damage) / 30;
-			var pickRandom = function (options, excluded) {
+			let rand = Math.abs(Math.floor((features.buildingDensity + features.wear + features.damage) / 2) + features.sectorX + features.sectorY);
+
+			let pickRandom = function (options, excluded) {
 				if (!options || options.length <= 0) return "";
-				var validOptions = options.filter(option => !excluded.includes(option));
-				let i = Math.floor(rand * validOptions.length);
+				let validOptions = options.filter(option => !excluded.includes(option));
+				let i = rand % validOptions.length;
 				return validOptions[i];
 			};
-			var selectFromOptions = function (key, num) {
-				var selection = [];
+
+			let selectFromOptions = function (key, num) {
+				let selection = [];
 				for (let i = 0; i < num; i++) {
 					var sel = pickRandom(options[key], selection);
 					if (sel) {
@@ -296,6 +329,8 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 				}
 				return selection;
 			};
+
+			let result = {};
 			result["a-sectortype"] = features.sectorType;
 			result["n-sector"] = selectFromOptions("n-sector", 1);
 			result["n-street"] = selectFromOptions("n-street", 1);
@@ -310,37 +345,35 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 			return result;
 		},
 		
-		getPassageFoundMessage: function (passageVO, direction, sunlit, isBuilt) {
-			switch (passageVO.type) {
-				case MovementConstants.PASSAGE_TYPE_HOLE:
-					if (direction === PositionConstants.DIRECTION_UP) {
-						if (isBuilt) {
-							return "There is an elevator here.";
-						} else {
-							if (sunlit)
-								return "Far above in the ceiling there is a hole.";
-							else
-								return "Far above in the ceiling there is a hole, a mouth leading into blackness.";
-						}
-					} else {
-						if (isBuilt) {
-							return "There is a massive sinkhole here. An elevator has been built.";
-						} else {
-							if (sunlit)
-								return "There is a massive sinkhole here. A street is visible far, far below.";
-							else
-								return "There is a massive sinkhole here. Only vast emptiness is visible below.";
-						}
-					}
-				case MovementConstants.PASSAGE_TYPE_BLOCKED:
-					return "There seems to have been a staircase here once but it has been destroyed beyond repair.";
-				default:
-					if (isBuilt) {
-						return "There is a " + Text.addArticle(passageVO.name.toLowerCase()) + " here.";
-					} else {
-						return "There used to be " + Text.addArticle(passageVO.name.toLowerCase()) + " here.";
-					}
+		getPassageFoundMessage: function (passageVO, direction, sunlit, isBuilt) {			
+			let passageType = passageVO.type;
+			let textKey = "passage_found_" + passageType + "_message";
+
+			if (isBuilt) {
+				textKey = "passage_found_" + passageType + "_built_message";
 			}
+
+			if (passageVO.type == MovementConstants.PASSAGE_TYPE_HOLE) {
+				if (direction === PositionConstants.DIRECTION_UP) {
+					if (!isBuilt) {
+						if (sunlit) {
+							textKey = "passage_found_hole_up_sunlit_message";
+						} else {
+							textKey = "passage_found_hole_up_dark_message";
+						}
+					}
+				} else {
+					if (!isBuilt) {
+						if (sunlit) {
+							textKey = "passage_found_hole_down_sunlit_message";
+						} else {
+							textKey = "passage_found_hole_down_dark_message";
+						}
+					}
+				}
+			}
+
+			return Text.t("story.messages." + textKey);
 		},
 		
 		getPassageRepairedMessage: function (passageType, direction, sectorPosVO, numCampsBuilt) {
@@ -360,58 +393,54 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 		},
 				
 		getPassageDescription: function (passageVO, direction, isBuilt, isShort) {
-			var makeHighlight = function (content) { return "<span class='hl-functionality'>" + content + "</span>"; };
-			var directionName = (direction === PositionConstants.DIRECTION_UP ? " up" : " down");
+			let passageType = passageVO.type;
+			let passageTypeName = passageType;
+			let directionName = (direction === PositionConstants.DIRECTION_UP ? "up" : "down");
+
+			let result = "";
+
 			if (isShort) {
-				switch (passageVO.type) {
-					case MovementConstants.PASSAGE_TYPE_HOLE:
-						if (isBuilt) {
-							return "passage " + directionName + " (elevator) (built)";
-						} else {
-							return "hole in the level " + (direction === PositionConstants.DIRECTION_UP ? "ceiling" : "floor");
-						}
-					default:
-						var status = isBuilt ? "repaired" : "broken";
-						if (passageVO.type === MovementConstants.PASSAGE_TYPE_BLOCKED) {
-							status = "unrepairable"
-						}
-						return "passage " + directionName + " (" + passageVO.name.toLowerCase() + ") (" + status + ")";
-				}
+				let statusDescription = this.getPassageStatusDescription(passageVO, isBuilt);
+				result = Text.t("ui.map.passage_description_template_short", { direction: directionName, passageType: passageTypeName, status: statusDescription });
 			} else {
-				switch (passageVO.type) {
-					case MovementConstants.PASSAGE_TYPE_HOLE:
-						if (isBuilt) {
-							return "A brand new " + makeHighlight("elevator " + directionName) + " has been built here. ";
-						} else {
-							return "There is a " + makeHighlight("hole") + " in the level " + (direction === PositionConstants.DIRECTION_UP ? "ceiling" : "floor") + " here. ";
-						}
-					default:
-						var name = passageVO.name.toLowerCase() + " " + directionName;
-						var article = Text.getArticle(name);
-						var span = article + " " + makeHighlight(name);
-						var state;
-						if (isBuilt) {
-							state = "and it has been repaired";
-						} else if (passageVO.type === MovementConstants.PASSAGE_TYPE_ELEVATOR) {
-							state = "but it is broken";
-						} else if (passageVO.type === MovementConstants.PASSAGE_TYPE_BLOCKED) {
-							state = "but it is unrepairable";
-						} else {
-							state = "but it needs to be repaired";
-						}
-						return "There is " + span + " here, " + state + ". ";
-				}
+					let textKey = "ui.exploration.sector_status_passage_" + passageType + "_default_description";
+
+					if (isBuilt) {
+						textKey = "ui.exploration.sector_status_passage_" + passageType + "_built_description";
+					}
+
+					if (!isBuilt && passageType == MovementConstants.PASSAGE_TYPE_HOLE) {
+						textKey = "ui.exploration.sector_status_passage_hole_" + directionName + "_default_description";
+					}
+
+					result = Text.t(textKey, { direction: directionName });
+			}
+
+			return result;
+		},
+
+		getPassageStatusDescription: function (passageVO, isBuilt) {
+			switch (passageVO.type) {
+				case MovementConstants.PASSAGE_TYPE_PREBUILT:
+					return Text.t("ui.map.passage_status_prebuilt");
+				case MovementConstants.PASSAGE_TYPE_HOLE:
+					return isBuilt ? Text.t("ui.map.passage_status_built") : Text.t("ui.map.passage_status_hole");
+				case MovementConstants.PASSAGE_TYPE_ELEVATOR:
+					return isBuilt ? Text.t("ui.map.passage_status_repaired") : Text.t("ui.map.passage_status_broken");
+				case MovementConstants.PASSAGE_TYPE_STAIRWELL:
+					return isBuilt ? Text.t("ui.map.passage_status_repaired") : Text.t("ui.map.passage_status_broken");
 			}
 		},
 		
-		getReadBookMessage: function (itemVO, bookType, campOrdinal) {
+		getReadBookMessage: function (itemVO, bookType, campOrdinal, storyFlags) {
 			let features = {};
+			let itemName = ItemConstants.getItemDisplayName(itemVO);
 			features.bookType = bookType;
-			features.bookName = itemVO.name;
+			features.bookName = itemName;
 			features.bookLevel = itemVO.level || 1;
 			features.campOrdinal = campOrdinal;
 			features.randomSeed = itemVO.itemID;
-			let params = this.getBookTextParams(features);
+			let params = this.getBookTextParams(features, storyFlags);
 			
 			let template = DescriptionMapper.get("book-intro", features) + " " + DescriptionMapper.get("book-description", features);
 			let phrase = TextBuilder.build(template, params);
@@ -419,7 +448,7 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 			return phrase;
 		},
 		
-		getBookTextParams: function (features) {
+		getBookTextParams: function (features, storyFlags) {
 			var result = {};
 			
 			let levels = [];
@@ -428,6 +457,7 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 					levels.push("simple");
 					levels.push("dated");
 					levels.push("simplistic");
+					levels.push("biased");
 					break;
 				case 2:
 					levels.push("basic");
@@ -457,8 +487,10 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 					styles.push("scientific");
 					styles.push("formal");
 					styles.push("systematic");
+					styles.push("official");
 					break;
 				case ItemConstants.bookTypes.fiction:
+					styles.push("fantastical");
 					styles.push("inspiring");
 					styles.push("realistic");
 					styles.push("action-packed");
@@ -532,28 +564,38 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 					topics.push("the infrastructure of the City");
 					topics.push("the ocean");
 					topics.push("forests");
-					topics.push("ventilation in the City");
+					topics.push("ventilation systems in the City");
 					topics.push("medicine");
 					topics.push("electronics");
 					topics.push("how to protect yourself from the harmful effects of sunlight");
 					topics.push("how raw rubber is processed into many useful forms");
 					topics.push("cancer treatment");
 					topics.push("dna");
+					topics.push("greenhouse agriculture");
 					topics.push("evolution");
 					topics.push("plate tetonics");
 					topics.push("batteries");
 					topics.push("fossils");
+					topics.push("earthquakes");
 					topics.push("fermentation");
 					topics.push("viruses");
 					topics.push("the solar calendar");
+					topics.push("strange agricultural practices involving shamanism");
 					topics.push("radar technology");
 					topics.push("mathematics");
+					topics.push("the ambitious and un-realised plan the Dictatorship government had for expansion of the City");
 					topics.push("ecosystems");
 					topics.push("dentistry");
 					topics.push("computers");
+					topics.push("volcanoes");
+					topics.push("immortality through medical advancements");
+					topics.push("meteorites");
 					topics.push("the printing press");
 					topics.push("optical lenses");
+					topics.push("burning garbage for energy");
 					topics.push("fertilizers");
+					topics.push("water recycling facilities of the City");
+					topics.push("the possibility of eternal life thanks to advanced medicine");
 					
 					if (features.bookLevel == 1) {
 						topics.push("weapons of old");
@@ -571,12 +613,14 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 						topics.push("the planet's atmosphere");
 						topics.push("greenhouse maintenance");
 						topics.push("biochemistry");
+						topics.push("origin of the calendar, the movement of the sun and the moons");
 					}
 					if (features.bookLevel == 3) {
 						topics.push("electromagnetism");
 						topics.push("other planets");
 						topics.push("atomic weapons");
 						topics.push("dark matter");
+						topics.push("condensing and storing memories in a reusable format");
 					}
 					break;
 					
@@ -592,26 +636,39 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 					topics.push("ghosts in the uninhabited levels of the City");
 					topics.push("an ancient volcano");
 					topics.push("undersea travel");
+					topics.push("a monster that lives in the core of the planet.");
 					topics.push("a terrifying sea monster");
 					topics.push("the relationship of a boy and his bat");
+					topics.push("a war");
+					topics.push("an asteroid hitting the City");
+					topics.push("a Blue Army soldier and what she did after the collapse of the Dictatorship");
 					break;
 					
 				case ItemConstants.bookTypes.history:
 					topics.push("biological warfare");
 					topics.push("pre-City civilizations");
 					topics.push("the development of agriculture");
+					topics.push("rise of sea levels");
 					topics.push("the history of painting");
 					topics.push("the industrial revolution");
 					topics.push("the digital revolution");
+					topics.push("property rights to ground and mining sites");
+					topics.push("the population decline that was apparent in the City already before the Fall");
 					topics.push("a specific ethnic group");
 					topics.push("a famine soon after the founding of the City");
 					topics.push("a pre-City global legal organization");
 					topics.push("the history of mathematics");
 					topics.push("a great scientific project");
+					topics.push("the city states period");
+					topics.push("the city wars");
+					topics.push("class tensions");
+					topics.push("population crisis");
 					topics.push("shipwrecks");
+					topics.push("architectural styles on differetn Levels");
 					topics.push("slavery");
 					topics.push("the magical beliefs of people living in a specific part of the City");
 					topics.push("a historical dictatorship");
+					topics.push("sacred places in the City");
 					
 					if (features.bookLevel == 1) {
 						topics.push("the early City");
@@ -633,15 +690,24 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 					topics.push("an industrial process");
 					topics.push("transistors");
 					topics.push("nuclear reactors");
+					topics.push("nuclear waste containment");
+					topics.push("dead air");
+					topics.push("sundomes");
 					topics.push("radio");
+					topics.push("robotics");
+					topics.push("structures to stabilise the City against earthquakes");
+					topics.push("organ transfers");
 					topics.push("architecture");
 					topics.push("3D printing");
 					topics.push("machine control systems");
+					topics.push("mirror systems to distribute sunlight");
 					topics.push("robot design");
-					topics.push("elevators");
+					topics.push("elevators in the city");
 					topics.push("statistics");
+					topics.push("space flight");
 					topics.push("electronics");
 					topics.push("bridges");
+					topics.push("the Zones, Districts, Sectors and other divisions of the City");
 					
 					if (features.bookLevel == 1) {
 						topics.push("steel production");
@@ -665,6 +731,7 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 			switch (features.bookType) {
 				case ItemConstants.bookTypes.engineering:
 					objects.push("transistors");
+					objects.push("robots");
 					objects.push("machines you don't really understand, but it seems they were used to stabilise the City");
 					objects.push("a level-wide solar screen called the Ceiling");
 					objects.push("an irrigation system in a pre-Fall greenhouse");
@@ -716,6 +783,7 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 					themes.push("the life of a rich but lonely businessman");
 					themes.push("a boy's friendship with a robot");
 					themes.push("a computer program that made people forget who they were");
+					themes.push("forgotten places outside the City");
 					break;
 			}
 			result["c-theme"] = DescriptionMapper.pickRandom(themes, features);
@@ -739,11 +807,11 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 					facts.push("ancient civilizations based their calendars on four seasons");
 					facts.push("the City was originally built on swamp land");
 					facts.push("the City was inhabited by people from several old civilizations");
-					facts.push("there was something called the City Govermment");
 					facts.push("the City has experienced several famines during its history");
 					facts.push("the City was started to be built about 700 years ago");
 					facts.push("there was a time when all religions were banned in the City");
 					facts.push("the last underwater research station closed down decades before the Fall");
+					facts.push("several places in the City seem to be cursed due to a past injustice or horror");
 					break;
 				case ItemConstants.bookTypes.engineering:
 					facts.push("the lower levels of the City have unequal heights");
@@ -752,6 +820,7 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 					facts.push("sunlight used to be reflected deeper into the City with complex mirror systems");
 					facts.push("parts of the City are built into the mountain");
 					facts.push("the Ocean is deeply polluted");
+					facts.push("at its population peak, the City needed a complex cooling system just because of the amount of heat generated by its people");
 					// TODO get general facts like these in features / otherwise
 					// TODO add more and splt by level so these don't get repetitive
 					// facts.push("there are X levels in the City");
@@ -770,6 +839,8 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 					events.push("something called the Great Famine which took place a few decades before the book was written");
 					events.push("the establishment of the city-wide Government");
 					events.push("a major gardener uprising");
+					events.push("a scandal related to pollution outside the City");
+					events.push("a famine outside the City and the resulting immigration wave");
 					events.push("a nuclear power plant accident where waste was released to the lower levels of the City");
 					events.push("a major shift in agriculture from the Ground into the Greenhouses");
 					events.push("a series of terror attacks in the City");
@@ -778,6 +849,8 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 					events.push("women's suffrage");
 					events.push("a series of experiments on augmenting the human body with implants");
 					events.push("a scandal involving an influential politician");
+					events.push("a doomed attempt by a religious sect to go live outside the City a few decades ago");
+					events.push("building of a small manned space station orbiting the planet");
 					break;
 			}
 			result["c-event"] = DescriptionMapper.pickRandom(events, features);
@@ -787,7 +860,8 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 		
 		getReadNewspaperMessage: function (itemVO) {
 			let features = {};
-			features.itemName = itemVO.name;
+			let itemName = ItemConstants.getItemDisplayName(itemVO);
+			features.itemName = itemName;
 			features.itemLevel = itemVO.level || 1;
 			features.randomSeed = itemVO.itemID;
 			let params = this.getNewspaperTextParams(features);
@@ -838,6 +912,9 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 			topics.push("plant life surrounding the settlement");
 			topics.push("the erosion of the City");
 			topics.push("a haunted commercial center");
+			topics.push("various theories about the fate of the Governor");
+			topics.push("various theories about the real cause of the Fall");
+			topics.push("the health effects of moonlight");
 			switch (features.itemLevel) {
 				case 1:
 					topics.push("survival techniques in the Dark Levels");
@@ -856,6 +933,13 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 					break;
 			}
 			result["n-topic"] = DescriptionMapper.pickRandom(topics, features);
+
+			let facts = [];
+			facts.push("celebration of the new year was disrupted by flooding")
+			facts.push("a restaurant has opened on Level 17")
+			facts.push("drug trafficking continues on Level 19")
+			facts.push("disease strikes at a major settlement")
+			result["c-fact"] = DescriptionMapper.pickRandom(facts, features);
 			
 			return result;
 		},
@@ -866,7 +950,8 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 		
 		getReadResearchPaperMessage: function (itemVO) {
 			let features = {};
-			features.itemName = itemVO.name;
+			let itemName = ItemConstants.getItemDisplayName(itemVO);
+			features.itemName = itemName;
 			features.itemLevel = itemVO.level || 1;
 			features.randomSeed = itemVO.itemID;
 			let params = this.getResearchPaperTextParams(features);
@@ -888,7 +973,6 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 			facts.push("there was a research group investigating returning to live on the Surface before the Fall");
 			facts.push("the air outside of the City is dangerous to breathe");
 			facts.push("there was a top secret research group just before the Fall");
-			facts.push("the Fall involved a large explosion near the Surface of the City");
 			facts.push("the Government before the Fall was investing heavily in space research");
 			facts.push("prisoners were used in secret experiments related to space travel");
 			facts.push("the Government was compiling a classified list of priority individuals that would be evacuated in case of emergency");
@@ -904,9 +988,12 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 			topics.push("fuel calculations for a very large spacecraft");
 			topics.push("the number of people that are required for a sustainable settlement");
 			topics.push("a supervolcano");
-			topics.push("air quality");
+			topics.push("air quality in the City");
 			topics.push("the possibility of controlling the weather through singing");
 			topics.push("the effect of flowering plants on dice rolls");
+			topics.push("flooding in the Dark Levels");
+			topics.push("expected duration of emergency power in the City in different scenarios");
+			topics.push("improving the City's ability to withstand extreme weather such as hurricanes");
 			
 			result["n-topic"] = DescriptionMapper.pickRandom(topics, features);
 			
@@ -916,7 +1003,13 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 		getFoundStashMessage: function (stashVO) {
 			switch (stashVO.stashType) {
 				case ItemConstants.STASH_TYPE_ITEM:
-					return "Found an item stash.";
+					let itemID = stashVO.itemID;
+					let item = ItemConstants.getItemDefinitionByID(itemID);
+					if (item.type == ItemConstants.itemTypes.note) {
+						return "Found some interesting documents.";
+					} else { 
+						return "Found an item stash.";
+					}
 				case ItemConstants.STASH_TYPE_SILVER:
 					return "Found some coins.";
 				default:
@@ -963,74 +1056,74 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 					return "safe";
 			}
 		},
-		
-		getLogResourceText: function (resourcesVO) {
-			var msg = "";
-			var replacements = [];
-			var values = [];
+
+		getResourceDisplayName: function (resourceName) {
+			return Text.t("game.resources." + resourceName + "_name");
+		},
+
+		getHeapDisplayName: function (resourceName, features) {
+			let sectorType = features.sectorType;
+			let condition = features.getCondition();
+			let isBadCondition = condition == SectorConstants.SECTOR_CONDITION_RUINED || condition == SectorConstants.SECTOR_CONDITION_DAMAGED;
+			let isHumbleSectorType = sectorType == SectorConstants.SECTOR_TYPE_SLUM || sectorType == features.SECTOR_TYPE_MAINTENANCE || sectorType == SectorConstants.SECTOR_TYPE_INDUSTRIAL;
+			let isLivable = !features.hasHazards() && !features.sunlit && features.buildingDensity > 1 && features.buildingDensity < 8;
+
+			switch (resourceName) {
+				case resourceNames.metal:
+					if (features.buildingDensity > 3 && isBadCondition) return "collapsed building";
+					if (sectorType == SectorConstants.SECTOR_TYPE_MAINTENANCE) return "wrecked vehicle";
+					if (features.buildingDensity < 7 && isHumbleSectorType) return "landfill";
+					if (isLivable && !features.ground && condition == SectorConstants.SECTOR_CONDITION_ABANDONED) return "ruined camp";
+					return "metal heap";
+					
+			}
+			return "resource heap (" + resourceName + ")";
+		},
+
+		getResourcesTextVO: function (resourcesVO, currency) {
+			let list = [];
+
 			for (let key in resourceNames) {
-				var name = resourceNames[key];
-				var amount = resourcesVO.getResource(name);
-				msg += "$" + replacements.length + ", ";
-				replacements.push("#" + replacements.length + " " + name);
-				values.push(Math.round(amount));
+				let name = resourceNames[key];
+				let amount = resourcesVO.getResource(name);
+				if (amount > 0) {
+					let listFragment = { textKey: "ui.common.value_and_name", textParams: { value: Math.round(amount), name: name } };
+					list.push(listFragment);
+				}
 			}
-			msg = msg.slice(0, -2);
-			return { msg: msg, replacements: replacements, values: values };
+
+			if (currency > 0) {
+				let listFragment = { textKey: "ui.common.value_and_name", textParams: { value: Math.round(currency), name: "game.resources.currency_name" } };
+				list.push(listFragment);
+			}
+
+			return this.getListTextVO(list);
 		},
-		
-		getLogItemsText: function (items) {
-			var msg = "";
-			var replacements = [];
-			var values = [];
-			var loggedItems = {};
+
+		getItemsTextVO: function (items) {
+			let itemCounts = {};
+			let itemsByID = {};
+
 			for (let i = 0; i < items.length; i++) {
-				var item = items[i];
-				if (typeof loggedItems[item.id] === 'undefined') {
-					msg += "$" + replacements.length + ", ";
-					replacements.push("#" + replacements.length + " " + item.name.toLowerCase());
-					values.push(1);
-					loggedItems[item.id] = replacements.length - 1;
-				} else {
-					values[loggedItems[item.id]]++;
-				}
+				let item = items[i];
+				let itemID = item.id;
+				if (!itemCounts[itemID]) itemCounts[itemID] = 0;
+				itemCounts[itemID]++;
+				itemsByID[itemID] = item;
 			}
-			msg = msg.slice(0, -2);
-			if (Object.keys(loggedItems).length > 1) {
-				var lastCommaIndex = msg.lastIndexOf(",");
-				msg = msg.substring(0, lastCommaIndex) + " and" + msg.substring(lastCommaIndex + 1);
+
+			let list = [];
+
+			for (let itemID in itemCounts) {
+				let count = itemCounts[itemID];
+				if (count == 0) continue;
+				let item = itemsByID[itemID];
+				let itemName = ItemConstants.getItemDisplayNameKey(item);
+				let listFragment = { textKey: "ui.common.value_and_name", textParams: { value: count, name: itemName } };
+				list.push(listFragment);
 			}
-			return {msg: msg, replacements: replacements, values: values};
-		},
-		
-		createTextFromLogMessage: function (msg, replacements, values, includePeriod) {
-			var text = msg;
-			var value = 0;
-			var useValues = values.length > 0;
-			for (let i = 0; i < replacements.length; i++) {
-				if (useValues) {
-					value = values[i];
-				}
-				if (value > 0 || value.length > 0 || !useValues) {
-					text = text.replace("$" + i, replacements[i]);
-				} else {
-					text = text.replace("$" + i, "");
-				}
-				
-				if (useValues) {
-					text = text.replace("#" + i, values[i]);
-				}
-			}
-			
-			text = text.trim();
-			text = text.replace(/ ,/g, "");
-			text = text.replace(/^,/g, "");
-			text = text.replace(/,$/g, "");
-			text = text.replace(/\, \./g, ".");
-			if (includePeriod && text.substr(text.length - 1) !== "." && text.substr(text.length - 1) !== "!")
-				text += ".";
-			text = text.trim();
-			return text;
+
+			return this.getListTextVO(list);
 		},
 		
 		getFightChancesText: function (probability) {
@@ -1056,6 +1149,8 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 		},
 		
 		getLocaleName: function (locale, sectorFeatures, isShort) {
+			// TODO TRANSLATION figure out how to structure these for translation
+
 			let condition = sectorFeatures.getCondition();
 			let modifier = "";
 			let noun = "";
@@ -1084,10 +1179,15 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 			
 			// nouns and special modifiers
 			switch (locale.type) {
+				case localeTypes.compound:
+					modifier = "mysterious";
+					noun = "compound";
+					break;
 				case localeTypes.factory:
 					noun = sectorFeatures.surface ? "office" : "factory";
 					break;
 				case localeTypes.house:
+				case localeTypes.shelter:
 					if (condition === SectorConstants.SECTOR_CONDITION_DAMAGED) modifier = "destroyed";
 					if (condition === SectorConstants.SECTOR_CONDITION_WORN) modifier = "derelict";
 					noun = "house";
@@ -1098,6 +1198,30 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 				case localeTypes.grove:
 					modifier = "flourishing";
 					noun = "grove";
+					break;
+				case localeTypes.greenhouse:
+					modifier = "abandoned";
+					noun = "greenhouse";
+					break;
+				case localeTypes.depot:
+					modifier = "locked";
+					noun = "depot";
+					break;
+				case localeTypes.expedition:
+					modifier = "expedition";
+					noun = "camp";
+					break;
+				case localeTypes.isolationCenter:
+					modifier = "haughty";
+					noun = "facility";
+					break;
+				case localeTypes.seedDepot:
+					modifier = "government";
+					noun = "depot";
+					break;
+				case localeTypes.spacefactory:
+					modifier = "arcane";
+					noun = "facility";
 					break;
 				case localeTypes.market:
 					noun = sectorFeatures.level > 15 ? "shopping center" : "market";
@@ -1135,10 +1259,10 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 					if (condition === SectorConstants.SECTOR_CONDITION_RECENT) modifier = "cable car";
 					if (condition === SectorConstants.SECTOR_CONDITION_MAINTAINED) modifier = "train";
 					break;
-				case localeTypes.sewer:
+				case localeTypes.junkyard:
 					if (condition === SectorConstants.SECTOR_CONDITION_RECENT) modifier = "quiet";
 					if (condition === SectorConstants.SECTOR_CONDITION_MAINTAINED) modifier = "quiet";
-					noun = "sewer";
+					noun = "junkyard";
 					break;
 				case localeTypes.warehouse:
 					if (condition === SectorConstants.SECTOR_CONDITION_RECENT) modifier = "sturdy";
@@ -1150,21 +1274,37 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 					modifier = "foreign";
 					noun = "camp";
 					break;
-				case localeTypes.hut:
-				case localeTypes.hermit:
-					if (condition === SectorConstants.SECTOR_CONDITION_RECENT) modifier = "recently built";
-					if (condition === SectorConstants.SECTOR_CONDITION_MAINTAINED) modifier = "well-kept";
-					noun = "hut";
+				case localeTypes.clinic:
+					modifier = "provisional";
+					noun = "clinic";
 					break;
 				case localeTypes.library:
 					modifier = "abandoned";
-					if (sectorFeatures.level < 10) modifier = "ancient";
+					if (sectorFeatures.level < 10) modifier = "old";
 					noun = "library";
 					break;
 				case localeTypes.farm:
 					modifier = "overgrown";
 					if (sectorFeatures.level < 10) modifier = "ancient";
 					noun = "farm";
+					break;
+				case localeTypes.bunker:
+					modifier = "empty";
+					noun = "bunker";
+					break;
+				case localeTypes.restaurant:
+					noun = "restaurant";
+					break;
+				case localeTypes.hospital:
+					noun = "hospital";
+					break;
+				case localeTypes.grocery:
+				case localeTypes.store:
+					noun = "store";
+					break;
+				case localeTypes.office:
+					noun = "office";
+					break;
 				default:
 					log.w("unknown locale type: " + locale.type);
 					noun = "building";
@@ -1198,6 +1338,7 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 			if (featuresComponent.wear > 6 || featuresComponent.damage > 3) {
 				return "leaking water pipe";
 			}
+			
 			return "water tower";
 		},
 		
@@ -1258,9 +1399,10 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 			for (let i = 0; i < itemsScavengeable.length; i++) {
 				let id = itemsScavengeable[i];
 				if (knownItems.indexOf(id) < 0) continue;
-				let item = ItemConstants.getItemByID(id);
+				let item = ItemConstants.getItemDefinitionByID(id);
 				if (!item) continue;
-				validItems.push(item.name);
+				let itemName = ItemConstants.getItemDisplayName(item);
+				validItems.push(itemName);
 			}
 			
 			if (validItems.length == 0) {
@@ -1274,7 +1416,7 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 			return validItems.join(", ");
 		},
 		
-		getMovementBlockerName: function (blockerVO, enemiesComponent, gangComponent) {
+		getMovementBlockerName: function (blockerVO, gangComponent) {
 			switch (blockerVO.type) {
 				case MovementConstants.BLOCKER_TYPE_GANG:
 					let enemies = this.getAllEnemies(null, gangComponent);
@@ -1295,6 +1437,7 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 				case MovementConstants.BLOCKER_TYPE_GANG:
 					let enemies = this.getAllEnemies(null, gangComponent);
 					return "Fight " + this.getEnemyNoun(enemies, false, true);
+				case MovementConstants.BLOCKER_TYPE_TOLL_GATE: return "Pay toll";
 			}
 		},
 		
@@ -1319,6 +1462,8 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 				case MovementConstants.BLOCKER_TYPE_WASTE_RADIOACTIVE: return "cleared";
 				case MovementConstants.BLOCKER_TYPE_GANG: return "defeated";
 				case MovementConstants.BLOCKER_TYPE_DEBRIS: return "cleared";
+				case MovementConstants.BLOCKER_TYPE_EXPLOSIVES: return "cleared";
+				case MovementConstants.BLOCKER_TYPE_TOLL_GATE: return "paid";
 			}
 		},
 		
@@ -1381,21 +1526,41 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 		},
 		
 		getListText: function (list, max) {
+			let textPieceVO = this.getListTextVO(list, max);
+			return Text.compose(textPieceVO);
+		},
+
+		getListTextVO: function (list, max) {
+			let fragments = [];
+
 			if (!list || list.length == 0) {
-				return "none";
+				fragments.push( { textKey: "ui.common.list_template_zero", textParams: {} } );
 			} else if (list.length == 1) {
-				return list[0];
+				fragments.push( { textKey: "ui.common.list_template_one", textParams: { value: list[0] } } );
 			} else if (list.length == 2) {
-				return list[0] + " and " + list[1];
+				fragments.push( { textKey: "ui.common.list_template_two", textParams: { value1: list[0], value2: list[1] }});
 			} else if (max && list.length > max) {
+				// cropped list
 				let displayedList = list.slice(0, max);
 				let numHiddenItems = list.length - displayedList.length;
-				return displayedList.join(", ") + ", +" + numHiddenItems;
+				fragments.push( { textKey: "ui.common.list_template_cropped_start" });
+				for (let i = 0; i < displayedList.length; i++) {
+					if (i > 0) fragments.push( { textKey: "ui.common.list_template_cropped_delimiter" } );
+					fragments.push( { textKey: "ui.common.value_simple_template", textParams: { value: displayedList[i] } } );
+				}
+				fragments.push( { textKey: "ui.common.list_template_cropped_end", textParams: { numCropped: numHiddenItems } })
 			} else {
-				return list.join(", ");
+				// regular list
+				fragments.push( { textKey: "ui.common.list_template_many_start" });
+				for (let i = 0; i < list.length; i++) {
+					if (i > 0) fragments.push( { textKey: "ui.common.list_template_many_delimiter" } );
+					fragments.push( { textKey: "ui.common.value_simple_template", textParams: { value: list[i] } } );
+				}
+				fragments.push( { textKey: "ui.common.list_template_many_end" });
 			}
-		},
-		
+
+			return { textFragments: fragments };
+		}
 	};
 		
 	function initSectorTexts() {
@@ -1410,6 +1575,7 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 		
 		// brackets for values like building density, wear, damage
 		let b0 = [0, 0];
+		let b1 = [1, 10];
 		let bfull = [10, 10];
 		let b12 = [0, 5];
 		let b22 = [5, 10];
@@ -1428,13 +1594,17 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 		DescriptionMapper.add("sector-vision", { sectorType: wildcard }, "[a] [a-street] [n-street] between two [n-buildings] with some [a-building] [n-buildings] on either side");
 		DescriptionMapper.add("sector-vision", { sectorType: wildcard }, "[a] [a-sectortype] [n-street] with a few [a-building] [n-buildings]");
 		DescriptionMapper.add("sector-vision", { sectorType: wildcard }, "[a] [a-street] [n-sector] littered with [an-items] and [an-items]");
+		DescriptionMapper.add("sector-vision", { sectorType: wildcard }, "[a] [a-sectortype] [n-street] full of [an-decos]");
 		DescriptionMapper.add("sector-vision", { sectorType: wildcard }, "[a] [a-street] [n-street] lined with [a-building] [n-buildings]");
-		DescriptionMapper.add("sector-vision", { sectorType: wildcard }, "[a] [a-street] [n-street] surrounded by [n-buildings]");
+		DescriptionMapper.add("sector-vision", { sectorType: wildcard }, "[a] [a-street] [n-street] surrounded by some [n-buildings]");
 		DescriptionMapper.add("sector-vision", { sectorType: wildcard }, "[a] [a-street] [n-street] surrounded by [a-building] [n-buildings]");
-		DescriptionMapper.add("sector-vision", { sectorType: wildcard }, "[a] [n-street] with some [an-decos] and [a-building] [n-buildings]");
+		DescriptionMapper.add("sector-vision", { sectorType: wildcard }, "[a] [a-street] [n-street] dominated by a large [n-building]");
+		DescriptionMapper.add("sector-vision", { sectorType: wildcard }, "[a] [a-sectortype] [n-street] with some [an-decos] and [a-building] [n-buildings]");
 		DescriptionMapper.add("sector-vision", { sectorType: wildcard }, "[a] [a-street] [n-street] between some [n-buildings]");
+		DescriptionMapper.add("sector-vision", { sectorType: wildcard }, "[a] [a-sectortype] [n-street] which must have once been quite [a-street-past]");
+		DescriptionMapper.add("sector-vision", { sectorType: wildcard, level: lold }, "[a] [a-street] [n-street], seemingly untouched since before The Fall");
 		DescriptionMapper.add("sector-vision", { isSurfaceLevel: false }, "[a] [n-street] at the base of an enormous pillar supporting the level above");
-		DescriptionMapper.add("sector-vision", { isSurfaceLevel: false, wear: b12, sunlit: false, debris: b0 }, "[a] [a-street] [n-street] with long-abandoned buildings covered in strange moss");
+		DescriptionMapper.add("sector-vision", { isSurfaceLevel: false, wear: b12, sunlit: false, debris: b0, campable: false }, "[a] [a-street] [n-street] with long-abandoned buildings covered in strange moss");
 		DescriptionMapper.add("sector-vision", { buildingDensity: b0, isGroundLevel: false }, "A system of bridges and passages connecting several buildings around a dizzying opening to the level below");
 		DescriptionMapper.add("sector-vision", { buildingDensity: b12, isGroundLevel: false, campable: false }, "[a] [a-street] bridge over the level below with separate levels for tram tracks, utilities and pedestrians");
 		DescriptionMapper.add("sector-vision", { buildingDensity: b22 }, "Some kind of [a] [a-sectortype] complex with several narrow passages this way and that");
@@ -1449,42 +1619,58 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 		DescriptionMapper.add("sector-vision", { wear: b23, damage: b0 }, "A former [n-sector] with [a] [a-street-past] atmosphere lingering from its past");
 		DescriptionMapper.add("sector-vision", { wear: b23, damage: b0 }, "Once [a-street-past] [n-sector] with a few [an-decos] and [a] [a-building] [n-building] in the middle");
 		DescriptionMapper.add("sector-vision", { wear: b33 }, "[a] [a-building] building whose original purpose is hard to determine, stripped down to bare concrete");
+		DescriptionMapper.add("sector-vision", { wear: b33 }, "A [n-street] lined with tall narrow [a-sectortype] buildings in a forgotten architectural style, colorful under a layer of dust and wear");
 		DescriptionMapper.add("sector-vision", { buildingDensity: b22, wear: b33 }, "[a] [a-street] corridor with scattered trash from long-gone inhabitants");
 		DescriptionMapper.add("sector-vision", { wear: b33, isSurfaceLevel: false }, "[a] [a-street] [a-sectortype] [n-street] with a few large unidentifiable ruins looming over it");
 		DescriptionMapper.add("sector-vision", { wear: b33 }, "A completely ruined [a-sectortype] [n-street]");
 		DescriptionMapper.add("sector-vision", { wear: b33 }, "A rubble-covered [n-street] surrounded by the crumbling remains of [a-sectortype] buildings");
 		DescriptionMapper.add("sector-vision", { damage: b22 }, "A former [a-sectortype] sector where [n-buildings] and [n-buildings] lie in ruins");
+		DescriptionMapper.add("sector-vision", { damage: b22 }, "A badly damaged [n-sector] with a collapsed mid-level ceiling partially blocking the way");
 		DescriptionMapper.add("sector-vision", { damage: b33 }, "A completely destroyed [a-sectortype] [n-street]");
 		DescriptionMapper.add("sector-vision", { damage: b22, buildingDensity: b12 }, "A [a-street] [n-street] flanked by shells of destroyed buildings");
 		DescriptionMapper.add("sector-vision", { damage: b22, buildingDensity: b22 }, "A [n-street] so full of rubble it is difficult to pass through");
 		DescriptionMapper.add("sector-vision", { sectorType: t_R }, "A small [n-street] between some [a-building] apartment towers");
+		DescriptionMapper.add("sector-vision", { sectorType: t_R, level: lold }, "A historical residential sector with a spiderweb of paths and passages connecting [a-street] yards and balconies");
+		DescriptionMapper.add("sector-vision", { sectorType: t_R, wear: b22, level: lold }, "A long-abandoned, dictator era residential block with tall concrete walls and empty flowerbeds");
 		DescriptionMapper.add("sector-vision", { sectorType: t_R, buildingDensity: b23, isSurfaceLevel: false }, "A [a-street] [n-street] along an enormous wall stretching to the level ceiling above, dotted with [a-building] apartments");
 		DescriptionMapper.add("sector-vision", { sectorType: t_R, buildingDensity: b12, level: [6, 100] }, "A [n-street] flanked by several identical narrow residential towers");
 		DescriptionMapper.add("sector-vision", { sectorType: t_R, buildingDensity: b23 }, "A [n-street] outside a [a-building] residental building with a dizzying geometrical pattern of balconies");
 		DescriptionMapper.add("sector-vision", { sectorType: t_R, level: lmodern }, "A square surrounded by what must once have been rather comfortable apartment towers");
+		DescriptionMapper.add("sector-vision", { sectorType: t_R, level: lmodern }, "A [a-street] looking residential corridor with faux windows decorating the buildings");
 		DescriptionMapper.add("sector-vision", { sectorType: t_I }, "A street outside a huge [a-building] industrial complex");
+		DescriptionMapper.add("sector-vision", { sectorType: t_I }, "A street running along a covered train track");
+		DescriptionMapper.add("sector-vision", { sectorType: t_I, wear: b13 }, "A [a-street] path through a modern industrial area which must have still been in use until recently");
 		DescriptionMapper.add("sector-vision", { sectorType: t_I, buildingDensity: b13 }, "An empty square with some damaged containers and huge rusting mechanical arms");
 		DescriptionMapper.add("sector-vision", { sectorType: t_I, buildingDensity: b23 }, "[a] [n-street] between two blocks of what looks like [a-building] control rooms and offices");
 		DescriptionMapper.add("sector-vision", { sectorType: t_M }, "[a] [a-street] [n-street] behind [a] [n-building], the low ceiling criss-crossed by old wires and ducts");
+		DescriptionMapper.add("sector-vision", { sectorType: t_M, buildingDensity: b22 }, "A dusty, anonymous corridor between the some places in the City");
+		DescriptionMapper.add("sector-vision", { sectorType: t_M, buildingDensity: b22, damage:b22 }, "A damaged maintenance corridor flanked by broken cables like metal viscera");
 		DescriptionMapper.add("sector-vision", { sectorType: t_M }, "A desolate [n-street] criss-crossed with the remains of broken cable systems and maintenance ducts");
 		DescriptionMapper.add("sector-vision", { sectorType: t_M, isSurfaceLevel: false }, "A flooded passage underneath a massive bridge with [a-building] buildings looming in the distance");
 		DescriptionMapper.add("sector-vision", { sectorType: t_M }, "A forgotten space among machine-run City facilities, smooth surfaces broken only by ducts and pipes");
 		DescriptionMapper.add("sector-vision", { sectorType: t_M, level: lold, buildingDensity: b13 }, "A spacious square with a control room in the middle and old cable system lines disappearing in every direction");
+		DescriptionMapper.add("sector-vision", { sectorType: t_M, buildingDensity: b33 }, "An infestation of pipes and conduits hidden between the spaces meant for humans.");
 		DescriptionMapper.add("sector-vision", { sectorType: t_C }, "[a] [a-street] shopping street with the remains of various shops and cafés");
 		DescriptionMapper.add("sector-vision", { sectorType: t_C }, "A [n-street] between some commercial buildings, their [a-building] walls covered in a patchwork of dead screens");
+		DescriptionMapper.add("sector-vision", { sectorType: t_C }, "a commercial street with many small shops which seem to have been recently plundered");
 		DescriptionMapper.add("sector-vision", { sectorType: t_C, wear: b12 }, "A [a-street] [n-street] crowded with small shops, billboards and kiosks on multiple levels");
-		DescriptionMapper.add("sector-vision", { sectorType: t_C, buildingDensity: b12, isSurfaceLevel: false }, "A [n-street] where buildings are attached to the ceiling of the level like colossal stalactites");
+		DescriptionMapper.add("sector-vision", { sectorType: t_C, buildingDensity: b12, isSurfaceLevel: false }, "[a] [n-street] where buildings are attached to the ceiling of the level like colossal stalactites");
 		DescriptionMapper.add("sector-vision", { sectorType: t_C, buildingDensity: b12, isSurfaceLevel: false }, "A square built around a massive statue with [a-building] shop fronts surrounding it on every side");
 		DescriptionMapper.add("sector-vision", { sectorType: t_C, buildingDensity: b13 }, "A plaza under an elevated building with what must have once been a waterfall in the middle");
 		DescriptionMapper.add("sector-vision", { sectorType: t_C, buildingDensity: b13 }, "[a] wide fenced terrace attached to a massive tower overlooking the [a-street] streets below");
 		DescriptionMapper.add("sector-vision", { sectorType: t_C, buildingDensity: b13 }, "A round courtyard enclosed by a [a-building] office building");
 		DescriptionMapper.add("sector-vision", { sectorType: t_C, buildingDensity: b22, wear: b33 }, "[a] [a-building] building whose original purpose is hard to determine, stripped down to concrete, with an impressive spiral staircase in the middle");
+		DescriptionMapper.add("sector-vision", { sectorType: t_C, buildingDensity: b22, level: lmodern }, "A [a-street] commercial tunnel, its aereographite walls dotted with dead signs");
 		DescriptionMapper.add("sector-vision", { sectorType: t_P }, "[a] [n-street] dominated by huge building that looks like it was once a public facility of some kind");
 		DescriptionMapper.add("sector-vision", { sectorType: t_P }, "A stretch of abandoned highway with some smaller buildings on the side" );
+		DescriptionMapper.add("sector-vision", { sectorType: t_P, level: lold, buildingDensity: b12 }, "A round communal square with a defunct fountain and what must once have been a pleasant garden" );
+		DescriptionMapper.add("sector-vision", { sectorType: t_P, level: lmodern, buildingDensity: b12 }, "A public square where recently a temporary camp seems to have been set up and then abandoned" );
+		DescriptionMapper.add("sector-vision", { sectorType: t_P, level: lmodern, damage: b12 }, "A standard government office quarter with clear signs and big doors and reception areas, somehow welcoming and dehumanizing at the same time." );
 		DescriptionMapper.add("sector-vision", { sectorType: t_P, buildingDensity: b12 }, "[a] [a-street] [n-street] dominated a row of solemn statues" );
 		DescriptionMapper.add("sector-vision", { sectorType: t_P, buildingDensity: b12, wear: b22 }, "An ornamental hall which seems to have once been a big station, with a domed roof, massive chandelier and small booths on the sides" );
 		DescriptionMapper.add("sector-vision", { sectorType: t_P, buildingDensity: b13 }, "An open space that looks like it might have once been dedicated to a sport of some kind");
 		DescriptionMapper.add("sector-vision", { sectorType: t_P, buildingDensity: b33}, "[a] [a-street] [n-street] between two vast [n-buildings] with barely enough space fit through");
+		DescriptionMapper.add("sector-vision", { sectorType: t_S  }, "A cluster of small [a-building] residences have been extended and patched with different materials");
 		DescriptionMapper.add("sector-vision", { sectorType: t_S, buildingDensity: b33, wear: b22 }, "[a] [a-street] [n-street] surrounded (and in parts, covered) by [a-building] dwellings that have been abandoned for some time");
 		DescriptionMapper.add("sector-vision", { sectorType: t_S, buildingDensity: b13 }, "A wide square whose walls support a few make-shift shacks");
 		DescriptionMapper.add("sector-vision", { level: 14, buildingDensity: b13 }, "A huge hall that looks like it was used as some kind of a storage area, with automated hands rusting in the ceiling");
@@ -1515,6 +1701,9 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 		DescriptionMapper.add("sector-vision", { isSurfaceLevel: true, sectorType: t_I }, "[a] [a-street] with grand office buildings");
 		DescriptionMapper.add("sector-vision", { debris: b22 }, "A [n-street] full of debris");
 		DescriptionMapper.add("sector-vision", { debris: b22, sectorType: t_R }, "[a] [n-street] flanked by several completely destroyed residential towers");
+		DescriptionMapper.add("sector-vision", { flooded: b1, level: lmodern, sectorType: t_R }, "a flooded [n-sector] with signs of a hasty evacuation");
+		DescriptionMapper.add("sector-vision", { sectorType: wildcard, radiation: b1 }, "A regular [n-sector], abandoned long before the Fall due to the radiation.");
+		DescriptionMapper.add("sector-vision", { sectorType: wildcard, poison: b1 }, "A [a-street] [n-sector], abandoned and ghostly, left to rot due to the pollution.");
 
 		// descriptions when player has no vision (lamp/sunglasses)
 		DescriptionMapper.add("sector-novision", { sunlit: false, buildingDensity: b0 }, "A rare empty space inside the City; there is no floor or walls, no buildings, nothing. Only vast empty darkness");
@@ -1600,7 +1789,10 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 		DescriptionMapper.add("book-description", { bookLevel: l_1 }, "It gives you some insights into [n-topic].");
 		DescriptionMapper.add("book-description", { bookLevel: l_2 }, "It seems like a good source on [n-topic].");
 		DescriptionMapper.add("book-description", { bookLevel: l_3 }, "It is not easy to follow, but teaches you a lot about [n-topic].");
+		DescriptionMapper.add("book-description", { bookLevel: l_3 }, "It describes in great detail how [c-fact]");
+		DescriptionMapper.add("book-description", { bookLevel: l_3 }, "It describes in great detail [n-topic]");
 		
+		DescriptionMapper.add("book-description", { bookType: t_S }, "It is a cook book, not much of it relevant to the ingredients available today.");
 		DescriptionMapper.add("book-description", { bookType: t_S }, "It is [a] [a-level] textbook on [n-topic].");
 		DescriptionMapper.add("book-description", { bookType: t_S }, "It is [a] [a-style] textbook on [n-topic].");
 		DescriptionMapper.add("book-description", { bookType: t_S }, "It is [a] [a-good] textbook on [n-topic].");
@@ -1611,8 +1803,11 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 		DescriptionMapper.add("book-description", { bookType: t_S }, "It contains a description of [n-topic].");
 		DescriptionMapper.add("book-description", { bookType: t_S }, "You learn that [c-fact].");
 		DescriptionMapper.add("book-description", { bookType: t_S }, "You find out that [c-fact].");
+		DescriptionMapper.add("book-description", { bookType: t_S }, "It is a grammar book for the Kievan language.");
+		DescriptionMapper.add("book-description", { bookType: t_S }, "It is a grammar book for the Hansa language and its many dialects.");
 		DescriptionMapper.add("book-description", { bookType: t_S, bookLevel: l_1 }, "It is an introductory text on [n-topic].");
 		DescriptionMapper.add("book-description", { bookType: t_S, bookLevel: l_1 }, "It is [a] [a-bad] book on [n-topic].");
+		DescriptionMapper.add("book-description", { bookType: t_S, bookLevel: l_1 }, "It is a scout's handbook.");
 		DescriptionMapper.add("book-description", { bookType: t_S, bookLevel: l_1 }, "It contains some basic information about [n-topic].");
 		DescriptionMapper.add("book-description", { bookType: t_S, bookLevel: l_1 }, "A description of a refining process offers clues to the kind of building materials used commonly before the Fall.");
 		DescriptionMapper.add("book-description", { bookType: t_S, bookLevel: l_1 }, "It contains a catalog of known animal life in the 'Dark Levels'. You recognize several.");
@@ -1620,10 +1815,14 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 		DescriptionMapper.add("book-description", { bookType: t_S, bookLevel: l_2 }, "It contains a detailed description of a sun-based calendar system you are unfamiliar with.");
 		DescriptionMapper.add("book-description", { bookType: t_S, bookLevel: l_2 }, "You find details about [n-topic].");
 		DescriptionMapper.add("book-description", { bookType: t_S, bookLevel: l_2 }, "It contains detailed information about [n-topic].");
+		DescriptionMapper.add("book-description", { bookType: t_S, bookLevel: l_2 }, "It is a survivor's cookbook, and contains a few useful tips.");
+		DescriptionMapper.add("book-description", { bookType: t_S, bookLevel: l_2 }, "It is an old book exploring the possibility of extending the City to cover oceans.");
 		DescriptionMapper.add("book-description", { bookType: t_S, bookLevel: l_3 }, "You are spell-bound by a description of abundant plant-life on the Ground.");
 		DescriptionMapper.add("book-description", { bookType: t_S, bookLevel: l_3 }, "There is a wealth of information about [n-topic].");
 		DescriptionMapper.add("book-description", { bookType: t_S, bookLevel: l_3 }, "It contains a dissertation on [n-topic].");
 		DescriptionMapper.add("book-description", { bookType: t_S, bookLevel: l_3 }, "It contains in-depth information about [n-topic].");
+		DescriptionMapper.add("book-description", { bookType: t_S, bookLevel: l_3 }, "It is an ethical inquiry into lab grown meat versus keeping animals.");
+		DescriptionMapper.add("book-description", { bookType: t_S, bookLevel: l_3 }, "It explores the theoretical possibility of restarting human life outside of the City, and concludes that it would be nearly impossible.");
 		
 		DescriptionMapper.add("book-description", { bookType: t_E }, "It is [a] [a-level] textbook on [n-topic].");
 		DescriptionMapper.add("book-description", { bookType: t_E }, "It is [a] [a-style] textbook on [n-topic].");
@@ -1642,6 +1841,7 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 		DescriptionMapper.add("book-description", { bookType: t_E, bookLevel: l_2 }, "It contains detailed information about [n-topic].");
 		DescriptionMapper.add("book-description", { bookType: t_E, bookLevel: l_3 }, "There are technical drawings of [n-object]");
 		DescriptionMapper.add("book-description", { bookType: t_E, bookLevel: l_3 }, "It contains in-depth information about [n-topic].");
+		DescriptionMapper.add("book-description", { bookType: t_E, bookLevel: l_3 }, "It is a legal book about the rights and obligations of robots and rules for programming their behaviour.");
 		
 		DescriptionMapper.add("book-description", { bookType: t_H }, "You find details about [n-topic].");
 		DescriptionMapper.add("book-description", { bookType: t_H }, "It describes [n-topic].");
@@ -1652,16 +1852,32 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 		DescriptionMapper.add("book-description", { bookType: t_H }, "You learn that [c-fact].");
 		DescriptionMapper.add("book-description", { bookType: t_H }, "It seems that [c-fact].");
 		DescriptionMapper.add("book-description", { bookType: t_H }, "You learn about [c-event].");
+		DescriptionMapper.add("book-description", { bookType: t_H }, "It describes the explosive urbanization that led to the formation of the City.");
 		DescriptionMapper.add("book-description", { bookType: t_H }, "There is [a] [a-style] chapter on [c-event].");
 		DescriptionMapper.add("book-description", { bookType: t_H }, "A section on [c-event] catches your eye.");
 		DescriptionMapper.add("book-description", { bookType: t_H }, "There are several references to [c-event].");
 		DescriptionMapper.add("book-description", { bookType: t_H }, "It is [a] very [a-good] explanation of [n-topic].");
 		DescriptionMapper.add("book-description", { bookType: t_H }, "It is otherwise dull, but there is [a] [a-good] chapter on [n-topic].");
+		DescriptionMapper.add("book-description", { bookType: t_H }, "It is a history of Donbalism, a monotheistic religion that has been popular in the City throughout its history.");
+		DescriptionMapper.add("book-description", { bookType: t_H }, "It is a history of Ugurism, a fairly new religion combining bleak apocalyptic spiritualism and a worship of the City as a sentient entity.");
 		DescriptionMapper.add("book-description", { bookType: t_H }, "A reference to the \"currently uninhabited levels\" of the City offers a perspective on the pre-Fall City.");
+		DescriptionMapper.add("book-description", { bookType: t_H }, "It is an old book predicting a huge population explosion in the City, driven by immigration and medical breakthroughs.");
+		DescriptionMapper.add("book-description", { bookType: t_H }, "It describes the Dictatorship era, how it rose to power from the Utopia, waged war against the Western Government, and finally collapsed to rebellion.");
 		DescriptionMapper.add("book-description", { bookType: t_H, bookLevel: l_1 }, "It is an introductory text on [n-topic].");
+		DescriptionMapper.add("book-description", { bookType: t_H, bookLevel: l_1 }, "It is the autobiography of a famous athlete.");
 		DescriptionMapper.add("book-description", { bookType: t_H, bookLevel: l_1 }, "It mentions [c-event].");
+		DescriptionMapper.add("book-description", { bookType: t_H, bookLevel: l_1 }, "It discusses [c-event].");
+		DescriptionMapper.add("book-description", { bookType: t_H, bookLevel: l_1 }, "It discusses the utopistic roots of the City and how it was first built and imagined.");
+		DescriptionMapper.add("book-description", { bookType: t_H, bookLevel: l_1 }, "It is a biased exposition of the charitable work of a religious group.");
+		DescriptionMapper.add("book-description", { bookType: t_H, bookLevel: l_1 }, "It is a Government-produced text book in the history of the City, stressing class differences and the importance of unity.");
+		DescriptionMapper.add("book-description", { bookType: t_H, bookLevel: l_1 }, "It is an art book featuring architecture from the earliest levels of the City, quiant with windows and ventilation and greenery.");
+		DescriptionMapper.add("book-description", { bookType: t_H, bookLevel: l_1 }, "It is an overview of the Karboque architecture which the author believes is unjustly unpopular because of its associations with the Dictatorship era.");
+		DescriptionMapper.add("book-description", { bookType: t_H, bookLevel: l_1 }, "It is an ode to the architecture of the City States.");
 		DescriptionMapper.add("book-description", { bookType: t_H, bookLevel: l_2 }, "There is a long section about [c-event].");
+		DescriptionMapper.add("book-description", { bookType: t_H, bookLevel: l_2 }, "It is a history of the use of nuclear weapons, describing the first use by the City against a civilization outside, and then second use within the City by one City state against another.");
 		DescriptionMapper.add("book-description", { bookType: t_H, bookLevel: l_2 }, "It is a detailed exploration of [n-topic].");
+		DescriptionMapper.add("book-description", { bookType: t_H, bookLevel: l_2 }, "It discusses the splintering of the original City Government into multiple City States within the City, their flourishing, war and collapse.");
+		DescriptionMapper.add("book-description", { bookType: t_H, bookLevel: l_2 }, "It discusses the gradual depopulation of the planet outside the City, first driven by economy, then pollution, and finally floods.");
 		DescriptionMapper.add("book-description", { bookType: t_H, bookLevel: l_3 }, "You a wealth of information [c-event].");
 		DescriptionMapper.add("book-description", { bookType: t_H, bookLevel: l_3 }, "You a wealth of information [n-topic].");
 		DescriptionMapper.add("book-description", { bookType: t_H, bookLevel: l_3 }, "You find a detailed timeline of [c-event].");
@@ -1669,6 +1885,7 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 		DescriptionMapper.add("book-description", { bookType: t_F }, "There is [a] [a-good] story about [c-theme].");
 		DescriptionMapper.add("book-description", { bookType: t_F }, "It is a tale about [c-theme].");
 		DescriptionMapper.add("book-description", { bookType: t_F }, "It is about [c-theme].");
+		DescriptionMapper.add("book-description", { bookType: t_F }, "It is story about [n-topic].");
 		DescriptionMapper.add("book-description", { bookType: t_F }, "A story about [c-theme] stays with you.");
 		DescriptionMapper.add("book-description", { bookType: t_F }, "You are touched by a poem about [c-theme].");
 		DescriptionMapper.add("book-description", { bookType: t_F }, "It contains [a] [a-good] description of [c-theme].");
@@ -1677,12 +1894,15 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 		DescriptionMapper.add("book-description", { bookType: t_F }, "It is a very [a-style] portrayal of [n-topic].");
 		DescriptionMapper.add("book-description", { bookType: t_F }, "It is [a] [a-style] story about [n-topic].");
 		DescriptionMapper.add("book-description", { bookType: t_F }, "It a collection of [a-style] short stories about [n-topic].");
+		DescriptionMapper.add("book-description", { bookType: t_F }, "It is [a] [a-style] and [a-good] story about [n-topic].");
 		DescriptionMapper.add("book-description", { bookType: t_F, bookLevel: l_1 }, "It is a children's book featuring [n-topic].");
 		DescriptionMapper.add("book-description", { bookType: t_F, bookLevel: l_1 }, "It's a simple story about [c-theme].");
+		DescriptionMapper.add("book-description", { bookType: t_F, bookLevel: l_1 }, "It seems to be aimed at school children.");
 		DescriptionMapper.add("book-description", { bookType: t_F, bookLevel: l_2 }, "It is a classic novel about [n-topic].");
 		DescriptionMapper.add("book-description", { bookType: t_F, bookLevel: l_2 }, "It is a [a-style] novel about [c-theme].");
+		DescriptionMapper.add("book-description", { bookType: t_F, bookLevel: l_2 }, "It is a [a-style] story set in the time of the great Rebellion.");
 		DescriptionMapper.add("book-description", { bookType: t_F, bookLevel: l_3 }, "It is quite a heavy book on [n-topic].");
-		DescriptionMapper.add("book-description", { bookType: t_F, bookLevel: l_3 }, "It is a [a-good] story about [n-theme].");
+		DescriptionMapper.add("book-description", { bookType: t_F, bookLevel: l_3 }, "It is a [a-good] story about [c-theme].");
 	}
 	
 	function initNewspaperTexts() {
@@ -1696,6 +1916,10 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 		DescriptionMapper.add("newspaper-description", { itemLevel: wildcard }, "There is an opinion piece about [n-topic].");
 		DescriptionMapper.add("newspaper-description", { itemLevel: wildcard }, "There is a big story about [c-event].");
 		DescriptionMapper.add("newspaper-description", { itemLevel: wildcard }, "The issue revolves around [c-event].");
+		DescriptionMapper.add("newspaper-description", { itemLevel: wildcard }, "According to it, [c-fact].");
+		DescriptionMapper.add("newspaper-description", { itemLevel: wildcard }, "Contrary to rumours, [c-fact].");
+		DescriptionMapper.add("newspaper-description", { itemLevel: wildcard }, "It is a story about a settlement plagued by swarms of mechanical locusts, destroying all its stores including building materials whenever they appeared.");
+		DescriptionMapper.add("newspaper-description", { itemLevel: l_2 }, "It contains supposed stories of survivors who saw the Fall, all very different.");
 		DescriptionMapper.add("newspaper-description", { itemLevel: l_3 }, "There is an investigative story about [n-topic].");
 	}
 	

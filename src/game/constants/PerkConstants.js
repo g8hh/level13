@@ -18,7 +18,13 @@ define(['ash', 'game/vos/PerkVO'], function (Ash, PerkVO) {
 			thirst: "thirst",
 			tired: "tired",
 			blessed: "blessed",
-			healthPenalty: "health--",
+			blessedShort: "blessedShort",
+			cursed: "cursed",
+			stressed: "stressed",
+			accomplished: "accomplished",
+			grit: "grit",
+			restartBonusSmall: "restart-small",
+			restartBonusCompletion: "restart-completion",
 			healthBonus1: "health-1",
 			healthBonus2: "health-2",
 			healthBonus3: "health-3",
@@ -29,6 +35,7 @@ define(['ash', 'game/vos/PerkVO'], function (Ash, PerkVO) {
 			staminaBonus: "energized",
 			staminaBonusPenalty: "headache",
 			lightBeacon: "beacon",
+			lucky: "lucky",
 		},
 		
 		perkDefinitions: {
@@ -59,6 +66,8 @@ define(['ash', 'game/vos/PerkVO'], function (Ash, PerkVO) {
 			MEDIUM: "MEDIUM",
 			SERIOUS: "SERIOUS"
 		},
+
+		restartPerkIDs: [ "restart-small", "restart-completion" ],
 		
 		PERK_RECOVERY_FACTOR_REST: 3,
 		TIMER_DISABLED: -1,
@@ -102,7 +111,17 @@ define(['ash', 'game/vos/PerkVO'], function (Ash, PerkVO) {
 					};
 				}
 			}
+			log.w("found no perk with id: " + perkId)
 			return null;
+		},
+
+		getBlockingPerks: function (perkID) {
+			// returns perk ids that block perkID from being added
+			switch (perkID) {
+				case PerkConstants.perkIds.cursed: return [ PerkConstants.perkIds.blessed ];
+				case PerkConstants.perkIds.lucky: return [ PerkConstants.perkIds.cursed ];
+			}
+			return [];
 		},
 		
 		getRandomInjury: function (allowedTypes) {
@@ -129,10 +148,13 @@ define(['ash', 'game/vos/PerkVO'], function (Ash, PerkVO) {
 		},
 
 		isNegative: function (perk) {
+			if (!perk) return false;
 			switch (perk.type) {
 				case PerkConstants.perkTypes.injury:
 				case PerkConstants.perkTypes.visualNegative:
 					return true;
+				case PerkConstants.perkTypes.luck:
+					return perk.effect < 0;
 				case PerkConstants.perkTypes.movement:
 					return perk.effect > 1;
 				default:
@@ -147,19 +169,19 @@ define(['ash', 'game/vos/PerkVO'], function (Ash, PerkVO) {
 				case PerkConstants.perkStatus.DEACTIVATING:
 					return this.getPartialEffect(perk, perk.effectFactor);
 				case PerkConstants.perkStatus.ACTIVATING:
-					var activePercent = this.getPerkActivePercent(perk);
+					var activePercent = this.getPerkActivePercent(perk, true);
 					return this.getPartialEffect(perk, activePercent);
 			}
 		},
 		
-		getPerkActivePercent: function (perk) {
+		getPerkActivePercent: function (perk, round) {
 			if (perk.removeTimer != PerkConstants.TIMER_DISABLED)
 				return 1;
 			if (perk.startTimer == PerkConstants.TIMER_DISABLED)
 				return 1;
 			var duration = perk.startTimerDuration || perk.startTimer;
 			var activePercent = Math.min(1, 1 - perk.startTimer / duration);
-			activePercent = Math.round(activePercent * 10) / 10;
+			if (round) activePercent = Math.round(activePercent * 10) / 10;
 			return activePercent;
 		},
 		
@@ -198,25 +220,35 @@ define(['ash', 'game/vos/PerkVO'], function (Ash, PerkVO) {
 	};
 	
 	PerkConstants.perkDefinitions.health.push(new PerkVO(PerkConstants.perkIds.healthBonus1, "Healthy", "Health", 1.1, "img/items/health-positive.png"));
-	PerkConstants.perkDefinitions.health.push(new PerkVO(PerkConstants.perkIds.healthBonus2, "Augmented (L1)", "Health", 1.25, "img/items/health-positive.png"));
-	PerkConstants.perkDefinitions.health.push(new PerkVO(PerkConstants.perkIds.healthBonus3, "Augmented (L2)", "Health", 1.5, "img/items/health-positive.png"));
+	PerkConstants.perkDefinitions.health.push(new PerkVO(PerkConstants.perkIds.healthBonus2, "Health Augment (L1)", "Health", 1.25, "img/items/health-positive.png"));
+	PerkConstants.perkDefinitions.health.push(new PerkVO(PerkConstants.perkIds.healthBonus3, "Health Augment (L2)", "Health", 1.5, "img/items/health-positive.png"));
 	
 	PerkConstants.perkDefinitions.health.push(new PerkVO(PerkConstants.perkIds.hunger, "Hunger", "Health", 0.75, "img/items/health-negative.png"));
 	PerkConstants.perkDefinitions.health.push(new PerkVO(PerkConstants.perkIds.thirst, "Thirst", "Health", 0.75, "img/items/health-negative.png"));
+
 	PerkConstants.perkDefinitions.health.push(new PerkVO(PerkConstants.perkIds.hazardRadiation, "Radiation sickness", "Health", 0.25, "img/items/health-negative.png"));
 	PerkConstants.perkDefinitions.health.push(new PerkVO(PerkConstants.perkIds.hazardPoison, "Poisoned", "Health", 0.5, "img/items/health-negative.png"));
 	PerkConstants.perkDefinitions.health.push(new PerkVO(PerkConstants.perkIds.hazardCold, "Cold", "Health", 0.75, "img/items/health-negative.png"));
 	
 	PerkConstants.perkDefinitions.health.push(new PerkVO(PerkConstants.perkIds.encumbered, "Encumbered", "Movement", 1.5, "img/items/weight.png"));
+	PerkConstants.perkDefinitions.health.push(new PerkVO(PerkConstants.perkIds.accomplished, "Accomplished", "Movement", 0.8, "img/items/perk-accomplished.png"));
 	
 	PerkConstants.perkDefinitions.stamina.push(new PerkVO(PerkConstants.perkIds.staminaBonus, "Energized", "Stamina", 1, "img/items/health-positive.png"));
 	PerkConstants.perkDefinitions.stamina.push(new PerkVO(PerkConstants.perkIds.staminaBonusPenalty, "Headache", "Stamina", 0.9, "img/items/health-negative.png"));
+	PerkConstants.perkDefinitions.stamina.push(new PerkVO(PerkConstants.perkIds.stressed, "Stressed", "Stamina", 0.8, "img/items/health-negative.png"));
 	
 	PerkConstants.perkDefinitions.stamina.push(new PerkVO(PerkConstants.perkIds.lightBeacon, "Beacon", "Light", 20, "img/items/perk-light-beacon.png"));
 	
 	PerkConstants.perkDefinitions.luck.push(new PerkVO(PerkConstants.perkIds.blessed, "Blessed", "Luck", 20, "img/items/perk-blessed.png"));
+	PerkConstants.perkDefinitions.luck.push(new PerkVO(PerkConstants.perkIds.blessedShort, "Blessed", "Luck", 10, "img/items/perk-blessed.png"));
+	PerkConstants.perkDefinitions.luck.push(new PerkVO(PerkConstants.perkIds.lucky, "Lucky", "Luck", 5, "img/items/perk-blessed.png"));
+	PerkConstants.perkDefinitions.luck.push(new PerkVO(PerkConstants.perkIds.cursed, "Cursed", "Luck", -20, "img/items/perk-cursed.png"));
+	PerkConstants.perkDefinitions.luck.push(new PerkVO(PerkConstants.perkIds.restartBonusSmall, "Dreams of past lives", "Luck", 10, "img/items/perk-restart.png"));
+	PerkConstants.perkDefinitions.luck.push(new PerkVO(PerkConstants.perkIds.restartBonusCompletion, "Dreams of escape", "Luck", 30, "img/items/perk-restart.png"));
 	
 	PerkConstants.perkDefinitions.visualNegative.push(new PerkVO(PerkConstants.perkIds.tired, "Tired", "VisualN", 0, "img/items/perk-tired.png"));
+
+	PerkConstants.perkDefinitions.visualPositive.push(new PerkVO(PerkConstants.perkIds.grit, "Grit", "VisualP", 0, "img/items/perk-grit.png"));
 	
 	let woundBodyParts = ["Leg", "Arm", "Head", "Foot", "Chest", "Hand"];
 	for (let i = 0; i < woundBodyParts.length; i++) {
@@ -235,8 +267,8 @@ define(['ash', 'game/vos/PerkVO'], function (Ash, PerkVO) {
 	}
 	
 	let bruiseBodyParts = ["Leg", "Arm", "Shoulder", "Knee" ];
-	for (let i = 0; i < woundBodyParts.length; i++) {
-		let bodyPart = woundBodyParts[i];
+	for (let i = 0; i < bruiseBodyParts.length; i++) {
+		let bodyPart = bruiseBodyParts[i];
 		let id = "bruised-" + bodyPart.toLowerCase();
 		
 		PerkConstants.addInjuryDefinition(PerkConstants.injuryLevel.LIGHT, PerkConstants.injuryType.BLUNT, id, "Bruised " + bodyPart + " (light)");

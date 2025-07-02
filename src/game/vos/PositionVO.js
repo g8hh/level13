@@ -35,17 +35,44 @@ define(['ash'], function (Ash) {
 		getPosition: function () {
 			return this;
 		},
+
+		getPositionInCamp: function () {
+			return new PositionVO(this.level, this.sectorX, this.sectorY, true);
+		},
+
+		getPositionOutside: function () {
+			return new PositionVO(this.level, this.sectorX, this.sectorY, false);
+		},
 		
 		toInt: function () {
 			return this.level * 1000000 + this.sectorY * 1000 + this.sectorX;
 		},
 		
-		equals: function (positionVO, ignore) {
+		equals: function (positionVO) {
 			return this.level === positionVO.level && this.sectorX === positionVO.sectorX && this.sectorY === positionVO.sectorY;
 		},
 		
 		toString: function () {
 			return this.level + "." + this.sectorX + "." + this.sectorY + (this.inCamp ? " (in camp)" : "");
+		},
+
+		getCustomSaveObject: function () {
+			return this.level + "." + this.sectorX + "." + this.sectorY + "." + (this.inCamp ? 1 : 0);
+		},
+
+		customLoadFromSave: function (componentValues) {
+			if (typeof componentValues === "string") {
+				let parts = componentValues.split(".");
+				this.level = parseInt(parts[0]);
+				this.sectorX = parseInt(parts[1]);
+				this.sectorY = parseInt(parts[2]);
+				this.inCamp = parts[3] == 1 || false;
+			} else if (typeof componentValues === "object") {
+				this.level = parseInt(componentValues.level);
+				this.sectorX = parseInt(componentValues.sectorX);
+				this.sectorY = parseInt(componentValues.sectorY);
+				this.inCamp = componentValues.inCamp || false;
+			}
 		},
 		
 		clone: function () {

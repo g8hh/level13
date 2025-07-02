@@ -7,8 +7,15 @@ define(function () {
 		colors: {
 			dark: {
 				bg_page: "#202220",
+				bg_page_vision_level_0: "#121312",
+				bg_page_vision_level_1: "#121312",
+				bg_page_vision_level_2: "#161816",
+				bg_page_vision_level_3: "#1b1d1b",
+				bg_page_vision_level_4: "#202220",
 				bg_box_1: "#282a28",
 				bg_element_1: "#2f322f",
+				bg_warning: "#e6464626",
+				bg_warning_stronger: "#e6464659",
 				border_highlight: "#888",
 				map_background_default: "#202220",
 				map_background_surface: "#202220",
@@ -19,9 +26,11 @@ define(function () {
 				map_stroke_sector: "#ddee66",
 				map_stroke_sector_hazard: "#ee4444",
 				map_stroke_sector_cold: "#42e0f5",
+				map_stroke_sector_flooded: "#8a71f0",
 				map_stroke_sector_debris: "#999999",
 				map_stroke_sector_poison: "#ee6944",
 				map_stroke_sector_radiation: "#ee4485",
+				map_stroke_sector_territory: "#ee4444",
 				map_stroke_sector_sunlit: "#ffee11",
 				map_stroke_sector_lit: "#ddcc1133",
 				map_stroke_movementlines: "#3d3d3d",
@@ -30,6 +39,7 @@ define(function () {
 				map_fill_sector_scouted: "#999999",
 				map_fill_sector_cleared: "#c6c6c6",
 				map_fill_sector_cold: "#42e0f5",
+				map_fill_sector_flooded: "#8a71f0",
 				map_fill_sector_debris: "#999999",
 				map_fill_sector_poison: "#ee6944",
 				map_fill_sector_radiation: "#ee4485",
@@ -56,8 +66,15 @@ define(function () {
 			sunlit: {
 				// f4f2ea
 				bg_page: "#fdfdfd",
+				bg_page_vision_level_0: "#fdfdfd",
+				bg_page_vision_level_1: "#fdfdfd",
+				bg_page_vision_level_2: "#fdfdfd",
+				bg_page_vision_level_3: "#fdfdfd",
+				bg_page_vision_level_4: "#fdfdfd",
 				bg_box_1: "#efefef",
 				bg_element_1: "#e6e6e6",
+				bg_warning: "#fa000026",
+				bg_warning_stronger: "#fa000059",
 				border_highlight: "#888",
 				map_background_default: "#fdfdfd",
 				map_background_surface: "#fffff7",
@@ -69,7 +86,9 @@ define(function () {
 				map_stroke_sector_hazard: "#ee4444",
 				map_stroke_sector_poison: "#ee6944",
 				map_stroke_sector_radiation: "#EE4485",
+				map_stroke_sector_territory: "#ee4444",
 				map_stroke_sector_cold: "#42e0f5",
+				map_stroke_sector_flooded: "#8a71f0",
 				map_stroke_sector_debris: "#ee4444",
 				map_stroke_sector_sunlit: "#ffee11",
 				map_stroke_sector_lit: "#eedd11cc",
@@ -79,6 +98,7 @@ define(function () {
 				map_fill_sector_scouted: "#7E7E7E",
 				map_fill_sector_cleared: "#555",
 				map_fill_sector_cold: "#42e0f5",
+				map_fill_sector_flooded: "#8a71f0",
 				map_fill_sector_debris: "#999999",
 				map_fill_sector_poison: "#ee6944",
 				map_fill_sector_radiation: "#EE4485",
@@ -130,6 +150,24 @@ define(function () {
 				return "#000";
 			}
 			return color;
+		},
+
+		getColorWithAlpha: function (colorString, opacity) {
+			// Match rgb or rgba
+			const rgbaRegex = /^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*[\d.]+)?\s*\)$/;
+			const match = colorString.match(rgbaRegex);
+
+			if (!match) {
+				log.w("Invalid RGB(A) format. Expected format: rgb(r, g, b) or rgba(r, g, b, a)");
+				return colorString;
+			}
+
+			const [, r, g, b] = match;
+
+			// Clamp opacity between 0 and 1
+			const alpha = Math.max(0, Math.min(1, opacity));
+
+			return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 		}
 		
 	};

@@ -1,6 +1,127 @@
 {
 	"versions": [
 		{
+			"version": "0.6.1",
+			"requiredVersion": "0.6.1",
+			"released": "2025-06-30",
+			"phase": "beta",
+			"final": true,
+			"changes": [
+				{
+					"type": "Dev",
+					"summary": "Add story and dialogue systems along with initial story structure and lots of dialogues"
+				},
+				{
+					"type": "GD",
+					"summary": "Add NPCs in camp and outside"
+				},
+				{
+					"type": "GD",
+					"summary": "Add new explorer abilities"
+				},
+				{
+					"type": "GD",
+					"summary": "Add explorer injuries"
+				},
+				{
+					"type": "GD",
+					"summary": "Improve explorer generation"
+				},
+				{
+					"type": "GD",
+					"summary": "Make explorers sometimes improve their abilities"
+				},
+				{
+					"type": "QoL",
+					"summary": "Ensure certain explorers (including dogs) never leave unless dismissed"
+				},
+				{
+					"type": "GD",
+					"summary": "Add new movement blockers and hazards (flooding, old explosives, gang territroy, toll gates)"
+				},
+				{
+					"type": "GD",
+					"summary": "Add several new camp events (disease, earthquake, accident, refugees, visitor)"
+				},
+				{
+					"type": "GD",
+					"summary": "Add examine spots with a little lore in some sectors"
+				},
+				{
+					"type": "GD",
+					"summary": "Add new perks (stressed, cursed, accomplished, lucky, restart bonus)"
+				},
+				{
+					"type": "Text",
+					"summary": "Rename 'favour' to 'hope', 'follower' to 'explorer', and adjust a few other terms"
+				},
+				{
+					"type": "GD",
+					"summary": "Add more items, enemy types and locale types to support story and world-building"
+				},
+				{
+					"type": "GD",
+					"summary": "Add varying quality to equipment items"
+				},
+				{
+					"type": "GD",
+					"summary": "Make medicine and herbs more useful"
+				},
+				{
+					"type": "UI",
+					"summary": "Add better save management"
+				},
+				{
+					"type": "UI",
+					"summary": "Add a popup with some game stats"
+				},
+				{
+					"type": "UI",
+					"summary": "Add a settings menu and make hotkeys more visible and configurable"
+				},
+				{
+					"type": "QoL",
+					"summary": "Make it possible for population to grow by more than 1 at once"
+				},
+				{
+					"type": "QoL",
+					"summary": "Add dedicated metal scavenging spots (heaps)"
+				},
+				{
+					"type": "QoL",
+					"summary": "Add option to move a few more steps when out of food or water"
+				},
+				{
+					"type": "UI",
+					"summary": "Add basic UI sounds"
+				},
+				{
+					"type": "UI",
+					"summary": "Change the log to only show messages relevant for current location"
+				},
+				{
+					"type": "UI",
+					"summary": "Improve mobile layout a bit and add a warning for mobile devices"
+				},
+				{
+					"type": "UI",
+					"summary": "Improve page structure for screen readers"
+				},
+				{
+					"type": "GD",
+					"summary": "Add rare prebuilt passages between levels"
+				},
+				{
+					"type": "Dev",
+					"summary": "Lay some groundwork for translations by moving most (but not all) strings to a separate file"
+				},
+				{
+					"type": "Dev",
+					"summary": "Lots of bugfixes, balancing adjustments, UI improvements and text polish"
+				}
+			]
+		},
+		{
 			"version": "0.5.3",
 			"requiredVersion": "0.5.1",
 			"released": "2025-04-29",

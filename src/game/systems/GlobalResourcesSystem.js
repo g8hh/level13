@@ -31,6 +31,8 @@ define([
 			this.tribeNodes = engine.getNodeList(TribeResourcesNode);
 
 			GlobalSignals.add(this, GlobalSignals.inventoryChangedSignal, this.onInventoryChanged);
+			GlobalSignals.add(this, GlobalSignals.improvementBuiltSignal, this.onImprovementBuilt);
+			GlobalSignals.add(this, GlobalSignals.gameStateReadySignal, this.onGameStateReady);
 		},
 
 		removeFromEngine: function (engine) {
@@ -46,17 +48,18 @@ define([
 			this.updatePlayerResources();
 		},
 		
-		updateCampsResources: function () {
-			var storageUpgradeLevel = this.getStorageUpgradeLevel();
-			
-			for (var node = this.campNodes.head; node; node = node.next) {
+		updateCampsResources: function () {			
+			for (let node = this.campNodes.head; node; node = node.next) {
 				let campImprovements = node.improvements;
 				let storageCount = campImprovements.getCount(improvementNames.storage);
 				let storageLevel = campImprovements.getLevel(improvementNames.storage);
 				let hasTradePost = campImprovements.getCount(improvementNames.tradepost) > 0;
+				
 				let storageCapacity = CampConstants.getStorageCapacity(storageCount, storageLevel);
 				node.resources.storageCapacity = storageCapacity;
-				node.resources.limitToStorage(!hasTradePost);
+
+				let spilledResources = node.resources.limitToStorage(!hasTradePost);
+				this.updateSpilledResources(spilledResources);
 				
 				this.updateCampSpecialStorage(node);
 			}
@@ -117,7 +120,8 @@ define([
 			this.tribeNodes.head.tribe.numCamps = numCamps;
 			this.tribeNodes.head.tribe.numCampsInTradeNetwork = numCampsInTradeNetwork;
 			
-			globalResourcesComponent.limitToStorage(true);
+			let spilledResources = globalResourcesComponent.limitToStorage(true);
+			this.updateSpilledResources(spilledResources);
 		},
 		
 		updatePlayerResources: function () {
@@ -166,14 +170,64 @@ define([
 			let maxRobots = GameGlobals.campHelper.getRobotStorageCapacity(node.entity);
 			node.resources.resources.limit(resourceNames.robots, 0, maxRobots, true);
 		},
+
+		updateSpilledResources: function (spilledResources) {
+			for (let key in resourceNames) {
+				let name = resourceNames[key];
+				let amount = spilledResources.getResource(name);
+				if (amount > 0) {
+					GameGlobals.gameState.increaseGameStatKeyed("amountResourcesOverflownPerName", name, amount);
+				}
+			}
+		},
+
+		updateLuxuryResources: function () {
+			for (let node = this.campNodes.head; node; node = node.next) {
+				node.camp.availableLuxuryResources = this.getAvailableLuxuryResourcesForCamp(node);
+			}
+		},
+
+		getAvailableLuxuryResourcesForCamp: function (campNode) {
+			let result = [];
+			
+			let level = campNode.position.level;
+			let campOrdinal = GameGlobals.gameState.getCampOrdinal(level);
+			let hasAccessToTradeNetwork = GameGlobals.resourcesHelper.hasAccessToTradeNetwork(campNode.entity);
+			
+			let builtProjects = GameGlobals.levelHelper.getBuiltProjects();
+
+			for (let i = 0; i < builtProjects.length; i++) {
+				let project = builtProjects[i];
+				if (project.improvement.name != improvementNames.luxuryOutpost) continue;
+				
+				let projectLevel = project.position.level;
+				let projectCampOrdinal = GameGlobals.gameState.getCampOrdinal(projectLevel);
+				if (hasAccessToTradeNetwork || projectCampOrdinal == campOrdinal) {
+					let levelsForCamp = GameGlobals.gameState.getLevelsForCamp(projectCampOrdinal);
+					for (let i = 0; i < levelsForCamp.length; i++) {
+						let campLevel = levelsForCamp[i];
+						let resource = GameGlobals.levelHelper.getLuxuryResourceOnLevel(campLevel);
+						if (resource) {
+							result.push(resource);
+						}
+					}
+				}
+			}
+
+			return result;
+		},
 		
 		onInventoryChanged: function () {
 			this.updateUnlockedResources();
 		},
-		
-		getStorageUpgradeLevel: function () {
-			return GameGlobals.upgradeEffectsHelper.getBuildingUpgradeLevel(improvementNames.storage, this.tribeNodes.head.entity.get(UpgradesComponent));
+
+		onImprovementBuilt: function () {
+			this.updateLuxuryResources();
 		},
+
+		onGameStateReady: function () {
+			this.updateLuxuryResources();
+		}
 		
 	});
 

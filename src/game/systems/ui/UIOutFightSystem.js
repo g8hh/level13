@@ -6,7 +6,7 @@ define([
 	'game/GlobalSignals',
 	'game/constants/GameConstants',
 	'game/constants/FightConstants',
-	'game/constants/FollowerConstants',
+	'game/constants/ExplorerConstants',
 	'game/constants/ItemConstants',
 	'game/constants/TextConstants',
 	'game/constants/UIConstants',
@@ -16,7 +16,7 @@ define([
 	'game/components/player/ItemsComponent',
 	'game/components/sector/FightEncounterComponent',
 	'game/components/sector/EnemiesComponent'
-], function (Ash, Text, UIState, GameGlobals, GlobalSignals, GameConstants, FightConstants, FollowerConstants, ItemConstants, TextConstants, UIConstants, PlayerLocationNode, PlayerStatsNode, FightNode, ItemsComponent, FightEncounterComponent, EnemiesComponent) {
+], function (Ash, Text, UIState, GameGlobals, GlobalSignals, GameConstants, FightConstants, ExplorerConstants, ItemConstants, TextConstants, UIConstants, PlayerLocationNode, PlayerStatsNode, FightNode, ItemsComponent, FightEncounterComponent, EnemiesComponent) {
 	
 	var FightPopupStateEnum = {
 		CLOSED: 0,
@@ -84,7 +84,7 @@ define([
 		
 		updateFightActive: function () {
 			var itemsComponent = this.playerStatsNodes.head.items;
-			var followersComponent = this.playerStatsNodes.head.followers;
+			var explorersComponent = this.playerStatsNodes.head.explorers;
 			
 			// update progress bars
 			var enemy = this.fightNodes.head.fight.enemy;
@@ -136,35 +136,47 @@ define([
 				$("#fight-bar-self-shield").data("animation-length", this.progressBarAnimationLen);
 			}
 				
-			var playerAtt = FightConstants.getPlayerAtt(playerStamina, itemsComponent, followersComponent);
-			var playerDef = FightConstants.getPlayerDef(playerStamina, itemsComponent, followersComponent);
+			var playerAtt = FightConstants.getPlayerAtt(playerStamina, itemsComponent, explorersComponent);
+			var playerDef = FightConstants.getPlayerDef(playerStamina, itemsComponent, explorersComponent);
 			var playerSpeed = FightConstants.getPlayerSpeed(itemsComponent);
 			var playerHP = playerStamina.maxHP;
 			var playerShield = playerStamina.maxShield;
-			$("#fight-popup-self-name").text(this.numFollowers > 0 ? " Party " : " Wanderer ");
+			$("#fight-popup-self-name").text(this.numExplorers > 0 ? " Party " : " Wanderer ");
 			$("#fight-popup-self-stats").text(this.getStatsText(playerAtt, playerDef, playerSpeed, playerHP, playerShield));
 			
 			// update action buttons
 			// TODO remove hard-coding of items usable in fight, instead have fight effect desc in ItemVO (damage, heal, defend, stun)
 			// TODO show fight effect of items in fight ui
-			var itemsToShow = [];
-			if (itemsComponent.getCountById("glowstick_1") > 0) itemsToShow.push(itemsComponent.getItem("glowstick_1", null, false));
-			if (itemsComponent.getCountById("consumable_weapon_1") > 0) itemsToShow.push(itemsComponent.getItem("consumable_weapon_1", null, false));
-			if (itemsComponent.getCountById("consumable_weapon_mechanical") > 0) itemsToShow.push(itemsComponent.getItem("consumable_weapon_mechanical", null, false));
-			if (itemsComponent.getCountById("consumable_weapon_bio") > 0) itemsToShow.push(itemsComponent.getItem("consumable_weapon_bio", null, false));
-			if (itemsComponent.getCountById("flee_1") > 0) itemsToShow.push(itemsComponent.getItem("flee_1", null, false));
-			var numItemsShown = $("#fight-buttons-infightactions button").length;
-			if (numItemsShown !== itemsToShow.length) {
+			let actionsToShow = [];
+
+			let addActionFromItem = function (itemID) {
+				if (itemsComponent.getCountById(itemID) > 0) {
+					let itemVO = itemsComponent.getItem(itemID, null, false);
+					let itemName = ItemConstants.getItemDisplayName(itemVO);
+					actionsToShow.push({ action: "use_item_fight_" + itemID, actionLabel: itemName });
+				}
+			};
+
+			addActionFromItem("glowstick_1");
+			addActionFromItem("consumable_weapon_1");
+			addActionFromItem("consumable_weapon_mechanical");
+			addActionFromItem("consumable_weapon_bio");
+			addActionFromItem("flee_1");
+
+			let hasFleeExplorer = GameGlobals.playerHelper.getPartyAbilityLevel(ExplorerConstants.abilityType.FLEE) > 0;
+			if (hasFleeExplorer) {
+				actionsToShow.push({ action: "use_explorer_fight_flee", actionLabel: "flee" });
+			}
+
+			let numActionsShown = $("#fight-buttons-infightactions button").length;
+			if (numActionsShown !== actionsToShow.length) {
 				$("#fight-buttons-infightactions").empty();
-				for(let i = 0; i < itemsToShow.length; i++) {
-					var item = itemsToShow[i];
-					var action = "use_item_fight_" + item.id;
-					$("#fight-buttons-infightactions").append("<button class='action' action='" + action + "'>" + item.name + "</button>");
+				for(let i = 0; i < actionsToShow.length; i++) {
+					let actionDef = actionsToShow[i];
+					$("#fight-buttons-infightactions").append("<button class='action' action='" + actionDef.action + "'>" + actionDef.actionLabel + "</button>");
 				}
 				
-				GameGlobals.uiFunctions.registerActionButtonListeners("#fight-buttons-infightactions");
-				GameGlobals.uiFunctions.generateButtonOverlays("#fight-buttons-infightactions");
-				GameGlobals.uiFunctions.generateCallouts("#fight-buttons-infightactions");
+				GameGlobals.uiFunctions.createButtons("#fight-buttons-infightactions");
 				GlobalSignals.elementCreatedSignal.dispatch();
 			}
 		},
@@ -231,7 +243,7 @@ define([
 			GameGlobals.uiFunctions.toggle("#fight-popup-bars", this.state == FightPopupStateEnum.FIGHT_ACTIVE);
 			GameGlobals.uiFunctions.toggle("#fight-popup-self-info", this.state == FightPopupStateEnum.FIGHT_ACTIVE);
 			GameGlobals.uiFunctions.toggle("#list-fight-items", this.state == FightPopupStateEnum.FIGHT_ACTIVE);
-			GameGlobals.uiFunctions.toggle("#list-fight-followers", this.state == FightPopupStateEnum.FIGHT_ACTIVE);
+			GameGlobals.uiFunctions.toggle("#list-fight-explorers", this.state == FightPopupStateEnum.FIGHT_ACTIVE);
 			GameGlobals.uiFunctions.toggle("#fight-popup-results", this.state == FightPopupStateEnum.FIGHT_FINISHED);
 			GameGlobals.uiFunctions.toggle("#fight-desc", this.state != FightPopupStateEnum.FIGHT_ACTIVE);
 			GameGlobals.uiFunctions.toggle("#fight-popup-enemy-info", this.state != FightPopupStateEnum.FIGHT_FLED && !fightWon);
@@ -306,31 +318,30 @@ define([
 			var items = itemsComponent.getEquipped();
 			for (let i = 0; i < items.length; i++) {
 				var item = items[i];
-				var bonusatt = item.getCurrentBonus(ItemConstants.itemBonusTypes.fight_att) > 0;
-				var bonusDef = item.getCurrentBonus(ItemConstants.itemBonusTypes.fight_def) > 0;
-				if (bonusatt || bonusDef) {
+				var bonusAtt = ItemConstants.getCurrentBonus(item, ItemConstants.itemBonusTypes.fight_att) > 0;
+				var bonusDef = ItemConstants.getCurrentBonus(item, ItemConstants.itemBonusTypes.fight_def) > 0;
+				if (bonusAtt || bonusDef) {
 					this.numItems++;
 					$("ul#list-fight-items").append("<li>" + UIConstants.getItemDiv(null, item, null, UIConstants.getItemCallout(item, true), true) + "</li>");
 				}
 			}
-			GameGlobals.uiFunctions.generateCallouts("ul#list-fight-items");
+			GameGlobals.uiFunctions.generateInfoCallouts("ul#list-fight-items");
 			
-			// followers
-			$("ul#list-fight-followers").empty();
-			this.numFollowers = 0;
-			var followers = this.playerStatsNodes.head.followers.getParty();
-			for (let i = 0; i < followers.length; i++) {
-				var follower = followers[i];
-				var bonusatt = FollowerConstants.getFollowerItemBonus(follower, ItemConstants.itemBonusTypes.fight_att) > 0;
-				var bonusDef = FollowerConstants.getFollowerItemBonus(follower, ItemConstants.itemBonusTypes.fight_def) > 0;
-				if (bonusatt || bonusDef) {
-					this.numFollowers++;
-					$("ul#list-fight-followers").append("<li>" + UIConstants.getFollowerDiv(follower, true, false, true) + "</li>");
-				}
+			// explorers
+			$("ul#list-fight-explorers").empty();
+			this.numExplorers = 0;
+			let explorers = this.playerStatsNodes.head.explorers.getParty();
+			for (let i = 0; i < explorers.length; i++) {
+				let explorer = explorers[i];
+				let isFighter = ExplorerConstants.isFighter(explorer);
+				if (!isFighter) continue;
+				if (explorer.injuredTimer >= 0) continue;
+				this.numExplorers++;
+				$("ul#list-fight-explorers").append("<li>" + UIConstants.getExplorerDivSimple(explorer, true, false, true) + "</li>");
 			}
-			GameGlobals.uiFunctions.generateCallouts("ul#list-fight-followers");
+			GameGlobals.uiFunctions.generateInfoCallouts("ul#list-fight-explorers");
 			
-			GameGlobals.uiFunctions.toggle("#fight-popup-itemlist-separator", this.numFollowers > 0 && this.numItems > 0);
+			GameGlobals.uiFunctions.toggle("#fight-popup-itemlist-separator", this.numExplorers > 0 && this.numItems > 0);
 			this.updateFightActive();
 		},
 		
@@ -354,12 +365,23 @@ define([
 			GameGlobals.uiFunctions.toggle("#fight-results-lose-items", !isWon && false);
 			
 			GameGlobals.playerActionResultsHelper.preCollectRewards(resultVO);
-			$("#fight-popup-results").html(GameGlobals.playerActionResultsHelper.getRewardDiv(resultVO, true, false));
-			GameGlobals.uiFunctions.generateCallouts("#fight-popup-results");
+			$("#fight-popup-results").html(GameGlobals.playerActionResultsHelper.getRewardDiv(resultVO, { isFight: true }));
+			GameGlobals.uiFunctions.generateInfoCallouts("#fight-popup-results");
 		},
 		
 		refreshFightFled: function () {
-			$("#fight-desc").text("Distracted the enemy and fled");
+			let fledSource = this.fightNodes.head.fight.itemEffects.fledSource;
+			let explorersComponent = this.playerStatsNodes.head.explorers;
+			let explorerVO = null;
+			if (fledSource) {
+				explorerVO = explorersComponent.getExplorerByID(fledSource);
+			}
+
+			if (explorerVO) {
+				$("#fight-desc").text(Text.t("ui.fight.result_fled_message_explorer", explorerVO.name));
+			} else {
+				$("#fight-desc").text(Text.t("ui.fight.result_fled_message_default"));
+			}
 		},
 	
 		refreshEnemyText: function () {
@@ -392,9 +414,9 @@ define([
 			
 			var playerStamina = this.playerStatsNodes.head.stamina;
 			var itemsComponent = this.playerStatsNodes.head.entity.get(ItemsComponent);
-			var followersComponent = this.playerStatsNodes.head.followers;
+			var explorersComponent = this.playerStatsNodes.head.explorers;
 			
-			FightConstants.getFightWinProbability(currentEnemy, playerStamina, itemsComponent, followersComponent).
+			FightConstants.getFightWinProbability(currentEnemy, playerStamina, itemsComponent, explorersComponent).
 				then(chances => {
 					var chancesText = TextConstants.getFightChancesText(chances);
 					if (GameConstants.isDebugVersion) {
@@ -424,10 +446,15 @@ define([
 		},
 		
 		getTitleByContext: function (encounterComponent) {
-			var baseActionID = GameGlobals.playerActionsHelper.getBaseActionID(encounterComponent.context);
+			let baseActionID = GameGlobals.playerActionsHelper.getBaseActionID(encounterComponent.context);
 			if (baseActionID === "fight_gang") {
 				return "Fight " + (encounterComponent.totalEnemies - encounterComponent.pendingEnemies + 1) + " / " + encounterComponent.totalEnemies;
 			}
+
+			if (GameGlobals.gameState.uiStatus.sequenceTitleKey) return Text.t(GameGlobals.gameState.uiStatus.sequenceTitleKey);
+
+			if (!baseActionID) return "Fight";
+
 			return baseActionID.replace(/_/g, " ");
 		},
 		
@@ -448,6 +475,8 @@ define([
 					return "workshop " + enemyActiveV + " " + Text.pluralify(enemyNoun);
 				case "fight_gang":
 					return Text.addArticle(enemyNoun) + " is blocking passage";
+				case "wait":
+					return "surprised by " + Text.addArticle(enemyNoun);
 				default:
 					return Text.addArticle(enemyNoun) + " approaches";
 			}

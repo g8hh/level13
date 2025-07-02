@@ -105,10 +105,19 @@
     "improve_building_inn": {
         "campOrdinal": "9",
         "effects": {
-            "improvesBuildings": "inn"
+            "improvesBuildings": "inn",
+            "improvesOccurrence": "visitor"
         },
         "id": "improve_building_inn",
         "name": "Music"
+    },
+    "improve_building_inn_2": {
+        "campOrdinal": "16",
+        "effects": {
+            "improvesBuildings": "inn market"
+        },
+        "id": "improve_building_inn_2",
+        "name": "Tourism"
     },
     "improve_building_library": {
         "blueprintCampOrdinal": 5,
@@ -166,13 +175,21 @@
         "id": "improve_building_market3",
         "name": "Network"
     },
-    "improve_building_radiotower": {
-        "campOrdinal": "14",
+    "improve_building_radio_1": {
+        "campOrdinal": "16",
         "effects": {
             "improvesBuildings": "radiotower"
         },
-        "id": "improve_building_radiotower",
-        "name": "Shortwave Radio"
+        "id": "improve_building_radio_1",
+        "name": "Propaganda"
+    },
+    "improve_building_researchcenter_1": {
+        "campOrdinal": "16",
+        "effects": {
+            "improvesBuildings": "researchcenter"
+        },
+        "id": "improve_building_researchcenter_1",
+        "name": "Research Center II"
     },
     "improve_building_robots": {
         "blueprintCampOrdinal": 15,
@@ -202,6 +219,14 @@
         },
         "id": "improve_building_stable_2",
         "name": "Animal Feed"
+    },
+    "improve_building_stable_3": {
+        "campOrdinal": "11",
+        "effects": {
+            "improvesBuildings": "stable"
+        },
+        "id": "improve_building_stable_3",
+        "name": "Motorized wagons"
     },
     "improve_building_storage1": {
         "blueprintCampOrdinal": 6,
@@ -242,6 +267,26 @@
         },
         "id": "improve_building_temple3",
         "name": "Temple Gardens"
+    },
+    "improve_building_temple_4": {
+        "campOrdinal": "16",
+        "effects": {
+            "improvesBuildings": "temple"
+        },
+        "id": "improve_building_temple_4",
+        "name": "Official Religion"
+    },
+    "improve_event_disaster_1": {
+        "blueprintCampOrdinal": 13,
+        "blueprintIsCampless": false,
+        "blueprintIsEarly": true,
+        "blueprintPieces": 3,
+        "campOrdinal": "13",
+        "effects": {
+            "improvesOccurrence": "disaster"
+        },
+        "id": "improve_event_disaster_1",
+        "name": "Structural Reinforcement"
     },
     "improve_worker_chemist_2": {
         "campOrdinal": "6",
@@ -346,6 +391,14 @@
         },
         "id": "improve_worker_scavenger_4",
         "name": "Exotic Metals"
+    },
+    "improve_worker_scavenger_5": {
+        "campOrdinal": "16",
+        "effects": {
+            "improvesWorker": "scavenger"
+        },
+        "id": "improve_worker_scavenger_5",
+        "name": "Advanced Metal Recycling"
     },
     "improve_worker_scientist": {
         "campOrdinal": "15",
@@ -606,7 +659,9 @@
         "blueprintIsEarly": false,
         "blueprintPieces": 3,
         "campOrdinal": "5",
-        "effects": {},
+        "effects": {
+            "improvesBuildings": "tradepost"
+        },
         "id": "unlock_building_passage_elevator",
         "name": "Elevator mechanics"
     },
@@ -616,7 +671,9 @@
         "blueprintIsEarly": false,
         "blueprintPieces": 5,
         "campOrdinal": "7",
-        "effects": {},
+        "effects": {
+            "improvesBuildings": "tradepost"
+        },
         "id": "unlock_building_passage_hole",
         "name": "Engineering"
     },
@@ -805,7 +862,7 @@
         "blueprintPieces": 3,
         "campOrdinal": "5",
         "effects": {
-            "improvesWorker": "weaver"
+            "improvesWorker": "ropemaker"
         },
         "id": "unlock_item_clothing4h",
         "name": "Advanced Textiles"
@@ -924,7 +981,7 @@
         "blueprintCampOrdinal": 10,
         "blueprintIsCampless": false,
         "blueprintIsEarly": true,
-        "blueprintPieces": 5,
+        "blueprintPieces": 3,
         "campOrdinal": "10",
         "effects": {
             "improvesBuildings": "barracks",
@@ -1038,7 +1095,7 @@
     "unlock_worker_rope": {
         "campOrdinal": "1",
         "effects": {
-            "unlocksWorker": "weaver"
+            "unlocksWorker": "ropemaker"
         },
         "id": "unlock_worker_rope",
         "name": "Rope-making"

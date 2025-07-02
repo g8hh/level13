@@ -21,7 +21,8 @@ div.btn-callout, div.info-callout {
 	display: none;
 	position: absolute;
 	width: 100%;
-	min-width: 80px;
+	min-width: 60pt;
+	max-width: 100pt;
 	z-index: 5;
 	text-transform: none;
 }
@@ -30,6 +31,9 @@ div.btn-callout {
 	width: 100%;
 	text-align: center;
 	top: 37px;
+    left: 50%;
+    -webkit-transform: translateX(-50%);
+    transform: translateX(-50%);
 	pointer-events: none;
 	opacity: 0.95;
 }
@@ -38,6 +42,14 @@ div.info-callout {
 	width: auto;
 	min-width: 50%;
 	max-width: 100%;
+}
+
+.btn-callout-empty {
+	visibility: hidden;
+}
+
+.container-btn-action-disabled-reason .btn-callout-empty {
+	visibility: visible !important;
 }
 
 .info-callout-side + div.info-callout {
@@ -70,6 +82,11 @@ div.btn-callout-content, div.info-callout-content {
 	white-space: nowrap;
 }
 
+.layout-small .info-callout-target-small + div.info-callout {
+	white-space: normal;
+    min-width: 10em;
+}
+
 .info-callout-target-side + div.info-callout {
 	max-width: none;
 	width: auto;
@@ -93,7 +110,7 @@ div.btn-callout-content, div.info-callout-content {
 	padding: 4px;
 }
 
-.info-callout button {
+.info-callout button, .npc-container button {
 	padding: 4px 8px;
 }
 
@@ -136,7 +153,19 @@ div.callout-arrow-left {
 	margin: 0 0 0 (@item-div-size/2 - @callout-arrow-size);
 }
 
+.info-callout-target-small + div.info-callout .callout-arrow-up {
+	margin: 0 0 0 5px !important;
+}
+
 // ACTION CALLOUT DETAILS
+
+span.action-effect-description {
+	display: block;
+}
+
+span.action-effect-description-entry {
+	display: block;
+}
 
 span.action-risk {
 	display: block;
@@ -150,6 +179,11 @@ span.action-cost-blocker {
 	color: @color-text-dimmed;
 }
 
+span.action-cost-negated {
+	text-decoration: line-through;
+	color: @color-text-dimmed;
+}
+
 .action-separator {
 	display: block;
 	width: 10px;
@@ -160,11 +194,11 @@ span.action-cost-blocker {
 
 ul.tabs {
 	margin: 0;
-	padding: 0 10px;
 	list-style-type: none;
 }
 
 ul.tabs li {
+	background: @color-bg-page;
 	display: inline-block;
 	margin: 0px;
 	padding: 5px 10px 5px 10px;
@@ -177,7 +211,6 @@ ul.tabs li {
 	height: 2.25em;
 	cursor: pointer;
 	text-transform: lowercase;
-	background-color: @color-bg-page;
 	border-color: @color-border-box-2;
 	box-sizing: border-box;
 }
@@ -232,16 +265,13 @@ div.popup-meta {
 	z-index: 26;
 }
 
-div.popup-overlay {
+div#popup-overlay {
 	position:fixed;
 	top:0;
 	left:0;
 	width:100%;
 	height:100%;
 	background-color: @color-popup-overlay;
-}
-
-div.popup-overlay-ingame {
 	z-index:15;
 }
 
@@ -316,47 +346,47 @@ div.popup-overlay-meta {
 
 // STATS INDICATORS
 
-.stats-indicator {
+.stat-indicator {
 	display: block;
 	white-space: nowrap;
 	padding-right: 5px;
 }
 
-.stats-indicator span {
+.stat-indicator span {
 	display: inline-block;
 	margin: auto 0 auto 1px;
 }
 
-.stats-indicator span.label {
+.stat-indicator span.label {
 	text-transform: lowercase;
 }
 
-.stats-indicator span.value {
+.stat-indicator span.value {
 	text-align: center;
 	margin-left: 4px;
 }
 
-.stats-indicator .value, .stats-indicator .value-total, .stats-indicator .change, .stats-indicator .forecast {
+.stat-indicator .value, .stat-indicator .value-total, .stat-indicator .change, .stat-indicator .forecast {
 	color: @color-text-secondary;
 }
 
-.stats-indicator .change, .stats-indicator .forecast {
+.stat-indicator .change, .stat-indicator .forecast {
 	font-size: @font-size-tiny;
 	vertical-align: middle;
 }
 
-.stats-indicator .progress {
+.stat-indicator .progress {
 	height: 0.5em;
 	width: 35px;
 	display: inline-block;
 	vertical-align: middle;
 }
 
-.stats-indicator .progress-wrap {
+.stat-indicator .progress-wrap {
 	margin: auto 1px auto 3px;
 }
 
-.stats-indicator-with-fill {
+.stat-indicator-with-fill {
 	font-size: @font-size-small;
 	border: 2px solid @color-bg-element-1;
     background: linear-gradient(to right, @color-bg-element-1 50%, transparent 50%);
@@ -399,6 +429,10 @@ div.popup-overlay-meta {
 .indicator-equipped {
 	background-image: @img-indicator-checkmark-default;
 	opacity: 0.5;
+}
+
+.indicator-unique {
+	background-image: @img-indicator-unique-default;
 }
 
 // COLLAPSIBLE CONTAINERS
@@ -545,19 +579,27 @@ div.popup-overlay-meta {
 	cursor: all-scroll;
 }
 
+// SCROLLABLE CONTAINERS
+
+.scrollable-container {
+	max-height: 100vh;
+    overflow-y: scroll;
+	background: @color-bg-box-1;
+	border: @color-border-box-1 1px solid;
+	border-radius: 3px;
+}
+
 // BUBBLES (content notifications)
 
 .bubble {
 	background-color: @color-bg-contrast;
 	color: @color-text-dark;
+	display: inline-block;
 	background-size: 12px;
 	background-repeat: no-repeat;
 	background-position: center;
-	position: absolute;
-	top: -6px;
-	right: -6px;
-	width: 16px;
-	height: 16px;
+	width: 16px !important;
+	height: 16px !important;
 	text-align: center;
 	border-radius: 8px;
 	font-weight: bold;
@@ -565,10 +607,10 @@ div.popup-overlay-meta {
 	line-height: 18px;
 }
 
-table .bubble {
-	position: inherit;
-	top: inherit;
-	left: inherit;
+#switch .bubble {
+	position: absolute;
+	top: -6px;
+	right: -6px;
 }
 
 .bubble-even {
@@ -601,10 +643,6 @@ table .bubble {
 
 .container-nomargin {
 	margin: 0;
-}
-
-.statsbar {
-	padding: 3px 2px;
 }
 
 // INFOBOXES
@@ -699,6 +737,7 @@ table .bubble {
 
 .inventorydivision:first-child .inventorybox-header {
 	border-radius: 10px 0 0 0;
+	text-wrap: nowrap;
 }
 
 .inventorydivision:last-child .inventorybox-header {
@@ -713,7 +752,7 @@ table .bubble {
 	width: 100%;
 }
 
-#common-popup .inventorybox ul {
+.regular-layout #common-popup .inventorybox ul {
 	min-width: 380px;
 	width: 100%;
 }
@@ -738,22 +777,29 @@ table .bubble {
     display: block;
 }
 
+// BUTTON LISTS
+
+ul.buttonlist {
+	list-style-type: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-wrap: wrap;
+}
+
 // ITEMs
 
 .li-item-negative {
-	background: @color-bg-warning !important;
-	border: 1px solid @color-border-warning !important;
+	border: 2px solid @color-border-warning !important;
 }
 
-// ITEM AND FOLLOWER SLOTS
+// ITEM AND EXPLORER SLOTS
 
 @item-slot-big-width: 55px;
 @item-slot-big-height: 70px;
-@follower-slot-big-width: 65px;
-@follower-slot-big-height: 75px;
 @item-div-size: 18px;
 
-.item-slot, .follower-slot {
+.item-slot {
 	background: inherit !important;
 	margin: 0px 2px 2px 0px;
 	padding: 0;
@@ -763,7 +809,7 @@ table .bubble {
 	position: relative;
 }
 
-.item-slot.highlighted, .follower-slot.highlighted {
+.item-slot.highlighted, .explorer-slot.highlighted {
 	border-color: lighten(@color-border-strong, 15%);
 	color: lighten(@color-text-default, 15%);
 }
@@ -771,16 +817,6 @@ table .bubble {
 .item-slot-big {
 	width: @item-slot-big-width;
 	height: @item-slot-big-height;
-}
-
-.follower-slot-big {
-	width: @follower-slot-big-width;
-	height: @follower-slot-big-height;
-}
-
-.item-slot-small, .follower-slot-small {
-	width: 37px;
-	height: 37px;
 }
 
 .item-slot-equipment .item-count {
@@ -799,11 +835,11 @@ table .bubble {
 	background: @color-bg-element-2;
 }
 
-.item-slot-equipped, .follower-slot-selected {
+.item-slot-equipped, .explorer-slot-selected {
 	border-color: @color-border-strong;
 }
 
-.item-equipped, .follower-selected {
+.item-equipped, .explorer-selected {
 	background: @color-bg-element-1;
 }
 
@@ -812,7 +848,7 @@ table .bubble {
 	background: linear-gradient(90deg, @color-bg-box-1 0%, @color-bg-box-1 50%, @color-bg-warning-stronger 50%, @color-bg-warning-stronger 100%) !important;
 }
 
-.item-slot-type-empty, .follower-slot-type-empty {
+.item-slot-type-empty, .explorer-slot-type-empty {
 	font-size: @font-size-small;
 	text-align: center;
 	display: inline-block;
@@ -821,7 +857,7 @@ table .bubble {
 	font-style: oblique;
 }
 
-.item-slot-type-equipped, .follower-slot-type-selected {
+.item-slot-type-equipped, .explorer-slot-type-selected {
 	font-size: @font-size-small;
 	text-align: center;
 	width: @item-slot-big-width;
@@ -830,7 +866,7 @@ table .bubble {
 	display: inline-block;
 }
 
-.item-slot-type-equipped,{
+.item-slot-type-equipped {
 	font-size: @font-size-small;
 	text-align: center;
 	display: inline-block;
@@ -842,27 +878,12 @@ table .bubble {
 	line-height: @item-slot-big-height;
 }
 
-.follower-slot-type-equipped {
-	width: @follower-slot-big-width;
-	height: @follower-slot-big-height;
-	line-height: @follower-slot-big-height;
-}
-
-.item-slot-image, .follower-slot-image {
-	position: absolute;
-}
-
 .item-slot-big .item-slot-image {
 	left: @item-slot-big-width / 2 - @item-div-size;
 	top: @item-slot-big-height / 2 - @item-div-size + 10px;
 }
 
-.follower-slot-big .follower-slot-image {
-	left: @follower-slot-big-width / 2 - @item-div-size;
-	top: @follower-slot-big-height / 2 - @item-div-size + 10px;
-}
-
-.item-slot-name, .item-slot-type-equipped, .follower-slot-type-selected {
+.item-slot-name, .item-slot-type-equipped, .explorer-slot-type-selected {
 	background-color: @color-bg-element-1;
 	width: 100%;
 	text-align: center;
@@ -873,7 +894,7 @@ table .bubble {
 	padding: 0.35em 0;
 }
 
-.item-slot.highlighted .item-slot-type-equipped, .follower-slot.highlighted .follower-slot-type-selected {
+.item-slot.highlighted .item-slot-type-equipped, .explorer-slot.highlighted .explorer-slot-type-selected {
 	background: lighten( @color-bg-element-1, 8%);
 }
 
@@ -886,7 +907,7 @@ table .bubble {
 	opacity: 0;
 }
 
-.item-slot-type-equipped, .follower-slot-type-selected {
+.item-slot-type-equipped, .explorer-slot-type-selected {
 	top: 0px;
 }
 
@@ -894,15 +915,25 @@ table .bubble {
 	border-width: 0px !important;
 }
 
-div.item-slot > div, div.item-slot > span, .follower-slot > div, .follower-slot > span {
+div.item-slot > div, div.item-slot > span {
 	position: absolute;
 	cursor: default;
 }
 
-.follower-slot-follower {
+#container-party-slots {
+	display: flex;
+	gap: 5px;
+}
+
+.explorer-slot-explorer {
 	width: 100%;
 	display: block;
 	text-align: center;
+}
+
+.explorer-slot {
+	display: inline-block;
+	min-width: 80px;
 }
 
 // ITEM AND RESOURCE DIVS
@@ -933,7 +964,7 @@ ul.itemlist, ul.resultlist {
 
 .item, .res, .li-item-negative, .li-item-positive {
 	background: @color-bg-box-1;
-	border: @border-width-box-1 solid @color-border-box-1;
+	border: 2px solid @color-border-box-1;
 }
 
 .item.highlighted {
@@ -963,6 +994,7 @@ ul.itemlist, ul.resultlist {
 }
 
 .item div.item-count, .res div.item-count {
+	background: transparent;
 	border-width: 1px;
 	color: @color-text-secondary;
 	font-size: @font-size-tiny;
@@ -970,6 +1002,7 @@ ul.itemlist, ul.resultlist {
 	bottom: -0.9em;
 	left: -2px;
 	min-width: 100%;
+	max-height: 1em;
 	padding: 0 1px;
 	line-height: 1em;
 	text-align: center;
@@ -983,7 +1016,7 @@ li.item-with-count {
 
 // WARNINGS AND NEGATIVE ITEMS
 
-.warning, .warning span, li.li-item-negative, .item-slot-lost .item-count {
+.warning, .warning span, li.li-item-negative, .item-slot-lost .item-count, .btn-warning {
 	color: @color-global-warning !important;
 }
 
@@ -1027,7 +1060,151 @@ hr.warning {
 	background: @color-bg-box-1;
 }
 
+// DIALOGUE INDICATOR
+
+.npc-dialogue-indicator {
+	background-image: @img-indicator-dialogue;
+	background-size: 100%;
+	border: none;
+	background-repeat: no-repeat;
+	background-position: center;
+}
+
+.indicator-disabled {
+	display: none;
+}
+
+.indicator-urgent {
+	display: block;
+}
+
+// EXPLORER ICONS AND QUEST INDICATOR
+
+.explorer-icons {
+	display: flex;
+	justify-content: center;
+	height: 1em;
+	gap: 1px;
+}
+
+.explorer-icons img, .explorer-icons div {
+	height: 1em;
+	width: 1em;
+	position: initial;
+}
+
+.npc-quest-indicator {
+	background-size: 100%;
+	background-image: @img-indicator-quest;
+	width: 10px;
+	height: 10px;
+}
+
+.npc-quest-badge {
+	top: 1px;
+	left: 5px;
+	position: absolute;
+	border-width: 1px;
+	border-style: solid;
+	border-color: @color-border-strong;
+	padding: 2px;
+	border-radius: 3px;
+	background: @color-bg-box-2;
+}
+
+// NPCS
+
+.npc-container {
+	display: inline-flex;
+	flex-direction: column;
+	border: 1px solid @color-border-strong;
+	min-width: 50px;
+	min-height: 50px;
+	margin: 2px;
+	background-color: @color-bg-element-1;
+	position: relative;
+}
+
+.npc-container.highlighted {
+	border-color: lighten(@color-border-strong, 15%);
+	color: lighten(@color-text-default, 15%);
+}
+
+.npc-visitor {
+	background-color: @color-bg-element-2;
+}
+
+.npc-container-mini {
+	width: 36px;
+	height: 36px;
+	min-width: 36px;
+	min-height: 36px;
+}
+
+.npc-portrait {
+	vertical-align: middle;
+	display: inline-flex;
+	flex-direction: column;
+	position: relative;
+	margin: 2px 0;
+	width: 100%;
+}
+
+.npc-container .item-comparison-badge {
+	top: 1px;
+	right: 5px;
+}
+
+.npc-type-indicator {
+	position: absolute;
+	top: 1px;
+	left: 2px;
+	right: 5px;
+	width: 12px;
+	height: 12px;
+}
+
+.npc-type-indicator img {
+	width: 100%;
+}
+
+.npc-portrait img {
+	margin: auto;
+	vertical-align: middle;
+	height: 32px;
+	width: 32px;
+	padding: 1px;
+}
+
+img.portrait {
+	height: 32px;
+	width: 32px;
+}
+
+.npc-container span {
+	text-align: center;
+}
+
+.npc-container .button-row-2 button {
+	width: 48px !important;
+}
+
+.interaction-options {
+	display: flex;
+	flex-direction: column;
+}
+
 // DEBUG OVERLAY
+
+.debug-info {
+	color: @color-text-secondary;
+	background: #22992299;
+	font-size: @font-size-small;
+}
+
+p.debug-info {
+	margin: 0;
+}
 
 .dev-hud {
 	opacity: 0.75;

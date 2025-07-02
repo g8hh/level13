@@ -10,6 +10,7 @@ define([
 	'game/constants/MovementConstants',
 	'game/constants/PositionConstants',
 	'game/constants/SectorConstants',
+	'game/constants/StoryConstants',
 	'game/constants/TradeConstants',
 	'game/constants/TribeConstants',
 	'game/constants/UpgradeConstants',
@@ -29,7 +30,7 @@ define([
 	'worldcreator/CriticalPathVO',
 ], function (
 	Ash, MathUtils, GameGlobals,
-	EnemyConstants, ItemConstants, LevelConstants, LocaleConstants, MovementConstants, PositionConstants, SectorConstants, TradeConstants, TribeConstants, UpgradeConstants, WorldConstants,
+	EnemyConstants, ItemConstants, LevelConstants, LocaleConstants, MovementConstants, PositionConstants, SectorConstants, StoryConstants, TradeConstants, TribeConstants, UpgradeConstants, WorldConstants,
 	GangVO, LocaleVO, PathConstraintVO, PositionVO, ResourcesVO, StashVO, WaymarkVO,
 	WorldCreatorConstants, WorldCreatorHelper, WorldCreatorRandom, WorldCreatorDebug, WorldCreatorLogger, CriticalPathVO
 ) {
@@ -69,17 +70,29 @@ define([
 					sectorVO.requiredFeatures = this.getRequiredFeatures(seed, worldVO, levelVO, sectorVO);
 					sectorVO.sectorType = this.getSectorType(seed, worldVO, levelVO, sectorVO);
 					sectorVO.sunlit = this.isSunlit(seed, worldVO, levelVO, sectorVO);
+
 					sectorVO.passageUpType = this.getPassageUpType(seed, worldVO, levelVO, sectorVO);
+					if (sectorVO.passageUpType) {
+						WorldCreatorLogger.i("add passage up at level " + levelVO.level + " type " + sectorVO.passageUpType);						
+					}
+
 					sectorVO.passageDownType = this.getPassageDownType(seed, worldVO, levelVO, sectorVO);
+					if (sectorVO.passageDownType) {
+						WorldCreatorLogger.i("add passage down at level " + levelVO.level + " type " + sectorVO.passageDownType);
+					}
+
 					this.generateTexture(seed, worldVO, levelVO, sectorVO);
+					this.generateGraffiti(seed, worldVO, levelVO, sectorVO);
 					this.generateDifficulty(seed, worldVO, levelVO, sectorVO);
 					this.generateResources(seed, worldVO, levelVO, sectorVO);
 				}
 				
 				// level-wide features 2
 				this.generateInvestigateSectors(seed, worldVO, levelVO);
+				this.generateSectorExamineSpots(seed, worldVO, levelVO);
 				this.generateLocales(seed, worldVO, levelVO);
 				this.generateMovementBlockers(seed, worldVO, levelVO);
+				this.generateHeaps(seed, worldVO, levelVO);
 				this.generateEnemies(seed, worldVO, levelVO, enemyCreator);
 				this.generateItems(seed, worldVO, levelVO);
 				
@@ -97,6 +110,7 @@ define([
 			// WorldCreatorDebug.printWorld(worldVO, [ "possibleEnemies.length" ]);
 			// WorldCreatorDebug.printWorld(worldVO, [ "enemyDifficulty" ]);
 			// WorldCreatorDebug.printWorld(worldVO, [ "hazards.radiation" ], "red");
+			// WorldCreatorDebug.printWorld(worldVO, [ "hazards.flooded" ], "blue");
 			// WorldCreatorDebug.printWorld(worldVO, [ "resourcesAll.water"], "blue");
 			// WorldCreatorDebug.printWorld(worldVO, [ "resourcesScavengable.food" ], "#ee8822");
 			// WorldCreatorDebug.printWorld(worldVO, [ "resourcesScavengable.metal" ], "#000");
@@ -285,7 +299,8 @@ define([
 			
 			let isPollutedLevel = levelVO.notCampableReason === LevelConstants.UNCAMPABLE_LEVEL_TYPE_POLLUTION;
 			let isRadiatedLevel = levelVO.notCampableReason === LevelConstants.UNCAMPABLE_LEVEL_TYPE_RADIATION;
-			let isHazardLevel = isPollutedLevel || isRadiatedLevel;
+			let isFloodedLevel = levelVO.notCampableReason === LevelConstants.UNCAMPABLE_LEVEL_TYPE_FLOODED;
+			let isHazardLevel = isPollutedLevel || isRadiatedLevel || isFloodedLevel;
 			
 			// hazard areas (cold)
 			let hasCold = levelVO.level != 14;
@@ -333,22 +348,25 @@ define([
 							value = maxHazardCold;
 						if (!isFullLevel && coldEdgeDist == 1)
 							value = value / 2;
-						if (value > 10) {
-							value = Math.floor(value / 5) * 5;
-						} else {
-							value = Math.floor(value);
-						}
+						value = this.getHazardValue(value, maxHazardCold);
 						sectorVO.hazards.cold = value;
 					}
 				}
 			}
 			
-			// hazard clusters (radiation, poison and debris)
-			if (campOrdinal < WorldCreatorConstants.MIN_CAMP_ORDINAL_HAZARD_RADIATION && campOrdinal < WorldCreatorConstants.MIN_CAMP_ORDINAL_HAZARD_POISON && campOrdinal < WorldCreatorConstants.MIN_CAMP_ORDINAL_HAZARD_DEBRIS) {
+			// hazard clusters (radiation, poison, debris, flooded)
+			let minHazardClusterLevel = Math.min(
+				WorldCreatorConstants.MIN_CAMP_ORDINAL_HAZARD_RADIATION, 
+				WorldCreatorConstants.MIN_CAMP_ORDINAL_HAZARD_POISON,
+				WorldCreatorConstants.MIN_CAMP_ORDINAL_HAZARD_DEBRIS,
+				WorldCreatorConstants.MIN_CAMP_ORDINAL_HAZARD_FLOODED
+			)
+
+			if (campOrdinal < minHazardClusterLevel) {
 				return;
 			}
 			
-			var hazardType = isRadiatedLevel ? SectorConstants.HAZARD_TYPE_RADIATION : SectorConstants.HAZARD_TYPE_POLLUTION;
+			let defaultHazardType = isRadiatedLevel ? SectorConstants.HAZARD_TYPE_RADIATION : isFloodedLevel ? SectorConstants.HAZARD_TYPE_FLOODED : SectorConstants.HAZARD_TYPE_POLLUTION;
 			
 			if (!isHazardLevel) {
 				// normal level
@@ -375,7 +393,7 @@ define([
 				for (let i = 0; i < borderSectors.length; i++) {
 					var pair = borderSectors[i];
 					if (pair.neighbour.zone == WorldConstants.ZONE_ENTRANCE) continue;
-					var maxHazardValue = this.getMaxHazardValue(levelVO, pair.neighbour, hazardType, pair.neighbour.zone);
+					var maxHazardValue = this.getMaxHazardValue(levelVO, pair.neighbour, defaultHazardType, pair.neighbour.zone);
 					if (maxHazardValue < 1) continue;
 					var distanceToCamp = Math.min(
 						WorldCreatorHelper.getQuickMinDistanceToCamp(levelVO, pair.sector),
@@ -394,16 +412,19 @@ define([
 				for (let i = 0; i < levelVO.sectors.length; i++) {
 					var sectorVO = levelVO.sectors[i];
 					if (sectorVO.zone == WorldConstants.ZONE_ENTRANCE) continue;
-					var maxHazardValue = this.getMaxHazardValue(levelVO, sectorVO, hazardType, sectorVO.zone);
+					var maxHazardValue = this.getMaxHazardValue(levelVO, sectorVO, defaultHazardType, sectorVO.zone);
 					var minHazardValue = Math.floor(maxHazardValue / 2);
 					if (levelVO.isHard) minHazardValue = maxHazardValue;
 					var hazardValueRand = WorldCreatorRandom.random(levelOrdinal * (i + 11) / seed * 55 + seed / (i + 99) - i * i);
-					var hazardValue = Math.ceil((minHazardValue + hazardValueRand * (maxHazardValue - minHazardValue)) / 5) * 5;
+					var hazardValue = minHazardValue + hazardValueRand * (maxHazardValue - minHazardValue);
+					hazardValue = this.getHazardValue(hazardValue, maxHazardValue);
 					if (hazardValue > maxHazardValue) hazardValue = maxHazardValue;
 					if (isPollutedLevel) {
 						sectorVO.hazards.poison = hazardValue;
 					} else if (isRadiatedLevel) {
 						sectorVO.hazards.radiation = hazardValue;
+					} else if (isFloodedLevel) {
+						sectorVO.hazards.flooded = hazardValue;
 					}
 				}
 			}
@@ -414,8 +435,8 @@ define([
 			var levelOrdinal = WorldCreatorHelper.getLevelOrdinal(seed, l);
 			var campOrdinal = WorldCreatorHelper.getCampOrdinal(seed, l);
 			
-			var blockerTypesEarly = this.getLevelBlockerTypes(levelVO, WorldConstants.CAMP_STAGE_EARLY);
-			var blockerTypesLate = this.getLevelBlockerTypes(levelVO, WorldConstants.CAMP_STAGE_LATE);
+			var blockerTypesEarly = this.getLevelBlockerTypes(worldVO, levelVO, WorldConstants.CAMP_STAGE_EARLY);
+			var blockerTypesLate = this.getLevelBlockerTypes(worldVO, levelVO, WorldConstants.CAMP_STAGE_LATE);
 			if (blockerTypesLate.length < 1) return;
 			
 			var creator = this;
@@ -494,7 +515,7 @@ define([
 			}
 			
 			// campable levels: zone borders
-			if (levelVO.isCampable) {
+			if (levelOrdinal > 1 && levelVO.isCampable) {
 				var freq = 0.75;
 				// - from ZONE_PASSAGE_TO_CAMP to other (to lead player towards camp)
 				var allowedCriticalPaths = [ WorldCreatorConstants.CRITICAL_PATH_TYPE_CAMP_TO_POI_1, WorldCreatorConstants.CRITICAL_PATH_TYPE_CAMP_TO_POI_2, WorldCreatorConstants.CRITICAL_PATH_TYPE_CAMP_TO_PASSAGE ];
@@ -620,13 +641,17 @@ define([
 				return result;
 			};
 
-			let addStash = function (sectorVO, reason, stashType, numItems, itemID) {
-				let stash = new StashVO(stashType, numItems, itemID);
+			let addStash = function (sectorVO, reason, stashType, numItems, itemID, localeType) {
+				let stash = new StashVO(stashType, numItems, itemID, localeType);
 				sectorVO.stashes.push(stash);
+				if (stash.localeType) {
+					let locale = new LocaleVO(localeType, false, false);
+					SectorGenerator.addLocale(levelVO, sectorVO, locale);
+				}
 				// WorldCreatorLogger.i("add stash level " + l + " [" + reason + "]: " + itemID + " x" + numItems + " " + sectorVO.position + " " + sectorVO.zone);
 			};
 			
-			let addStashes = function (sectorSeed, reason, stashType, itemIDs, numStashes, numItemsPerStash, excludedZones) {
+			let addStashes = function (sectorSeed, reason, stashType, itemIDs, numStashes, numItemsPerStash, excludedZones, localeType) {
 				numStashes = WorldCreatorRandom.getRandomIntFromRange(sectorSeed / 2 + 222, numStashes);
 				
 				let options = { requireCentral: false, excludingFeature: "isCamp", excludedZones: excludedZones };
@@ -642,7 +667,7 @@ define([
 					let item = WorldCreatorRandom.getRandomItemFromArray(stashSeed, itemIDs);
 					let itemID = item.id ? item.id : item;
 					let numItems = WorldCreatorRandom.getRandomIntFromRange(stashSeed, numItemsPerStash);
-					addStash(stashSectors[i], reason, stashType, numItems, itemID);
+					addStash(stashSectors[i], reason, stashType, numItems, itemID, localeType);
 				}
 			};
 			
@@ -661,10 +686,14 @@ define([
 			if (l == WorldConstants.LEVEL_NUMBER_STASH_ADVANCED_MAP) {
 				addStashes(seed / 2 + 5312, "guaranteed-early", ItemConstants.STASH_TYPE_ITEM, [ "equipment_map_2" ], 1, 1, earlyZonesEntrance);
 			}
+
+			if (l == WorldConstants.LEVEL_NUMBER_STASH_ROBOT_1 || l == WorldConstants.LEVEL_NUMBER_STASH_ROBOT_2) {
+				addStashes(seed / 3 + 1111, "guaranteed-late", ItemConstants.STASH_TYPE_ITEM, [ "robot_1" ], 1, 1, earlyZones);
+			}
 			
 			// stashes: every campable level guaranteed items
 			if (levelVO.isCampable && l != 13) {
-				let numCaches = levelVO.populationFactor >= 1 ? 3 : 5;
+				let numCaches = levelVO.habitability >= 1 ? 3 : 5;
 				addStashes(seed / 7 * 937 + l * 331, "guaranteed-campable-early", ItemConstants.STASH_TYPE_ITEM, ItemConstants.getAvailableMetalCaches(levelVO.campOrdinal), numCaches, 1, lateZones);
 				addStashes(3000 + seed % 7 * 188 + (levelVO.level % 3) * 105 + Math.abs(levelVO.minX + 50) * 77, "guaranteed-campable", ItemConstants.STASH_TYPE_ITEM, [ "consumable_map_1", "consumable_map_2" ], [1, 3], 1, lateZones);
 			}
@@ -672,6 +701,8 @@ define([
 			// stashes: every non-campable level guaranteed items
 			if (!levelVO.isCampable) {
 				addStashes(seed % 45 * (l + 11) * 9 + (l+100)*7 + 1111, "guaranteed-noncampable", ItemConstants.STASH_TYPE_ITEM, [ "stamina_potion_1"], 1, 1);
+				addStashes(seed / 2 + l * 3, "guaranteed-noncampable", ItemConstants.STASH_TYPE_ITEM, [ "cache_food_1"], 1, 1);
+				addStashes(seed % 6 * 1000 + l * 5, "guaranteed-noncampable", ItemConstants.STASH_TYPE_ITEM, [ "cache_water_1"], 1, 1);
 				if (levelVO.level != worldVO.bottomLevel) {
 					addStashes(3000 + seed % 7 * 188 + (levelVO.level % 3) * 105 + Math.abs(levelVO.minX + 50) * 77, "guaranteed-noncampable", ItemConstants.STASH_TYPE_ITEM, [ "consumable_map_1", "consumable_map_2" ], 2, 1, lateZones);
 				}
@@ -707,6 +738,14 @@ define([
 			let bonusStashItems = this.getPossibleBonusStashItems(levelVO);
 			var numItems = Math.min(levelVO.isCampable ? 1 : 3, bonusStashItems.length);
 			addStashes(seed + (l + 151) * 115, "bonus", ItemConstants.STASH_TYPE_ITEM, bonusStashItems, numItems, 1, earlyZonesOnCampableLevels);
+
+			// stashes: story items
+			for (let i = 0; i < StoryConstants.storyStashes.length; i++) {
+				let stashDefinition = StoryConstants.storyStashes[i];
+				if (stashDefinition.campOrdinal != levelVO.campOrdinal) continue;
+				if (levelIndex != maxLevelIndex) continue;
+				addStashes(seed / 2 + 16831 + i * 312, "story", ItemConstants.STASH_TYPE_ITEM, [ stashDefinition.itemID ], 1, 1, earlyZonesOnCampableLevels, stashDefinition.localeType);
+			}
 		},
 		
 		getPossibleBonusStashItems: function (levelVO) {
@@ -714,6 +753,7 @@ define([
 				"first_aid_kit_1",
 				"first_aid_kit_2",
 				"glowstick_1",
+				"exploration_2",
 				"consumable_weapon_1",
 				"consumable_weapon_bio",
 				"consumable_weapon_mechanical",
@@ -732,10 +772,11 @@ define([
 				"cache_metal_3",
 				"cache_metal_4",
 				"cache_food_1",
+				"cache_food_2",
 				"cache_water_1",
+				"cache_water_2",
 			];
-			var maxRarity = 9;
-			return allItems.filter((itemID) => this.itemsHelper.isAvailable(ItemConstants.getItemConfigByID(itemID), levelVO.campOrdinal, WorldConstants.CAMP_STEP_END, true, true, maxRarity));
+			return allItems.filter((itemID) => this.itemsHelper.isAvailable(ItemConstants.getItemDefinitionByID(itemID), levelVO.campOrdinal, WorldConstants.CAMP_STEP_END, true, true));
 		},
 		
 		generateWorkshops: function (seed, worldVO, levelVO) {
@@ -778,6 +819,54 @@ define([
 					let criticalPathVO = new CriticalPathVO(WorldCreatorConstants.CRITICAL_PATH_TYPE_CAMP_TO_POI_1, workshopSectors[i].position, pathConstraints[j].startPosition);
 					WorldCreatorHelper.addCriticalPath(worldVO, criticalPathVO);
 				}
+			}
+
+			// add locales associated with workshops
+			if (workshopResource == "herbs" && campOrdinal === WorldConstants.CAMP_ORDINAL_GREENHOUSE_1) {
+				let locale = new LocaleVO(localeTypes.greenhouse, true, false);
+				this.addLocale(levelVO, workshopSectors[0], locale);
+			}
+			
+		},
+
+		generateHeaps: function (seed, worldVO, levelVO) {
+			let heapResource = resourceNames.metal;
+
+			let getHeapSectorScore = function (sectorVO) {
+				let score = sectorVO.resourcesScavengable.getResource(heapResource);
+				score -= WorldCreatorHelper.getQuickMinDistanceToCamp(levelVO, sectorVO);
+				score -= sectorVO.locales.length;
+				if (sectorVO.hasLocaleOfType(localeTypes.grove)) score -= 100;
+				if (sectorVO.hazards.radiation > 0) score -= 5;
+				if (sectorVO.hazards.poison > 0) score -= 5;
+				if (sectorVO.hazards.flooded > 0) score -= 1;
+				if (sectorVO.locales.length > 0) score -= 1;
+				if (sectorVO.resourcesCollectable.getTotal() > 0) score -= 1;
+				if (sectorVO.hasWater()) score -= 1;
+				if (sectorVO.sectorType == SectorConstants.SECTOR_TYPE_SLUM) score += 10;
+				if (sectorVO.sectorType == SectorConstants.SECTOR_TYPE_MAINTENANCE) score += 1;
+				if (sectorVO.sectorType == SectorConstants.SECTOR_TYPE_PUBLIC) score -= 1;
+				if (sectorVO.sectorType == SectorConstants.SECTOR_TYPE_COMMERCIAL) score -= 2;
+				return score;
+			};
+
+			let count = 2;
+			if (levelVO.level == 13) count++;
+			if (!levelVO.isCampable) count--;
+			if (levelVO.isHard) count--;
+
+			let excludedZones = [ WorldConstants.ZONE_EXTRA_CAMPABLE, WorldConstants.ZONE_EXTRA_UNCAMPABLE ];
+			if (levelVO.campOrdinal == 1) {
+				excludedZones.push(WorldConstants.ZONE_POI_2);
+			}
+			let excludedFeatures = [ "isCamp", "isPassageUp", "isPassageDown", "hasWorkshop" ];
+			let options = { requireCentral: true, excludingFeature: excludedFeatures, excludedZones: excludedZones };
+			let heapSectors = WorldCreatorRandom.randomSectorsScored(seed, worldVO, levelVO, count, count + 1, options, getHeapSectorScore);
+
+			for (let i = 0; i < heapSectors.length; i++) {
+				heapSectors[i].hasHeap = true;
+				heapSectors[i].heapResource = heapResource;
+				WorldCreatorLogger.i("heap [" +  heapResource + "]: " + heapSectors[i].position);
 			}
 		},
 		
@@ -905,6 +994,7 @@ define([
 			var levelWear = MathUtils.clamp((worldVO.topLevel - l) / (worldVO.topLevel - 5) * 8, 0, 10);
 			var wear = levelWear + WorldCreatorRandom.randomInt(seed * l + (x + 100) * 82 + (y + 100) * 82, -3, 3);
 			if (sectorVO.isCamp) wear = Math.min(3, wear);
+			if (sectorVO.sectorType == SectorConstants.SECTOR_TYPE_SLUM) wear = Math.max(3, wear);
 			sectorVO.wear = MathUtils.clamp(Math.round(wear), 0, 10);
 
 			// damage
@@ -978,12 +1068,25 @@ define([
 				minDensity = 2;
 				maxDensity = 8;
 			}
+
+			if (PositionConstants.isWorldPillarPosition(sectorVO.position)) {
+				minDensity = 2;
+			}
 			
 			var randomDensity = WorldCreatorRandom.randomInt(seed * l * x + y + x, minDensity, maxDensity + 1);
 			if (sectorVO.isCamp) randomDensity = 5;
 			
 			var density = (levelDensity + randomDensity) / 2;
 			sectorVO.buildingDensity = MathUtils.clamp(Math.round(density), minDensity, maxDensity);
+		},
+
+		generateGraffiti: function (seed, worldVO, levelVO, sectorVO) {
+			if (sectorVO.hazards.territory > 0) {
+				let neighbours = levelVO.getNeighbourList(sectorVO.position.sectorX, sectorVO.position.sectorY);
+				if (neighbours.every(neighbourVO => neighbourVO.hazards.territory > 0 && neighbourVO.graffiti == null)) {
+					sectorVO.graffiti = "Red Hats";
+				}
+			}
 		},
 		
 		generateDifficulty: function (seed, worldVO, levelVO, sectorVO) {
@@ -1020,12 +1123,13 @@ define([
 					break;
 			}
 			
-			// - population factor (easier scavenging around outposts)
-			scavengeDifficultyScore *= MathUtils.map(levelVO.populationFactor, 0, 1, 0.75, 1.25);
+			// - habitability (easier scavenging around outposts)
+			scavengeDifficultyScore *= MathUtils.map(levelVO.habitability, 0, 1, 0.75, 1.25);
 			
 			// - hazards
 			if (sectorVO.hazards.poison > 0) scavengeDifficultyScore *= 1.5;
 			if (sectorVO.hazards.radiation > 0)  scavengeDifficultyScore *= 2;
+			if (sectorVO.hazards.flooded > 0)  scavengeDifficultyScore *= 1.25;
 			
 			// - special levels
 			if (levelVO.level == worldVO.bottomLevel) scavengeDifficultyScore *= 1.25;
@@ -1184,6 +1288,10 @@ define([
 				col.water = 0;
 				col.food = 0;
 			}
+
+			if (sectorVO.hazards.flooded > 0) {
+				col.flood = 0;
+			}
 			
 			if (sectorVO.hazards.hasHazards()) {
 				sca.water = 0;
@@ -1192,7 +1300,7 @@ define([
 			// adjustments for camp positions
 			if (sectorVO.isCamp) {
 				let isMainCamp = sectorVO.position.equals(levelVO.campPosition);
-				let isOutpost = levelVO.populationFactor < 1;
+				let isOutpost = levelVO.habitability < 1;
 				
 				if (isStartPosition) {
 					sca.metal = WorldConstants.resourcePrevalence.ABUNDANT;
@@ -1287,7 +1395,7 @@ define([
 				
 				// ingredients for crafting other important items
 				if (stageVO.stage == WorldConstants.CAMP_STAGE_EARLY) {
-					let requiredItems = [ "exploration_1" ].map(itemID => ItemConstants.getItemConfigByID(itemID));
+					let requiredItems = [ "exploration_1" ].map(itemID => ItemConstants.getItemDefinitionByID(itemID));
 					let requiredItemIngredients = ItemConstants.getIngredientsToCraftMany(requiredItems);
 					let requiredItemIngredientsMax = Math.min(maxPerType, requiredItemIngredients.length);
 					for (let i = 0; i < requiredItemIngredientsMax; i++) {
@@ -1315,7 +1423,12 @@ define([
 			var blockerType = MovementConstants.BLOCKER_TYPE_GANG;
 			
 			var selectEnemyIDsForGang = function (s1, s2) {
-				let possibleEnemies = s1.possibleEnemies.concat(s2.possibleEnemies);
+				let allEnemies = s1.possibleEnemies.concat(s2.possibleEnemies);
+				let allEnemiesWithTags = allEnemies.filter(e => e.environment.indexOf("nogang") < 0);
+
+				let possibleEnemies = allEnemiesWithTags;
+				if (possibleEnemies.length == 0) possibleEnemies = allEnemies;
+				
 				possibleEnemies.sort(function (a, b) {
 					var diff1 = EnemyConstants.enemyDifficulties[a.id];
 					var diff2 = EnemyConstants.enemyDifficulties[b.id];
@@ -1401,6 +1514,8 @@ define([
 				// regular enemies (random encounters not tied to locales / gangs)
 				if (distanceToCamp < 3) {
 					sectorVO.hasRegularEnemies = false;
+				} else if (sectorVO.hazards.territory > 0) {
+					sectorVO.hasRegularEnemies = true;
 				} else {
 					let r = WorldCreatorRandom.random(l * sectorVO.position.sectorX * seed + sectorVO.position.sectorY * seed + 4848);
 					let probability = WorldCreatorRandom.getProbabilityFromFactors([
@@ -1542,17 +1657,47 @@ define([
 			}
 			
 		},
+
+		generateSectorExamineSpots: function (seed, worldVO, levelVO) {
+			let spots = worldVO.examineSpotsPerLevel[levelVO.level];
+			if (!spots || spots.length == 0) return;
+			
+			let getExamineSpotSectorScore = function (sectorVO) {
+				let score = 0;
+				score -= sectorVO.locales.length;
+				if (sectorVO.isInvestigatable) score -= 1;
+				return score;
+			};
+
+			for (let i = 0; i < spots.length; i++) {
+				let spotID = spots[i];
+				let spot = StoryConstants.getSectorExampineSpot(spotID);
+
+				let filter = function (sectorVO) {
+					if (sectorVO.examineSpots.length > 0) return false;
+					if (spot.positionParams.sectorType && spot.positionParams.sectorType != sectorVO.sectorType) return false;
+					if (spot.positionParams.sunlit && !sectorVO.sunlit) return false;
+					return true;
+				};
+
+				let excludedZones = [ WorldConstants.ZONE_ENTRANCE ];
+				let excludedFeatures = [ "isCamp", "isPassageUp", "isPassageDown", "workshopResource" ];
+				let options = { requireCentral: false, excludingFeature: excludedFeatures, pathConstraints: [], excludedZones: excludedZones, filter: filter };
+				let sectors = WorldCreatorRandom.randomSectorsScored(1000 + i * 66, worldVO, levelVO, 1, 2, options, getExamineSpotSectorScore);
+				if (sectors.length == 0) {
+					WorldCreatorLogger.w("could not find sector for examine spot: " + spot.id);
+					continue;
+				}
+				let sector = sectors[0];
+				sector.examineSpots.push(spotID);
+				WorldCreatorLogger.i("add examine spot " + spotID + " to " + sector.position);
+			}
+		},
 		
 		generateLocales: function (seed, worldVO, levelVO) {
 			var l = levelVO.level;
 			var campOrdinal = WorldCreatorHelper.getCampOrdinal(seed, levelVO.level);
 			var generator = this;
-						
-			var addLocale = function (sectorVO, locale) {
-				sectorVO.locales.push(locale);
-				levelVO.localeSectors.push(sectorVO);
-				levelVO.numLocales++;
-			};
 			
 			let excludedFeatures = [ "isCamp", "isPassageUp", "isPassageDown", "workshopResource" ];
 			let lateZones = [ WorldConstants.ZONE_POI_2, WorldConstants.ZONE_EXTRA_CAMPABLE ];
@@ -1567,32 +1712,52 @@ define([
 					var sectorVO = WorldCreatorRandom.randomSectors(seed - 9393 + i * i, worldVO, levelVO, 1, 2, options)[0];
 					var locale = new LocaleVO(localeTypes.tradingpartner, true, false);
 					// WorldCreatorLogger.i("trade partner at " + sectorVO.position)
-					addLocale(sectorVO, locale);
+					this.addLocale(levelVO, sectorVO, locale);
 					sectorVO.scavengeDifficulty = 10;
 				}
 			}
 			
-			// 2) spanw grove
-			if (levelVO.level == worldVO.bottomLevel) {
-				var options = { excludingFeature: excludedFeatures };
-				var groveSector = WorldCreatorRandom.randomSectors(seed, worldVO, levelVO, 1, 2, options)[0];
-				var groveLocale = new LocaleVO(localeTypes.grove, true, false);
-				groveSector.sunlit = 1;
-				groveSector.hazards.radiation = 0;
-				groveSector.hazards.pollution = 0;
-				addLocale(groveSector, groveLocale);
-				WorldCreatorLogger.i("add grove at: " + groveSector);
+			// TODO define hard coded locales in story constants or as input rather than hard-coding here
+			// NOTE: keep texts referring to fall story facilities up to date if changing levels here
+			// 2) spawn story and hard-coded locales
+			let storyLocales = [
+				{ type: localeTypes.grove, level: worldVO.bottomLevel, isEasy: true },
+				{ type: localeTypes.compound, level: WorldCreatorHelper.getLastLevelForCamp(seed, 4), isEarly: false },
+				{ type: localeTypes.depot, level: WorldCreatorHelper.getLastLevelForCamp(seed, 5), isEarly: false },
+				{ type: localeTypes.seedDepot, level: WorldCreatorHelper.getLastLevelForCamp(seed, 6), isEarly: false },
+				{ type: localeTypes.depot, level: WorldCreatorHelper.getLastLevelForCamp(seed, 7), isEarly: false },
+				{ type: localeTypes.clinic, level: WorldCreatorHelper.getLastLevelForCamp(seed, 9), isEarly: true },
+				{ type: localeTypes.spacefactory, level: WorldCreatorHelper.getLastLevelForCamp(seed, 10), isEarly: false },
+				{ type: localeTypes.shelter, level: WorldCreatorHelper.getLastLevelForCamp(seed, 12), isEarly: false },
+				{ type: localeTypes.clinic, level: WorldCreatorHelper.getLastLevelForCamp(seed, 13), isEarly: true },
+				{ type: localeTypes.isolationCenter, level: WorldCreatorHelper.getLastLevelForCamp(seed, 14), isEarly: false },
+				{ type: localeTypes.expedition, level: WorldCreatorHelper.getLastLevelForCamp(seed, 15), isEarly: false },
+			];
+
+			for (let i = 0; i < storyLocales.length; i++) {
+				let def = storyLocales[i];
+				if (levelVO.level != def.level) continue;
+				let options = { excludingFeature: excludedFeatures };
+				let sector = WorldCreatorRandom.randomSectors(seed, worldVO, levelVO, 1, 2, options)[0];
+				if (def.type == localeTypes.grove) sector.sunlit = 1;
+				if (def.type == localeTypes.grove) sector.resourcesScavengable.food = Math.max(sector.resourcesScavengable.food, 3);
+				if (def.type == localeTypes.grove) sector.resourcesScavengable.water = Math.max(sector.resourcesScavengable.water, 3);
+				sector.hazards.radiation = 0;
+				sector.hazards.poison = 0;
+				let localeVO = new LocaleVO(def.type, def.isEarly, def.isEarly);
+				this.addLocale(levelVO, sector, localeVO);
+				WorldCreatorLogger.i("add locale " + def.type +  " at: " + sector);
 			}
 			
-			// 3) spawn locales with hard-coded followers
-			for (let i = 0; i < levelVO.predefinedFollowers.length; i++) {
-				let follower = levelVO.predefinedFollowers[i];
+			// 3) spawn locales with hard-coded explorers
+			for (let i = 0; i < levelVO.predefinedExplorers.length; i++) {
+				let explorer = levelVO.predefinedExplorers[i];
 				let options = { excludingFeature: excludedFeatures, excludedZones: lateZones };
 				let sector = WorldCreatorRandom.randomSectors(1000 + seed * 2, worldVO, levelVO, 1, 2, options)[0];
-				let locale = new LocaleVO(follower.localeType, true, true);
-				locale.followerID = follower.id;
-				addLocale(sector, locale);
-				// WorldCreatorLogger.i("add follower locale at " + sector)
+				let locale = new LocaleVO(explorer.localeType, true, true);
+				locale.explorerID = explorer.id;
+				this.addLocale(levelVO, sector, locale);
+				WorldCreatorLogger.i("add explorer locale at " + sector)
 			}
 			
 			// 4) spawn locales for luxury resources
@@ -1602,10 +1767,11 @@ define([
 				let filter = sectorVO => this.filterSectorForLuxuryLocationType(sectorVO, locationType);
 				let options = { excludingFeature: excludedFeatures, excludedZones: lateZones, excludedZones: [ WorldConstants.ZONE_PASSAGE_TO_CAMP ], filter: filter };
 				let sector = WorldCreatorRandom.randomSectors(seed  + 773 + levelVO.level * 24 + i * 992, worldVO, levelVO, 1, 2, options)[0];
+				if (!sector) continue;
 				let localeType = this.getLocaleTypeForLuxuryResourceOnSector(seed, locationType, sector);
 				let locale = new LocaleVO(localeType, false, false);
 				locale.luxuryResource = resource;
-				addLocale(sector, locale);
+				this.addLocale(levelVO, sector, locale);
 				WorldCreatorLogger.i("add luxury resource locale at " + sector);
 			}
 
@@ -1633,13 +1799,12 @@ define([
 				for (let i = 0; i < count; i++) {
 					var localePos = WorldCreatorRandom.randomSectors(sseed + i + i * 72 * sseed + i * l + i, worldVO, levelVO, 1, 2, options);
 					var sectorVO = localePos[0];
-					var s1 = sseed + sectorVO.position.sectorX * 871 + sectorVO.position.sectorY * 659;
-					var r1 = WorldCreatorRandom.random(s1);
+					var s1 = sseed + sectorVO.position.sectorX * 871 + sectorVO.position.sectorY * 659 + i * 212;
 					var localeType = generator.getLocaleType(worldVO, levelVO, sectorVO, s1, isEarly);
 					var isEasy = i <= countEasy;
 					var locale = new LocaleVO(localeType, isEasy, isEarly);
 					locale.hasBlueprints = true;
-					addLocale(sectorVO, locale);
+					SectorGenerator.addLocale(levelVO, sectorVO, locale);
 					// WorldCreatorLogger.i(sectorVO.position + " added locale: isEarly:" + isEarly + ", distance to camp: " + WorldCreatorHelper.getDistanceToCamp(worldVO, levelVO, sectorVO) + ", zone: " + sectorVO.zone);
 					for (let j = 0; j < pathConstraints.length; j++) {
 						let criticalPathVO = new CriticalPathVO(pathConstraints[j].pathType, sectorVO.position, pathConstraints[j].startPosition);
@@ -1669,6 +1834,14 @@ define([
 				var countLate = WorldCreatorRandom.randomInt((seed % 84) * l * l * l + 1, minLate, maxLate + 1);
 				createLocales(worldVO, levelVO, campOrdinal, false, countLate, minLate);
 			}
+		},
+
+		addLocale: function (levelVO, sectorVO, localeVO) {
+			sectorVO.locales.push(localeVO);
+			levelVO.localeSectors.push(sectorVO);
+			levelVO.numLocales++;
+
+			// WorldCreatorLogger.i("add locale " + sectorVO.position + ": " + localeVO.type);
 		},
 		
 		generateWaymarks: function (seed, worldVO, levelVO) {
@@ -1825,7 +1998,7 @@ define([
 			};
 			
 			// select waymarks by type
-			let maxNumWaymarksCommon = levelVO.populationFactor >= 1 ? 3 : 2;
+			let maxNumWaymarksCommon = levelVO.habitability >= 1 ? 3 : 2;
 			
 			if (levelVO.isCampable && levelVO.campOrdinal > 1) {
 				selectWaymarks(SectorConstants.WAYMARK_TYPE_CAMP, false, 1, 5, 3, sectorVO => sectorVO.isCamp);
@@ -1908,6 +2081,8 @@ define([
 			sectorVO.addBlocker(direction, blockerType);
 			neighbourVO.addBlocker(neighbourDirection, blockerType);
 
+			//WorldCreatorLogger.i("add movement blocker " + blockerType + " at " + sectorVO.position);
+
 			// add blockers to adjacent paths too (if present) so player can't just walk around the blocker
 			if (options.addDiagonals) {
 				var diagonalsOptions = Object.assign({}, options);
@@ -1939,15 +2114,17 @@ define([
 		
 		setSectorHazard: function (levelVO, sectorVO, hazardValueRand, hazardType, isClusterEdge, override) {
 			var maxHazardValue = this.getMaxHazardValue(levelVO, sectorVO, hazardType, sectorVO.zone, override);
+			if (maxHazardValue <= 0) return;
 			var minHazardValue = this.getMaxHazardValueForLevel(hazardType, levelVO.campOrdinal - 1, sectorVO.zone, false);
 			var hazardValue = minHazardValue + hazardValueRand * (maxHazardValue - minHazardValue);
 			if (isClusterEdge) {
 				hazardValue = hazardValue / 2;
 			}
-			hazardValue = Math.ceil(hazardValue / 5) * 5;
-			if (hazardValue > maxHazardValue) hazardValue = maxHazardValue;
+			hazardValue = this.getHazardValue(hazardValue, maxHazardValue);
 			
 			sectorVO.hazards[hazardType] = hazardValue;
+
+			//WorldCreatorLogger.i("set sector hazard " + sectorVO.position + " type " + hazardType + " " + hazardValue);	
 			
 			if (override && hazardValue > 0) {
 				sectorVO.hazards.cold = 0;
@@ -1960,12 +2137,29 @@ define([
 						neighbour.hazards.cold = 0;
 					}
 				}
+
 				if (hazardType == SectorConstants.HAZARD_TYPE_RADIATION) {
 					sectorVO.hazards.poison = 0;
-				} else if (hazardType == "poison") {
-					sectorVO.hazards.radiation = 0;
+				
+					if (hazardType == SectorConstants.HAZARD_TYPE_POLLUTION) {
+						sectorVO.hazards.radiation = 0;
+					}
 				}
 			}
+		},
+
+		getHazardValue: function (value, maxValue) {
+			let result = value;
+
+			if (result < 10) {
+				result = Math.floor(result);
+			} else {
+				result = Math.ceil(result / 5) * 5;
+			}
+
+			if (result > maxValue) result = maxValue;
+
+			return result;
 		},
 		
 		getSectorType: function (seed, worldVO, levelVO, sectorVO) {
@@ -2038,14 +2232,19 @@ define([
 			if (sectorVO.workshopResource == "rubber") {
 				sectorType = SectorConstants.SECTOR_TYPE_INDUSTRIAL;
 			}
+
+			if (sectorVO.hasStashWithLocaleType(localeTypes.office)) {
+				sectorType = SectorConstants.SECTOR_TYPE_COMMERCIAL;
+			}
+
+			if (sectorVO.hasStashWithLocaleType(localeTypes.lab)) {
+				sectorType = SectorConstants.SECTOR_TYPE_INDUSTRIAL;
+			}
 			
 			return sectorType;
 		},
 
-		filterSectorForLuxuryLocationType: function (sectorVO, luxuryLocationType) {
-			if (sectorVO.sectorType == SectorConstants.SECTOR_TYPE_SLUM) return false;
-			if (sectorVO.sectorType == SectorConstants.SECTOR_TYPE_PUBLIC) return false;
-			
+		filterSectorForLuxuryLocationType: function (sectorVO, luxuryLocationType) {			
 			switch (luxuryLocationType) {
 				case this.LUXURY_RESOURCE_LOCATION_TYPE_FARMABLE:
 					return !sectorVO.hazards.hasHazards();
@@ -2112,6 +2311,7 @@ define([
 		
 		isSunlit: function (seed, worldVO, levelVO, sectorVO) {
 			let isSurfaceLevel = levelVO.level === worldVO.topLevel;
+			
 			if (sectorVO.isCamp && !isSurfaceLevel) return false;
 			
 			let l = sectorVO.position.level;
@@ -2209,22 +2409,26 @@ define([
 		getPossibleWeightedHazardTypesForLevel: function (levelVO, sectorVO) {
 			let result = [];
 			let campOrdinal = levelVO.campOrdinal;
+
 			if (campOrdinal >= WorldCreatorConstants.MIN_CAMP_ORDINAL_HAZARD_POISON) {
-				result.push(SectorConstants.HAZARD_TYPE_POLLUTION);
 				result.push(SectorConstants.HAZARD_TYPE_POLLUTION);
 			}
 			if (campOrdinal > WorldCreatorConstants.MIN_CAMP_ORDINAL_HAZARD_POISON) {
 				result.push(SectorConstants.HAZARD_TYPE_POLLUTION);
-				result.push(SectorConstants.HAZARD_TYPE_POLLUTION);
 			}
+
 			if (campOrdinal >= WorldCreatorConstants.MIN_CAMP_ORDINAL_HAZARD_RADIATION) {
-				result.push(SectorConstants.HAZARD_TYPE_RADIATION);
 				result.push(SectorConstants.HAZARD_TYPE_RADIATION);
 			}
 			if (campOrdinal > WorldCreatorConstants.MIN_CAMP_ORDINAL_HAZARD_RADIATION) {
 				result.push(SectorConstants.HAZARD_TYPE_RADIATION);
-				result.push(SectorConstants.HAZARD_TYPE_RADIATION);
 			}
+
+			if (campOrdinal >= WorldCreatorConstants.MIN_CAMP_ORDINAL_HAZARD_FLOODED) {
+				result.push(SectorConstants.HAZARD_TYPE_FLOODED);
+				result.push(SectorConstants.HAZARD_TYPE_FLOODED);
+			}
+
 			if (!sectorVO.isOnPassageCriticalPath()) {
 				if (campOrdinal >= WorldCreatorConstants.MIN_CAMP_ORDINAL_HAZARD_DEBRIS) {
 					result.push(SectorConstants.HAZARD_TYPE_DEBRIS);
@@ -2235,10 +2439,23 @@ define([
 				if (campOrdinal > WorldConstants.CAMPS_BEFORE_GROUND + 1) {
 					result.push(SectorConstants.HAZARD_TYPE_DEBRIS);
 					result.push(SectorConstants.HAZARD_TYPE_DEBRIS);
-					result.push(SectorConstants.HAZARD_TYPE_DEBRIS);
-					result.push(SectorConstants.HAZARD_TYPE_DEBRIS);
 				}
 			}
+
+			if (levelVO.isCampable && campOrdinal > WorldConstants.CAMPS_BEFORE_GROUND) {
+				let distanceToCamp = WorldCreatorHelper.getQuickMinDistanceToCamp(levelVO, sectorVO);
+
+				if (distanceToCamp > 3) {
+					result.push(SectorConstants.HAZARD_TYPE_GANG_TERRITORY);
+					result.push(SectorConstants.HAZARD_TYPE_GANG_TERRITORY);
+
+					if (levelVO.habitability >= 1) {
+						result.push(SectorConstants.HAZARD_TYPE_GANG_TERRITORY);
+						result.push(SectorConstants.HAZARD_TYPE_GANG_TERRITORY);
+					}
+				}
+			}
+
 			return result;
 		},
 		
@@ -2264,29 +2481,73 @@ define([
 		
 		getPassageDownType: function (seed, worldVO, levelVO, sectorVO) {
 			if (!sectorVO.isPassageDown) return null;
-			var l = levelVO.level;
-			var s1 = seed + l * 7 + sectorVO.position.sectorX * seed % 6 * 10;
-			var campOrdinal = levelVO.campOrdinal;
-			var unlockElevatorOrdinal = GameGlobals.upgradeEffectsHelper.getMinimumCampOrdinalForUpgrade("unlock_building_passage_elevator");
-			var unlockHoleOrdinal = GameGlobals.upgradeEffectsHelper.getMinimumCampOrdinalForUpgrade("unlock_building_passage_hole");
+			let l = levelVO.level;
+			let s1 = seed/ 2 + l * 8 + Math.abs(sectorVO.position.sectorX) * 34;
+
+			let isPlayerGoingDown = l <= 13;
+			let otherLevel = worldVO.getLevel(l - 1);
+			let startLevelVO = isPlayerGoingDown ? levelVO : otherLevel;
+			let endLevelVO = isPlayerGoingDown ? otherLevel : levelVO;
+			
+			let campOrdinal = startLevelVO.campOrdinal;
+			let unlockElevatorOrdinal = GameGlobals.upgradeEffectsHelper.getMinimumCampOrdinalForUpgrade("unlock_building_passage_elevator");
+			let unlockHoleOrdinal = GameGlobals.upgradeEffectsHelper.getMinimumCampOrdinalForUpgrade("unlock_building_passage_hole");
+
+			let guaranteedReadyPassageLevel = this.getGuaranteedReadyPassageLevel(seed, worldVO);
+
 			if (l === 13) {
 				return MovementConstants.PASSAGE_TYPE_STAIRWELL;
 			} else if (l === 14) {
 				return MovementConstants.PASSAGE_TYPE_HOLE;
 			} else if (levelVO.isCampable && campOrdinal == unlockElevatorOrdinal) {
 				return MovementConstants.PASSAGE_TYPE_ELEVATOR;
-			}else if (levelVO.isCampable && campOrdinal == unlockHoleOrdinal) {
+			} else if (levelVO.isCampable && campOrdinal == unlockHoleOrdinal) {
 				return MovementConstants.PASSAGE_TYPE_HOLE;
+			} else if (startLevelVO.level == guaranteedReadyPassageLevel) {
+				return MovementConstants.PASSAGE_TYPE_PREBUILT;
 			} else {
-				var availablePassageTypes = [MovementConstants.PASSAGE_TYPE_STAIRWELL];
-				if (campOrdinal >= unlockElevatorOrdinal)
-					availablePassageTypes.push(MovementConstants.PASSAGE_TYPE_ELEVATOR);
-				if (campOrdinal >= unlockHoleOrdinal)
-					availablePassageTypes.push(MovementConstants.PASSAGE_TYPE_HOLE);
-				var passageTypeIndex = WorldCreatorRandom.randomInt(s1, 0, availablePassageTypes.length);
-				var passageType = availablePassageTypes[passageTypeIndex];
+				let availablePassageTypes = this.getAvailablePassageTypes(startLevelVO, endLevelVO, unlockElevatorOrdinal, unlockHoleOrdinal);
+				let passageTypeIndex = WorldCreatorRandom.randomInt(s1, 0, availablePassageTypes.length);
+				let passageType = availablePassageTypes[passageTypeIndex];
 				return passageType;
 			}
+		},
+
+		getAvailablePassageTypes: function (startLevelVO, endLevelVO, unlockElevatorOrdinal, unlockHoleOrdinal) {
+			let campOrdinal = startLevelVO.campOrdinal;
+			let result = [ MovementConstants.PASSAGE_TYPE_STAIRWELL ];
+
+			if (campOrdinal >= unlockElevatorOrdinal) {
+				result.push(MovementConstants.PASSAGE_TYPE_ELEVATOR);
+			}
+			
+			if (campOrdinal >= unlockHoleOrdinal) {
+				result.push(MovementConstants.PASSAGE_TYPE_HOLE);
+			}
+
+			let isKeyCamp = campOrdinal == 1 || campOrdinal == WorldConstants.CAMPS_BEFORE_GROUND || campOrdinal == WorldConstants.CAMPS_TOTAL;
+			let isSurface = endLevelVO.campOrdinal == WorldConstants.CAMPS_TOTAL;
+			if (!isKeyCamp && !isSurface && !startLevelVO.isCampable) {
+				result.push(MovementConstants.PASSAGE_TYPE_PREBUILT);
+			}
+			
+			return result;
+		},
+
+		getGuaranteedReadyPassageLevel: function (seed, worldVO) {
+			let camplessLevels = WorldCreatorHelper.getCamplessLevelOrdinals(seed);
+			let validCamplessLevels = [];
+			for (let i = 0; i < camplessLevels.length; i++) {
+				let level = camplessLevels[i];
+				if (level >= worldVO.topLevel - 2) continue;
+				if (level == 15) continue;
+				if (level == 14) continue;
+				if (level == 11) continue;
+				validCamplessLevels.push(level);
+			}
+
+			let levelIndex = WorldCreatorRandom.randomInt(seed, 0, validCamplessLevels.length);
+			return validCamplessLevels[levelIndex];
 		},
 		
 		getPossibleEnemies: function (seed, worldVO, levelVO, sectorVO, enemyCreator) {
@@ -2295,12 +2556,8 @@ define([
 			let y = sectorVO.position.sectorY;
 			let campOrdinal = levelVO.campOrdinal;
 			let step = WorldConstants.getCampStep(sectorVO.zone);
-			let isPollutedLevel = levelVO.notCampableReason === LevelConstants.UNCAMPABLE_LEVEL_TYPE_POLLUTION;
-			let isRadiatedLevel = levelVO.notCampableReason === LevelConstants.UNCAMPABLE_LEVEL_TYPE_RADIATION;
-			let tags = [];
-			
-			if (levelVO.level == worldVO.bottomLevel) tags.push("ground");
-			if (levelVO.level == worldVO.topLevel) tags.push("surface");
+
+			let environmentTags = this.getSectorEnvironmentTags(worldVO, levelVO, sectorVO);
 			
 			let enemyDifficulty = enemyCreator.getDifficulty(campOrdinal, step);
 			if (sectorVO.isOnEarlyCriticalPath()) enemyDifficulty -= 2;
@@ -2311,41 +2568,16 @@ define([
 			
 			// collect all valid enemies for this sector (candidates)
 			let candidates = [];
-			let enemy;
 			let candidateDifficulties = [];
-			let addEnemyCandidates = function (enemyType) {
-				let typeEnemies = enemyCreator.getEnemies(enemyType, enemyDifficulty, false, tags);
-				for (var e in typeEnemies) {
-					enemy = typeEnemies[e];
-					candidates.push(enemy);
-					candidateDifficulties.push(enemyCreator.getEnemyDifficultyLevel(enemy));
-				}
-			};
 
-			addEnemyCandidates(EnemyConstants.enemyTypes.global);
-			if (!isPollutedLevel && !isRadiatedLevel && !sectorVO.hazards.hasHazards()) addEnemyCandidates(EnemyConstants.enemyTypes.nohazard);
-			if (sectorVO.hazards.cold > 0) addEnemyCandidates(EnemyConstants.enemyTypes.cold);
-			if (isPollutedLevel || sectorVO.hazards.poison > 0) addEnemyCandidates(EnemyConstants.enemyTypes.toxic);
-			if (isRadiatedLevel || sectorVO.hazards.radiation > 0) addEnemyCandidates(EnemyConstants.enemyTypes.radiation);
-			if (sectorVO.sunlit) addEnemyCandidates(EnemyConstants.enemyTypes.sunlit);
-			if (!sectorVO.sunlit) addEnemyCandidates(EnemyConstants.enemyTypes.dark);
-			if (!isPollutedLevel && !isRadiatedLevel && sectorVO.buildingDensity > 5) addEnemyCandidates(EnemyConstants.enemyTypes.dense);
-			if (!isPollutedLevel && !isRadiatedLevel && sectorVO.buildingDensity <= 5) addEnemyCandidates(EnemyConstants.enemyTypes.sparse);
-			if (levelVO.populationFactor > 0) addEnemyCandidates(EnemyConstants.enemyTypes.inhabited);
-			if (levelVO.populationFactor <= 0) addEnemyCandidates(EnemyConstants.enemyTypes.uninhabited);
-			
-			let hasWater = sectorVO.hasWater();
-			let directions = PositionConstants.getLevelDirections();
-			let neighbours = levelVO.getNeighbours(x, y);
-			for (var d in directions) {
-				let direction = directions[d];
-				let neighbour = neighbours[direction];
-				if (neighbour) {
-					hasWater = hasWater || neighbour.hasWater();
-				}
+			let allEnemies = enemyCreator.getEnemies(enemyDifficulty, environmentTags, 2);
+			for (let e in allEnemies) {
+				let enemy = allEnemies[e];
+				candidates.push(enemy);
+				candidateDifficulties.push(enemyCreator.getEnemyDifficultyLevel(enemy));
+				enemyCreator.registerEnemyAsCandidateForSector(enemy.id, l, campOrdinal);
 			}
-			if (!isPollutedLevel && !isRadiatedLevel && hasWater) addEnemyCandidates(EnemyConstants.enemyTypes.water);
-
+			
 			// check that we found some candidates
 			if (candidates.length < 1) {
 				WorldCreatorLogger.w("No valid enemies defined for sector " + sectorVO.position + " difficulty " + enemyDifficulty);
@@ -2377,16 +2609,64 @@ define([
 				let r = WorldCreatorRandom.random(9999 + l * seed + x * l * 80 + y * 10 + i * x *22 - y * i * x * 15);
 				if (i == 0 || r > threshold) {
 					enemies.push(enemy);
+					enemyCreator.registerEnemyAsPresentForSector(enemy.id, l, campOrdinal);
 				}
 			}
 
 			return enemies;
+		},
+
+		getSectorEnvironmentTags: function (worldVO, levelVO, sectorVO) {
+			let l = sectorVO.position.level;
+			let x = sectorVO.position.sectorX;
+			let y = sectorVO.position.sectorY;
+
+			let tags = [];
+
+			let isPollutedLevel = levelVO.notCampableReason === LevelConstants.UNCAMPABLE_LEVEL_TYPE_POLLUTION;
+			let isRadiatedLevel = levelVO.notCampableReason === LevelConstants.UNCAMPABLE_LEVEL_TYPE_RADIATION;
+			
+			tags.push("nogang")
+			if (levelVO.level == worldVO.bottomLevel) tags.push("ground");
+			if (levelVO.level == worldVO.topLevel) tags.push("surface");
+			if (levelVO.level < 14) tags.push("lowlevels");
+			if (levelVO.level > 14) tags.push("highlevels");
+			if (!isPollutedLevel && !isRadiatedLevel && !sectorVO.hazards.hasHazards()) tags.push("nohazard");
+			if (sectorVO.hazards.cold > 0) tags.push("cold");
+			if (isPollutedLevel || sectorVO.hazards.poison > 0) tags.push("toxic");
+			if (isRadiatedLevel || sectorVO.hazards.radiation > 0) tags.push("radiation");
+			if (sectorVO.sunlit) tags.push("sunlit");
+			if (!sectorVO.sunlit) tags.push("dark");
+			if (sectorVO.buildingDensity > 5) tags.push("dense");
+			if (sectorVO.buildingDensity < 5) tags.push("sparse");
+			if (levelVO.habitability > 0) tags.push("inhabited");
+			if (levelVO.habitability <= 0) tags.push("uninhabited");
+			if (sectorVO.hazards.flooded > 0) tags.push("flooded");
+			if (sectorVO.hazards.territory > 0) tags.push("territory");
+			if (sectorVO.hazards.flooded === 0) tags.push("noflood");
+			if (sectorVO.sectorType == SectorConstants.SECTOR_TYPE_INDUSTRIAL) tags.push("industrial");
+
+			let hasWater = sectorVO.hasWater();
+			let directions = PositionConstants.getLevelDirections();
+			let neighbours = levelVO.getNeighbours(x, y);
+			for (var d in directions) {
+				let direction = directions[d];
+				let neighbour = neighbours[direction];
+				if (neighbour) {
+					hasWater = hasWater || neighbour.hasWater();
+				}
+			}
+
+			if (!isPollutedLevel && !isRadiatedLevel && hasWater) tags.push("water");
+
+			return tags;
 		},
 		
 		getMaxHazardValue: function (levelVO, sectorVO, hazardType, zone, override) {
 			if (sectorVO.isCamp) return 0;
 			if (sectorVO.requiredResources.water) return 0;
 			if (sectorVO.workshopResource != null) return 0;
+			if (sectorVO.hasLocaleOfType(localeTypes.grove)) return 0;
 			if (zone == WorldConstants.ZONE_PASSAGE_TO_CAMP) return 0;
 			
 			let isDebris = hazardType == "debris";
@@ -2419,9 +2699,11 @@ define([
 					value = Math.floor(value * 2 / 3);
 				}
 			}
+			
 			if (isDebris && sectorVO.isOnPassageCriticalPath()) {
 				value = 0;
 			}
+
 			return value;
 		},
 		
@@ -2433,21 +2715,29 @@ define([
 				return Math.min(100, this.itemsHelper.getMaxHazardPoisonForLevel(campOrdinal, step, isHardLevel));
 			} else if (hazardType == SectorConstants.HAZARD_TYPE_DEBRIS) {
 				return campOrdinal >= WorldCreatorConstants.MIN_CAMP_ORDINAL_HAZARD_DEBRIS ? 9 : 0;
+			} else if (hazardType == SectorConstants.HAZARD_TYPE_FLOODED) {
+				return Math.min(100, this.itemsHelper.getMaxHazardFloodedForLevel(campOrdinal, step, isHardLevel));
+			} else if (hazardType == SectorConstants.HAZARD_TYPE_GANG_TERRITORY) {
+				return 1;
 			} else {
 				return 0;
 			}
 		},
 		
-		getLevelBlockerTypes: function (levelVO, campStage) {
+		getLevelBlockerTypes: function (worldVO, levelVO, campStage) {
 			var levelOrdinal = levelVO.levelOrdinal;
 			var campOrdinal = levelVO.campOrdinal;
+			let isSurfaceLevel = levelVO.level === worldVO.topLevel;
 			var isPollutedLevel = levelVO.notCampableReason === LevelConstants.UNCAMPABLE_LEVEL_TYPE_POLLUTION;
 			var isRadiatedLevel = levelVO.notCampableReason === LevelConstants.UNCAMPABLE_LEVEL_TYPE_RADIATION;
 
-			var blockerTypes = [];
-			if (levelOrdinal > 1) {
-				blockerTypes.push(MovementConstants.BLOCKER_TYPE_DEBRIS);
-				blockerTypes.push(MovementConstants.BLOCKER_TYPE_DEBRIS);
+			let blockerTypes = [];
+
+			blockerTypes.push(MovementConstants.BLOCKER_TYPE_DEBRIS);
+			blockerTypes.push(MovementConstants.BLOCKER_TYPE_DEBRIS);
+
+			if (levelVO.level < 13 && campOrdinal < 6) {
+				blockerTypes.push(MovementConstants.BLOCKER_TYPE_EXPLOSIVES);
 			}
 			
 			var unlockGapOrdinal = GameGlobals.upgradeEffectsHelper.getMinimumCampOrdinalForUpgrade("unlock_building_bridge");
@@ -2473,6 +2763,15 @@ define([
 				blockerTypes.push(MovementConstants.BLOCKER_TYPE_WASTE_RADIOACTIVE);
 				if (isRadiatedLevel) {
 					blockerTypes.push(MovementConstants.BLOCKER_TYPE_WASTE_RADIOACTIVE);
+					blockerTypes.push(MovementConstants.BLOCKER_TYPE_WASTE_RADIOACTIVE);
+				}
+			}
+
+			if (levelVO.isCampable && campOrdinal > WorldConstants.CAMPS_BEFORE_GROUND && !isSurfaceLevel) {
+				blockerTypes.push(MovementConstants.BLOCKER_TYPE_TOLL_GATE);
+
+				if (levelVO.habitability >= 1) {
+					blockerTypes.push(MovementConstants.BLOCKER_TYPE_TOLL_GATE);
 				}
 			}
 			
@@ -2491,64 +2790,83 @@ define([
 			
 			if (l == 14)
 				possibleTypes.push(localeTypes.factory);
+			
+			let isValidForSettlement = distanceToCamp > 3 && levelVO.level !== 13 && levelVO.isCampable;
 				
 			// sector type based
 			switch (sectorType) {
 				case SectorConstants.SECTOR_TYPE_RESIDENTIAL:
+					possibleTypes.push(localeTypes.grocery);
+					possibleTypes.push(localeTypes.grocery);
+					possibleTypes.push(localeTypes.house);
 					possibleTypes.push(localeTypes.house);
 					possibleTypes.push(localeTypes.transport);
-					possibleTypes.push(localeTypes.sewer);
 					possibleTypes.push(localeTypes.warehouse);
-					possibleTypes.push(localeTypes.hut);
-					possibleTypes.push(localeTypes.market);
-					if (distanceToCamp > 3 && levelVO.level !== 13) {
+					if (isValidForSettlement) {
 						possibleTypes.push(localeTypes.camp);
-						possibleTypes.push(localeTypes.hermit);
 					}
 					break;
 
 				case SectorConstants.SECTOR_TYPE_INDUSTRIAL:
 					possibleTypes.push(localeTypes.factory);
-					possibleTypes.push(localeTypes.warehouse);
+					possibleTypes.push(localeTypes.factory);
+					possibleTypes.push(localeTypes.junkyard);
 					possibleTypes.push(localeTypes.transport);
-					possibleTypes.push(localeTypes.sewer);
+					possibleTypes.push(localeTypes.warehouse);
+					possibleTypes.push(localeTypes.warehouse);
 					break;
 
 				case SectorConstants.SECTOR_TYPE_MAINTENANCE:
+					possibleTypes.push(localeTypes.bunker);
 					possibleTypes.push(localeTypes.maintenance);
+					possibleTypes.push(localeTypes.maintenance);
+					possibleTypes.push(localeTypes.junkyard);
 					possibleTypes.push(localeTypes.transport);
-					possibleTypes.push(localeTypes.hermit);
-					possibleTypes.push(localeTypes.sewer);
 					break;
 
 				case SectorConstants.SECTOR_TYPE_COMMERCIAL:
+					possibleTypes.push(localeTypes.farm);
+					possibleTypes.push(localeTypes.grocery);
+					possibleTypes.push(localeTypes.grocery);
+					possibleTypes.push(localeTypes.lab);
 					possibleTypes.push(localeTypes.market);
-					possibleTypes.push(localeTypes.warehouse);
+					possibleTypes.push(localeTypes.market);
+					possibleTypes.push(localeTypes.office);
+					possibleTypes.push(localeTypes.office);
+					possibleTypes.push(localeTypes.restaurant);
+					possibleTypes.push(localeTypes.store);
+					possibleTypes.push(localeTypes.store);
 					possibleTypes.push(localeTypes.transport);
-					possibleTypes.push(localeTypes.hut);
-					possibleTypes.push(localeTypes.hermit);
-					possibleTypes.push(localeTypes.house);
+					possibleTypes.push(localeTypes.transport);
+					possibleTypes.push(localeTypes.warehouse);
 					break;
 
 				case SectorConstants.SECTOR_TYPE_SLUM:
+					possibleTypes.push(localeTypes.store);
 					possibleTypes.push(localeTypes.house);
-					possibleTypes.push(localeTypes.hut);
-					possibleTypes.push(localeTypes.hermit);
-					possibleTypes.push(localeTypes.sewer);
-					if (distanceToCamp > 3 && levelVO.level !== 13) {
+					possibleTypes.push(localeTypes.junkyard);
+					possibleTypes.push(localeTypes.junkyard);
+					if (isValidForSettlement) {
 						possibleTypes.push(localeTypes.camp);
 					}
 					break;
 					
 				case SectorConstants.SECTOR_TYPE_PUBLIC:
 					possibleTypes.push(localeTypes.lab);
-					possibleTypes.push(localeTypes.transport);
 					possibleTypes.push(localeTypes.library);
+					possibleTypes.push(localeTypes.office);
+					possibleTypes.push(localeTypes.transport);
+					possibleTypes.push(localeTypes.hospital);
 					break;
 
 				default:
 					WorldCreatorLogger.w("Unknown sector type " + sectorType);
 					return null;
+			}
+
+			// other
+			if (sectorVO.sunlit) {
+				possibleTypes.push(localeTypes.farm);
 			}
 			
 			var localeRandom = WorldCreatorRandom.random(s1);

@@ -1,6 +1,7 @@
 // Helpers for camp balancing that are independent of game state
 define([
 	'ash',
+	'utils/MathUtils',
 	'game/GameGlobals',
 	'game/constants/GameConstants',
 	'game/constants/CampConstants',
@@ -16,7 +17,7 @@ define([
 	'game/vos/ResourcesVO',
 	'worldcreator/WorldCreatorConstants',
 ], function (
-	Ash, GameGlobals, GameConstants, CampConstants, ImprovementConstants, OccurrenceConstants, PlayerActionConstants,
+	Ash, MathUtils, GameGlobals, GameConstants, CampConstants, ImprovementConstants, OccurrenceConstants, PlayerActionConstants,
 	UpgradeConstants, TribeConstants, WorldConstants, CampComponent, SectorImprovementsComponent, UpgradesComponent,
 	ResourcesVO, WorldCreatorConstants
 ) {
@@ -76,7 +77,7 @@ define([
 				case CampConstants.workerTypes.trapper.id:
 					return -1;
 				case CampConstants.workerTypes.ropemaker.id:
-					var hasUnlockedRopers = GameGlobals.upgradeEffectsHelper.getWorkerLevel("weaver", upgrades) > 0;
+					var hasUnlockedRopers = GameGlobals.upgradeEffectsHelper.getWorkerLevel("ropemaker", upgrades) > 0;
 					return hasUnlockedRopers ? -1 : 0;
 				case CampConstants.workerTypes.chemist.id:
 					return def.getLimitNum(improvements, workshops) * CampConstants.CHEMISTS_PER_WORKSHOP;
@@ -160,26 +161,28 @@ define([
 		getMaxReputationWithParams: function (campOrdinal, maxCampOrdinal, milestone, improvementsComponent) {
 			let baseValue = GameGlobals.tribeBalancingHelper.getMaxReputationBaseValue(maxCampOrdinal, milestone);
 			let numAvailableLuxuryResources = GameGlobals.campBalancingHelper.getMaxNumAvailableLuxuryResources(maxCampOrdinal);
-			let populationFactor = GameGlobals.campBalancingHelper.getPopulationFactor(campOrdinal);
+			let habitability = GameGlobals.campBalancingHelper.getHabitability(campOrdinal);
 			let isSunlit = campOrdinal == 15;
 			let danger = 0;
-			return GameGlobals.campBalancingHelper.getTargetReputation(baseValue, improvementsComponent, numAvailableLuxuryResources, null, 0, populationFactor, danger, isSunlit);
+			return GameGlobals.campBalancingHelper.getTargetReputation(baseValue, improvementsComponent, numAvailableLuxuryResources, null, 0, habitability, danger, isSunlit);
 		},
 		
-		getTargetReputation: function (baseValue, improvementsComponent, numAvailableLuxuryResources, resourcesVO, population, populationFactor, danger, isSunlit) {
+		getTargetReputation: function (baseValue, improvementsComponent, numAvailableLuxuryResources, resourcesVO, population, habitability, danger, isSunlit) {
 			let result = 0;
 			let sources = {}; // text -> value
 			let percentages = {}; // text -> percentage value (for those sources that are calculated as percentages of the base value)
 			let penalties = {}; // id -> bool
+			let staticValues = {}; // id -> bool (is the value something the player can't do much about, aka not useful for a hint)
 			
-			let addValue = function (value, name, isPercentage, percentageValue) {
+			let addValue = function (value, id, isStatic, isPercentage, percentageValue) {
 				if (value == 0) return;
 				result += value;
-				if (!sources[name]) sources[name] = 0;
-				sources[name] += value;
+				if (!sources[id]) sources[id] = 0;
+				sources[id] += value;
 				if (isPercentage) {
-					percentages[name] = percentageValue;
+					percentages[id] = percentageValue;
 				}
+				staticValues[id] = isStatic;
 			};
 			
 			let addPenalty = function (id, active) {
@@ -187,105 +190,132 @@ define([
 			};
 			
 			if (baseValue > 0) {
-				addValue(baseValue, "Tribe milestones");
+				addValue(baseValue, CampConstants.REPUTATION_SOURCE_MILESTONES, false);
 			}
 			
 			// luxury resources
 			if (numAvailableLuxuryResources > 0) {
-				addValue(numAvailableLuxuryResources, "Luxury resources");
+				addValue(numAvailableLuxuryResources, CampConstants.REPUTATION_SOURCE_LUXURY_RESOURCES, false);
+			}
+
+			// herbs and medicine
+			if (population >= 1) {
+				let hasHerbs = resourcesVO && resourcesVO.getResource(resourceNames.herbs) > 0;
+				let hasMedicine = resourcesVO && resourcesVO.getResource(resourceNames.medicine) > 0;
+
+				if (hasMedicine) {
+					addValue(CampConstants.REPUTATION_FROM_MEDICINE, "Medicine", false);
+				} else if (hasHerbs) {
+					addValue(CampConstants.REPUTATION_FROM_HERBS, "Herbs", false);
+				}
 			}
 			
 			// building happiness values
 			let allImprovements = improvementsComponent.getAll(improvementTypes.camp);
 			for (let i in allImprovements) {
-				var improvementVO = allImprovements[i];
-				var level = improvementVO.level || 1;
-				var defaultBonus = improvementVO.getReputationBonus();
+				let improvementVO = allImprovements[i];
+				let id = ImprovementConstants.getImprovementID(improvementVO.name);
+				let level = improvementVO.level || 1;
+				let majorLevel = ImprovementConstants.getMajorLevel(id, level);
+				let defaultBonus = ImprovementConstants.getDefaultReputationBonus(improvementVO.name);
+
+				let levelBonusStep = majorLevel / 10;
+				let levelBonus = 1 + (level - 1) * levelBonusStep;
+				
 				switch (improvementVO.name) {
 					case improvementNames.generator:
 						var numHouses = improvementsComponent.getCount(improvementNames.house) + improvementsComponent.getCount(improvementNames.house2);
 						var generatorBonus = numHouses * CampConstants.REPUTATION_PER_HOUSE_FROM_GENERATOR * (1 + level * 0.1);
 						generatorBonus = Math.round(generatorBonus * 100) / 100;
-						addValue(generatorBonus, "Generator");
+						addValue(generatorBonus, "Generator", false);
 						break;
 					case improvementNames.radiotower:
-						addValue(improvementVO.count * defaultBonus, "Radio");
+						addValue(improvementVO.count * defaultBonus * levelBonus, "Radio", false);
 						break;
 					case improvementNames.shrine:
-						let levelBonus = 1 + (level - 1) * 0.25;
-						addValue(improvementVO.count * defaultBonus * levelBonus, "Shrine");
+						levelBonus = 1 + (level - 1) * 0.5;
+						addValue(improvementVO.count * defaultBonus * levelBonus, "Shrine", false);
 						break;
 					case improvementNames.sundome:
-						addValue(improvementVO.count * defaultBonus, "Sun Dome");
+						addValue(improvementVO.count * defaultBonus, "Sun Dome", false);
+						break;
 					default:
-						addValue(improvementVO.count * defaultBonus, "Buildings");
+						addValue(improvementVO.count * defaultBonus, "Buildings", false);
 						break;
 				}
 			}
 			
-			let resultWithoutPenalties = result;
-			let resultForPercentages = result;
-			
 			// factor: level population
-			if (populationFactor != 1) {
-				let levelPopValueFactor = (populationFactor - 1);
-				let levelPopValue = resultForPercentages * levelPopValueFactor;
-				addValue(levelPopValue, "Level population", true, levelPopValueFactor * 100);
+			if (habitability != 1) {
+				let levelPopValueFactor = (habitability - 1);
+				let levelPopValue = result * levelPopValueFactor;
+				addValue(levelPopValue, CampConstants.REPUTATION_SOURCE_LEVEL_POP, true, true, levelPopValueFactor * 100);
 				addPenalty(CampConstants.REPUTATION_PENALTY_TYPE_LEVEL_POP, levelPopValue < 0);
+			}
+			
+			// penalties: sunlight
+			if (isSunlit && improvementsComponent.getCount(improvementNames.sundome) < 1) {
+				let sunlightPenaltyFactor = -0.75;
+				let sunlightPenaltyValue = result * sunlightPenaltyFactor;
+				addValue(sunlightPenaltyValue, "Sunlight", true, true, sunlightPenaltyFactor * 100);
+				addPenalty(CampConstants.REPUTATION_PENALTY_TYPE_SUNLIT, isSunlit);
 			}
 			
 			// penalties: food and water
 			if (population >= 1) {
 				let noFood = resourcesVO && resourcesVO.getResource(resourceNames.food) <= 0;
 				let noWater = resourcesVO && resourcesVO.getResource(resourceNames.water) <= 0;
-				let penalty = Math.max(5, Math.ceil(resultWithoutPenalties));
+				let penaltyRatio = 0.25;
+				let penalty = result * penaltyRatio;
 				if (noFood) {
-					addValue(-penalty, "No food");
+					addValue(-penalty, "No food", false, true, -penaltyRatio * 100);
 				}
 				if (noWater) {
-					addValue(-penalty, "No water");
+					addValue(-penalty, "No water", false, true, -penaltyRatio * 100);
 				}
 				addPenalty(CampConstants.REPUTATION_PENALTY_TYPE_FOOD, noFood);
 				addPenalty(CampConstants.REPUTATION_PENALTY_TYPE_WATER, noWater);
 			}
 			
 			// penalties: defences
-			let defenceLimit = CampConstants.REPUTATION_PENALTY_DEFENCES_THRESHOLD;
-			let noDefences = danger > defenceLimit;
+			let minDangerForPenalty = CampConstants.REPUTATION_PENALTY_DEFENCES_THRESHOLD;
+			let noDefences = danger > minDangerForPenalty;
 			if (noDefences) {
-				let steppedDanger = Math.ceil((danger - defenceLimit) * 100 / 5) * 5;
-				let penaltyRatio = steppedDanger / (100 - defenceLimit);
-				let defencePenalty = Math.ceil(resultForPercentages * penaltyRatio * 4) / 4;
+				let penaltyRatio = MathUtils.map(danger, minDangerForPenalty, 1, 0.05, 0.5);
+				let penaltyRatioRounded = Math.round(penaltyRatio * 20) / 20;
+				let defencePenalty = result * penaltyRatioRounded;
 				if (penaltyRatio > 0.25) {
-					addValue(-defencePenalty, "Terrible defences", true, penaltyRatio * 100);
+					addValue(-defencePenalty, "Terrible defences", false, true, -penaltyRatioRounded * 100);
 				} else if (penaltyRatio > 0.15) {
-					addValue(-defencePenalty, "Poor defences", true, penaltyRatio * 100);
+					addValue(-defencePenalty, "Poor defences", false, true, -penaltyRatioRounded * 100);
 				} else {
-					addValue(-defencePenalty, "Inadequate defences", true, penaltyRatio * 100);
+					addValue(-defencePenalty, "Inadequate defences", false, true, -penaltyRatioRounded * 100);
 				}
 			}
 			addPenalty(CampConstants.REPUTATION_PENALTY_TYPE_DEFENCES, noDefences);
+
+			// penalties: damaged buildings
+			var hasDamagedBuildings = improvementsComponent.hasDamagedBuildings();
+			if (hasDamagedBuildings) {
+				let penaltyRatio = 0.25;
+				let penaltyValue = result * penaltyRatio;
+				addValue(-penaltyValue, "Damaged buildings", false, true, -penaltyRatio * 100);
+			}
+			addPenalty(CampConstants.REPUTATION_PENALTY_TYPE_DAMAGED_BUILDINGS, hasDamagedBuildings);
 			
 			// penalties: over-crowding
 			let housingCap = CampConstants.getHousingCap(improvementsComponent);
 			let populationFullPeople = Math.floor(population);
 			let noHousing = populationFullPeople > housingCap;
 			if (noHousing) {
-				let housingPenaltyRatio = Math.ceil((populationFullPeople - housingCap) / populationFullPeople * 20) / 20;
-				let housingPenalty = Math.ceil(resultForPercentages * housingPenaltyRatio);
-				addValue(-housingPenalty, "Overcrowding", true, housingPenaltyRatio * 100);
+				let overflowRatio = (populationFullPeople - housingCap) / populationFullPeople;
+				let housingPenaltyRatio = Math.round(overflowRatio * 20) / 20 / 2;
+				let housingPenalty = Math.ceil(result * housingPenaltyRatio * 100) / 100;
+				addValue(-housingPenalty, "Overcrowding", false, true, housingPenaltyRatio * 100);
 			}
 			addPenalty(CampConstants.REPUTATION_PENALTY_TYPE_HOUSING, noHousing);
 			
-			// penalties: sunlight
-			if (isSunlit && improvementsComponent.getCount(improvementNames.sundome) < 1) {
-				let sunlightPenaltyFactor = -0.75;
-				let sunlightPenaltyValue = resultForPercentages * sunlightPenaltyFactor;
-				addValue(sunlightPenaltyValue, "Sunlight", true, sunlightPenaltyFactor * 100);
-				addPenalty(CampConstants.REPUTATION_PENALTY_TYPE_SUNLIT, isSunlit);
-			}
-			
-			return { value: Math.max(0, result), sources: sources, penalties: penalties, percentages: percentages };
+			return { value: Math.max(0, result), sources: sources, penalties: penalties, percentages: percentages, isStatic: staticValues };
 		},
 		
 		getMaxImprovementActionOrdinal: function (improvementName, actionName) {
@@ -435,9 +465,10 @@ define([
 				if (ordinal == 1) return true;
 				
 				// check danger
+				let population = 10;
 				var soldiers = CampConstants.workerTypes.soldier.getLimitNum(result);
 				var soldierLevel = 1;
-				var danger = OccurrenceConstants.getRaidDanger(result, soldiers, soldierLevel, levelRaidDangerFactor);
+				var danger = OccurrenceConstants.getRaidDanger(result, population, soldiers, soldierLevel, levelRaidDangerFactor);
 				var defenceLimit = CampConstants.REPUTATION_PENALTY_DEFENCES_THRESHOLD;
 				var noDefences = danger > defenceLimit;
 				if (noDefences) {
@@ -798,7 +829,7 @@ define([
 		getRequiredResourcesByWorkerID: function (workerID) {
 			switch (workerID) {
 				case "apothecary":
-					return [ { name: resourceNames.herbs, consumption: CampConstants.CONSUMPTION_HERBS_PER_WORKER_PER_S } ];
+					return [ { name: resourceNames.herbs, consumption: CampConstants.CONSUMPTION_HERBS_PER_MEDICINE_WORKER_PER_S } ];
 				case "toolsmith":
 					return [ { name: resourceNames.metal, consumption: CampConstants.CONSUMPTION_METAL_PER_TOOLSMITH_PER_S } ];
 				case "robotmaker":
@@ -853,7 +884,7 @@ define([
 		getRopeProductionPerSecond: function (workers, improvementsComponent, upgrades, robots) {
 			workers = workers || 0;
 			robots = robots || 0;
-			var ropeUpgradeBonus = this.getWorkerUpgradeBonus("weaver", upgrades);
+			var ropeUpgradeBonus = this.getWorkerUpgradeBonus("ropemaker", upgrades);
 			var robotFactor = this.getWorkerRobotFactor(robots);
 			return workers * CampConstants.PRODUCTION_ROPE_PER_WORKER_PER_S * ropeUpgradeBonus * robotFactor;
 		},
@@ -986,11 +1017,11 @@ define([
 		},
 		
 		isOutpost: function (campOrdinal) {
-			return this.getPopulationFactor(campOrdinal) < 1;
+			return this.getHabitability(campOrdinal) < 1;
 		},
 		
-		getPopulationFactor: function (campOrdinal) {
-			return WorldCreatorConstants.getPopulationFactor(campOrdinal);
+		getHabitability: function (campOrdinal) {
+			return WorldCreatorConstants.getHabitability(campOrdinal);
 		},
 	
 	});

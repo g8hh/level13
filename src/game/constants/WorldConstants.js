@@ -34,6 +34,8 @@ define(['ash'], function (Ash) {
 		ZONE_POI_TEMP: "z_poi_temp",
 		
 		LEVEL_NUMBER_STASH_ADVANCED_MAP: 11,
+		LEVEL_NUMBER_STASH_ROBOT_1: 18,
+		LEVEL_NUMBER_STASH_ROBOT_2: 24,
 		
 		NUM_INVESTIGATE_SECTORS_TOTAL: 15,
 		NUM_INVESTIGATE_SECTORS_SURFACE: 10,
@@ -43,6 +45,7 @@ define(['ash'], function (Ash) {
 			DEFAULT: 2, 	// default value, scavenging is worth it but not traveling a long way for it
 			COMMON: 3,		// good sectors
 			ABUNDANT: 4,	// exceptionally good sectors
+			HEAP: 5,		// only in limited use heaps
 		},
 		
 		getCampStep: function (zone) {
