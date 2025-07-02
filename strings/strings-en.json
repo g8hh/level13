@@ -2411,7 +2411,7 @@
             "event_ended_visitor_message": "Visitor ({name}) leaves.",
             "event_refugees_accepted_message": "Refugees ({num}) join the camp.",
             "event_refugees_dismissed_message": "Refugees leave.",
-            "messages_header": "消息",
+            "messages_header": "Messages",
             "overview_header": "Camp overview",
             "status_accident_message": "There has been an accident on {level} ({timeSince} ago).",
             "status_damaged_buildings_message": "Damaged building(s) on level {level}.",
