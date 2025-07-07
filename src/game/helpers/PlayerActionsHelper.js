@@ -452,6 +452,17 @@ define([
 					}
 				}
 				
+				if (requirements.actionsVisible) {
+					let requiredActions = requirements.actionsVisible;
+					for (let key in requiredActions) {
+						let action = key;
+						let requiredValue = requiredActions[key];
+						let currentValue = this.isVisible(action, sector);
+						let result = this.checkRequirementsBoolean(requiredValue, currentValue);
+						if (result) return result;
+					}
+				}
+				
 				if (requirements.featureUnlocked) {
 					for (let featureID in requirements.featureUnlocked) {
 						let requiredValue = requirements.featureUnlocked[featureID];
@@ -729,6 +740,13 @@ define([
 						let falseReason = this.getDisabledReasonVO("ui.actions.disabled_reason_upgrade_missing", name, PlayerActionConstants.DISABLED_REASON_UPGRADE);
 						let result = this.checkRequirementsBoolean(requiredValue, currentValue, trueReason, falseReason);
 						if (result) return result;
+					}
+				}
+
+				if (requirements.missedUpgrade) {
+					let type = requirements.missedUpgrade; // evidende, rumours, hope
+					if (!GameGlobals.tribeHelper.hasMissedUpgrade(type)) {
+						return { value: 0, reason: this.getDisabledReasonVO() };
 					}
 				}
 				
@@ -2955,6 +2973,30 @@ define([
 			
 			return result;
 		},
+
+		getExpectedCampAndStep: function (action) {
+			let minimum = this.getMinimumCampAndStep(action);
+			let result = minimum;
+			
+			var addRequirement = function (campOrdinal, step, source) {
+				if (campOrdinal > result.campOrdinal || (campOrdinal == result.campOrdinal && step > result.step)) {
+					result = { campOrdinal: campOrdinal, step: step };
+				}
+			};
+			
+			// upgrades
+			// using expected camp ordinal even if some upgrades that are not gated by blueprints etc can be unlocked earlier
+			let reqs = this.getReqs(action);
+			if (reqs && reqs.upgrades) {
+				let requiredTech = Object.keys(reqs.upgrades);
+				for (let k = 0; k < requiredTech.length; k++) {
+					let expected = GameGlobals.upgradeEffectsHelper.getExpectedCampAndStepForUpgrade(requiredTech[k]);
+					addRequirement(expected.campOrdinal, expected.step, requiredTech[k]);
+				}
+			}
+
+			return result;
+		},
 		
 		isActionIndependentOfHazards: function (action) {
 			var improvement = this.getImprovementNameForAction(action, true);
@@ -3089,7 +3131,7 @@ define([
 			if (Math.abs(campLevel - sectorLevel) > 2) return null;
 			
 			return ValueCache.getValue("PathToNearestCamp", 5, sectorPosition.positionId(), () =>
-				GameGlobals.levelHelper.findPathTo(sector, campSector, { skipBlockers: true, skipUnvisited: true, omitWarnings: true })
+				GameGlobals.levelHelper.findPathTo(sector, campSector, { skipBlockers: true, skipUnrevealed: true, omitWarnings: true })
 			);
 		},
 

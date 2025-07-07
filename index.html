@@ -601,8 +601,13 @@
 							<div id="trade-caravans-incoming-container" class="actionbox">
 								<table class="fullwidth"></table>
 							</div>
+
+							<div class="subheader"><h3>Outoing caravans</h3></div>
+							<p id="trade-caravans-outgoing-empty-message">No outgoing caravans at the moment.</p>
+							<ul id="trade-caravans-outgoing-list"></ul>
+
 							<div class="subheader"><h3>Trade partners</h3></div>
-							<p id="trade-caravans-outgoing-empty-message">No trade partners discovered yet.</p>
+							<p id="trade-caravans-partners-empty-message">No trade partners discovered yet.</p>
 							<div id="trade-caravans-outgoing-container" class="actionbox">
 								<table></table>
 							</div>
@@ -758,7 +763,7 @@
 			<span id="game-version" class="p-meta"></span>
 			<span id="game-msg" class="p-meta"></span>
 			<ul id="game-options-extended" style="display:none">
-				<li class="hide-in-small-layout"><button class="btn-meta text-key" data-text-key="ui.meta.settings_button_label" id="btn-settings"></button></li>
+				<li><button class="btn-meta text-key" data-text-key="ui.meta.settings_button_label" id="btn-settings"></button></li>
 				<li><button class="btn-meta text-key" data-text-key="ui.meta.game_info_button_label" id="btn-info"></button></li>
 				<li><button class="btn-meta text-key" data-text-key="ui.meta.player_stats_button_label" id="btn-stats"></button></li>
 				<li><button class="btn-meta text-key" data-text-key="ui.meta.game_data_button_label" id="btn-importexport"></button></li>
@@ -1014,6 +1019,7 @@
 		gtag('js', new Date());
 		gtag('config', 'UA-118652515-1', {
 			'app_name': 'Level13',
+			'app_version': '0.6.2',
 			'custom_map': { 'dimension1': 'world_seed', 'dimension2': 'max_level', 'dimension3': 'max_camp' },
 		});
 	</script>

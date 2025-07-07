@@ -86,7 +86,7 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 			var type = hasVision ? "sector-vision" : "sector-novision";
 			var template = DescriptionMapper.get(type, features);
 			if (features.hasGrove) {
-				template = " [a] [a-street] park overrun by plant-life. In the middle there is a grove of tall trees. Though strange and wild, it also seems somehow peaceful";
+				template = "[a] [a-street] park overrun by plant-life. In the middle there is a grove of tall trees. Though strange and wild, it also seems somehow peaceful";
 			}
 			var params = this.getSectorTextParams(features);
 			var phrase = TextBuilder.build(template, params);
@@ -133,7 +133,7 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 					break;
 				case SectorConstants.SECTOR_TYPE_MAINTENANCE:
 					addOptions("n-sector", [ "transport hall", "maintenance area", "transport hub" ]);
-					addOptions("a-street", [ "chaotic", "cluttered", "bare", "queitly thrumming" ]);
+					addOptions("a-street", [ "chaotic", "cluttered", "bare", "quietly thrumming" ]);
 					addOptions("a-street-past", [ "orderly" ]);
 					addOptions("n-building", [ "maintenace hub", "cable car station", "utility building", "water treatment station" ]);
 					addOptions("n-buildings", [ "utility buildings", "data centers", "control rooms", "automated control units" ]);
@@ -243,7 +243,7 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 			if (features.hazards.radiation > 0) {
 				addOptions("a-street", [ "desolate" ]);
 				addOptions("n-building", [ "nuclear power plant", "nuclear waste depot", "nuclear waste processing unit" ]);
-				addOptions("a-building", [ "abadoned" ]);
+				addOptions("a-building", [ "abandoned" ]);
 				addOptions("na-items", [ "discarded safety equipment" ]);
 			}
 			if (features.hazards.poison > 0) {
@@ -560,7 +560,7 @@ function (Ash, DescriptionMapper, Text, TextBuilder, GameConstants, EnemyConstan
 			let topics = [];
 			switch (features.bookType) {
 				case ItemConstants.bookTypes.science:
-					topics.push("a species of slug that thrives in radiactive environments");
+					topics.push("a species of slug that thrives in radioactive environments");
 					topics.push("the infrastructure of the City");
 					topics.push("the ocean");
 					topics.push("forests");

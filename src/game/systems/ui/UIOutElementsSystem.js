@@ -334,7 +334,9 @@ define([
 			$(button).siblings(".cooldown-reqs").css("display", isVisible ? "block" : "none");
 			let container = $(button).parent().parent(".callout-container");
 			if (container) {
-				$(container).css("display", $(button).css("display"));
+				let buttonDisplay = $(button).css("display");
+				let isContainerHidden = buttonDisplay === "none" && !isVisible;
+				$(container).css("display", isContainerHidden ? "none" : "inline-block");
 			}
 		},
 
@@ -358,6 +360,7 @@ define([
 				let isVisible = GameGlobals.uiFunctions.isElementToggled($button) === true || GameGlobals.uiFunctions.isElementVisible($button);
 
 				sys.updateButtonContainer($button, isVisible);
+
 				if (isVisible) {
 					sys.elementsVisibleButtons.push($button);
 					sys.buttonStatuses.push({});
@@ -392,6 +395,7 @@ define([
 					buttonActions.push(action);
 				}
 			});
+
 			// log.i("update visible buttons:" + this.elementsVisibleButtons.length + ":" + buttonActions.join(","));
 		},
 

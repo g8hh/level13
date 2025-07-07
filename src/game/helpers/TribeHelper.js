@@ -80,10 +80,12 @@ define([
 			if (!reqs.upgrades) return false;
 			if (reqs.blueprint) return false;
 			if (reqs.milestone) return false;
-			if (reqs.deity) return false;
+			if (reqs.deity && !this.hasDeity()) return false;
 
 			for (let requiredUpgradeID in reqs.upgrades) {
-				if (requiredUpgradeID != upgradeID) return false;
+				let requiredUpgradeStatus = this.getUpgradeStatus(requiredUpgradeID);
+				if (requiredUpgradeStatus === UpgradeConstants.upgradeStatus.HIDDEN) return false;
+				if (requiredUpgradeStatus === UpgradeConstants.upgradeStatus.VISIBLE_HINT) return false;
 			}
 			
 			return true;
@@ -93,6 +95,28 @@ define([
 			let currentMilestone = GameGlobals.tribeHelper.getCurrentMilestone();
 			let revealingMilestoneIndex = GameGlobals.milestoneEffectsHelper.getMilestoneRevealingUpgrade(upgradeID);
 			return revealingMilestoneIndex >= 0 && revealingMilestoneIndex <= currentMilestone.index;
+		},
+
+		hasMissedUpgrade: function (type) {
+			return this.getMissedUpgrades(type).length > 0;
+		},
+
+		getMissedUpgrades: function (type) {
+			let result = [];
+			let currentCampOrdinal = GameGlobals.gameState.numCamps;
+
+			for (let upgradeID in UpgradeConstants.upgradeDefinitions) {
+				if (this.hasUpgrade(upgradeID)) continue;
+				let def = UpgradeConstants.upgradeDefinitions[upgradeID];	
+				let upgradeCampOrdinal = def.campOrdinal;
+				if (upgradeCampOrdinal > currentCampOrdinal) continue;
+				let upgradeType = UpgradeConstants.getUpgradeType(upgradeID);
+				if (type && type != upgradeType) continue;
+				if (!GameGlobals.playerActionsHelper.isVisible(upgradeID)) continue;
+				result.push(upgradeID)
+			}
+
+			return result;
 		},
 		
 		getTotalPopulation: function () {
