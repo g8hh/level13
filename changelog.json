@@ -1,6 +1,27 @@
 {
 	"versions": [
 		{
+			"version": "0.6.3",
+			"requiredVersion": "0.6.1",
+			"phase": "beta",
+			"final": true,
+			"released": "2025-07-20",
+			"changes": [
+				{
+					"type": "DEV",
+					"summary": "Bugfixes and text polish"
+				},
+				{
+					"type": "GB",
+					"summary": "Small balancing adjustments (building repair costs, damaged building reputation penalty, disease frequency)"
+				},
+				{
+					"type": "DEV",
+					"summary": "Better visitor and error tracking and a note in the FAQ about what is being tracked"
+				}
+			]
+		},
+		{
 			"version": "0.6.2",
 			"requiredVersion": "0.6.1",
 			"phase": "beta",

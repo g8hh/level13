@@ -663,9 +663,9 @@ define([
 
 			if (isScouted) {
 				if (passagesComponent.passageUp)
-					description += TextConstants.getPassageDescription(passagesComponent.passageUp, PositionConstants.DIRECTION_UP, passageUpBuilt);
+					description += TextConstants.getPassageDescription(passagesComponent.passageUp, PositionConstants.DIRECTION_UP, passageUpBuilt) + " ";
 				if (passagesComponent.passageDown)
-					description += TextConstants.getPassageDescription(passagesComponent.passageDown, PositionConstants.DIRECTION_DOWN, passageDownBuilt);
+					description += TextConstants.getPassageDescription(passagesComponent.passageDown, PositionConstants.DIRECTION_DOWN, passageDownBuilt) + " ";
 			}
 
 			// Blockers n/s/w/e
@@ -974,15 +974,17 @@ define([
 				if (blocker.type === MovementConstants.BLOCKER_TYPE_GAP) return;
 				if (movementOptionsComponent.canMoveToDirection(direction)) return;
 
+				let directionName = PositionConstants.getDirectionName(direction, true);
+
 				if (blocker.type === MovementConstants.BLOCKER_TYPE_TOLL_GATE) {
-					let button = $("<button>approach toll gate</button>");
+					let button = $("<button>approach toll gate (" + directionName + ")</button>");
 					button.data("direction", direction);
 					button.click(ExceptionHandler.wrapClick((e) => sys.onApproachTollGateButtonClicked(e)));
 					$("#container-out-actions-movement-related").append(button);
 				} else {
 					let action = blocker.actionBaseID + "_" + direction;
 					let gangComponent = GameGlobals.levelHelper.getGangComponent(position, direction);
-					let description = TextConstants.getMovementBlockerAction(blocker, enemiesComponent, gangComponent) + " (" + PositionConstants.getDirectionName(direction, true) + ")";
+					let description = TextConstants.getMovementBlockerAction(blocker, enemiesComponent, gangComponent) + " (" + directionName + ")";
 					let button = "<button class='action' action='" + action + "'>" + description + "</button>";
 					$("#container-out-actions-movement-related").append(button);
 				}

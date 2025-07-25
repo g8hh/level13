@@ -13,19 +13,20 @@ require.config({
 		lzstring: "../lib/lzstring",
         json: "../lib/requirejs/json",
 		utils: "utils",
-		game: "game"
+		game: "game",
 	},
 
 	config: {
 		'level13-app': {
+			'version': "0.6.3",
 			'isDebugVersion': false,
 			'isCheatsEnabled': false,
 			'isDebugOutputEnabled': false,
 			'isAutosaveEnabled': true,
-			'isAnalyticsEnabled': true,
+			'isTrackingEnabled': true,
 		}
 	},
 	
-	urlArgs: "v=0.6.2",
+	urlArgs: "v=0.6.3",
 
 });

@@ -33,6 +33,8 @@ define([
 		},
 
 		updateNode: function (node, extraUpdateTime) {
+			// TODO handle actions that completed while offline better (correct timestamp for log message, add resources from caravans etc silently)
+
 			extraUpdateTime = extraUpdateTime || 0;
 			let now = new Date().getTime();
 			let newDict = {};
@@ -43,18 +45,15 @@ define([
 				node.playerActions.applyExtraTime(extraUpdateTime);
 			}
 			
-			let timeStamp;
-			let action;
 			for (let i = 0; i < node.playerActions.endTimeStampList.length; i++) {
-				timeStamp = node.playerActions.endTimeStampList[i];
-				action = node.playerActions.endTimeStampToActionDict[timeStamp];
-				if (!action)
-					continue;
+				let timeStamp = node.playerActions.endTimeStampList[i];
+				let actionVO = node.playerActions.endTimeStampToActionDict[timeStamp];
+				if (!actionVO) continue;
 				if (timeStamp > now) {
-					newDict[timeStamp] = action;
+					newDict[timeStamp] = actionVO;
 					newList.push(timeStamp);
 				} else {
-					actionsToPerform.push(action);
+					actionsToPerform.push(actionVO);
 				}
 			}
 			
@@ -62,9 +61,10 @@ define([
 			node.playerActions.endTimeStampList = newList;
 			
 			for (let i = 0; i < actionsToPerform.length; i++) {
-				let action = actionsToPerform[i];
-				if (action.action) {
-					this.playerActionFunctions.performAction(action.action, action.param, action.deductedCosts);
+				let actionVO = actionsToPerform[i];
+				if (actionVO.action) {
+					let sector = GameGlobals.levelHelper.getSectorByPositionVO(actionVO.position);
+					this.playerActionFunctions.performAction(actionVO.action, actionVO.param, sector, actionVO.deductedCosts);
 				}
 			}
 		},

@@ -3026,10 +3026,10 @@
 		"character_workerGeneric_interact_hint_upgrade_improve_worker_smith_3_01": {
 			"conditions": {
 				"actionsVisible": {
-					"upgrade_improve_worker_smith_3": true
+					"improve_worker_smith_3": true
 				},
 				"upgrades": {
-					"upgrade_improve_worker_smith_3": false
+					"improve_worker_smith_3": false
 				}
 			},
 			"pages": [
@@ -3391,6 +3391,11 @@
 			]
 		},
 		"character_workerScavenger_default_meet_03": {
+			"conditions": {
+				"upgrades": {
+					"unlock_building_beacon": true
+				}
+			},
 			"pages": [
 				"character_workerScavenger_default_meet_03_p1"
 			]
@@ -4132,11 +4137,13 @@
 		"explorer_generic_human_outside_02": {
 			"conditions": {
 				"inCamp": false,
-				"position": {
-					"level": [
-						-1,
-						14
-					]
+				"player": {
+					"position": {
+						"level": [
+							-1,
+							14
+						]
+					}
 				}
 			},
 			"pages": [
@@ -4180,6 +4187,7 @@
 		"explorer_generic_interact_directions_center_01": {
 			"conditions": {
 				"inCamp": false,
+				"playerCanExplore": true,
 				"vicinity": "center"
 			},
 			"pages": [
@@ -4189,6 +4197,7 @@
 		"explorer_generic_interact_directions_explore_01": {
 			"conditions": {
 				"inCamp": false,
+				"playerCanExplore": true,
 				"vicinity": "poi",
 				"vicinityScouted": false
 			},
@@ -4197,9 +4206,36 @@
 				"explorer_generic_interact_directions_explore_01_p1"
 			]
 		},
+		"explorer_generic_interact_directions_home_01": {
+			"conditions": {
+				"inCamp": false,
+				"stamina": [
+					-1,
+					200
+				]
+			},
+			"isPriority": true,
+			"pages": [
+				"explorer_generic_interact_directions_home_01_p1"
+			]
+		},
+		"explorer_generic_interact_directions_home_02": {
+			"conditions": {
+				"inCamp": false,
+				"stamina": [
+					-1,
+					200
+				]
+			},
+			"isPriority": true,
+			"pages": [
+				"explorer_generic_interact_directions_home_02_p1"
+			]
+		},
 		"explorer_generic_interact_directions_none_01": {
 			"conditions": {
-				"inCamp": false
+				"inCamp": false,
+				"playerCanExplore": true
 			},
 			"pages": [
 				"explorer_generic_interact_directions_none_01_p1"
@@ -4210,7 +4246,8 @@
 			"conditions": {
 				"inCamp": false,
 				"vicinity": "passage",
-				"vicinityScouted": false
+				"vicinityScouted": false,
+				"playerCanExplore": true
 			},
 			"isPriority": true,
 			"pages": [
@@ -4258,10 +4295,10 @@
 		"explorer_generic_interact_directions_unscouted_01": {
 			"conditions": {
 				"inCamp": false,
+				"playerCanExplore": true,
 				"vicinity": "poi",
 				"vicinityScouted": false
 			},
-			"isPriority": true,
 			"pages": [
 				"explorer_generic_interact_directions_unscouted_01_p1"
 			]
@@ -4428,6 +4465,36 @@
 			"isPriority": true,
 			"pages": [
 				"explorer_generic_interact_injured_recovering_04_p1"
+			]
+		},
+		"explorer_generic_interact_low_food_01": {
+			"conditions": {
+				"inCamp": false,
+				"playerInventory": {
+					"resource_food": [
+						-1,
+						1
+					]
+				}
+			},
+			"isPriority": true,
+			"pages": [
+				"explorer_generic_interact_low_food_01_p1"
+			]
+		},
+		"explorer_generic_interact_low_water_01": {
+			"conditions": {
+				"inCamp": false,
+				"playerInventory": {
+					"resource_water": [
+						-1,
+						1
+					]
+				}
+			},
+			"isPriority": true,
+			"pages": [
+				"explorer_generic_interact_low_water_01_p1"
 			]
 		},
 		"explorer_generic_interact_story_apocalypse_01": {
@@ -6838,7 +6905,8 @@
 			"conditions": {
 				"deity": false,
 				"explorer": {
-					"maxTrust": 5
+					"maxTrust": 5,
+					"trust": 1
 				}
 			},
 			"pages": [
@@ -6999,7 +7067,8 @@
 		},
 		"explorer_unique_gambler_outside_02": {
 			"conditions": {
-				"inCamp": false
+				"inCamp": false,
+				"playerCanExplore": true
 			},
 			"pages": [
 				"explorer_unique_gambler_outside_02_p1"
@@ -7017,6 +7086,7 @@
 		},
 		"explorer_unique_gambler_story_escape_01": {
 			"conditions": {
+				"inCamp": true,
 				"explorer": {
 					"trust": 2
 				},
@@ -7547,11 +7617,13 @@
 				"explorer": {
 					"trust": 1
 				},
-				"position": {
-					"level": [
-						15,
-						-1
-					]
+				"player": {
+					"position": {
+						"level": [
+							15,
+							-1
+						]
+					}
 				}
 			},
 			"pages": [
@@ -7563,11 +7635,13 @@
 				"explorer": {
 					"trust": 2
 				},
-				"position": {
-					"level": [
-						15,
-						-1
-					]
+				"player": {
+					"position": {
+						"level": [
+							15,
+							-1
+						]
+					}
 				}
 			},
 			"pages": [
@@ -7726,11 +7800,13 @@
 		},
 		"explorer_unique_hermit_interact_directions_passage_01": {
 			"conditions": {
-				"position": {
-					"level": [
-						15,
-						-1
-					]
+				"player": {
+					"position": {
+						"level": [
+							15,
+							-1
+						]
+					}
 				},
 				"vicinity": "passage"
 			},
@@ -10284,6 +10360,7 @@
 					"explorer_generic_interact_01",
 					"explorer_generic_interact_02",
 					"explorer_generic_interact_directions_center_01",
+					"explorer_generic_interact_directions_home_01",
 					"explorer_generic_interact_directions_none_01",
 					"explorer_generic_interact_directions_safety_01",
 					"explorer_generic_interact_directions_safety_02",
@@ -10292,6 +10369,8 @@
 					"explorer_generic_interact_injured_outside_01",
 					"explorer_generic_interact_injured_party_01",
 					"explorer_generic_interact_injured_recovering_01",
+					"explorer_generic_interact_low_food_01",
+					"explorer_generic_interact_low_water_01",
 					"explorer_generic_interact_story_apocalypse_01",
 					"explorer_generic_interact_story_apocalypse_02",
 					"explorer_generic_intract_new_camp_10_01",
@@ -10401,11 +10480,14 @@
 					"explorer_generic_human_outside_03",
 					"explorer_generic_human_outside_04",
 					"explorer_generic_human_outside_05",
+					"explorer_generic_interact_directions_home_01",
 					"explorer_generic_interact_directions_safety_01",
 					"explorer_generic_interact_directions_safety_02",
 					"explorer_generic_interact_injured_outside_02",
 					"explorer_generic_interact_injured_party_02",
 					"explorer_generic_interact_injured_recovering_02",
+					"explorer_generic_interact_low_food_01",
+					"explorer_generic_interact_low_water_01",
 					"explorer_generic_interact_story_apocalypse_01",
 					"explorer_generic_interact_story_apocalypse_02",
 					"explorer_generic_intract_new_camp_10_01",
@@ -10524,6 +10606,8 @@
 					"explorer_generic_interact_injured_outside_01",
 					"explorer_generic_interact_injured_party_01",
 					"explorer_generic_interact_injured_recovering_01",
+					"explorer_generic_interact_low_food_01",
+					"explorer_generic_interact_low_water_01",
 					"explorer_generic_interact_story_apocalypse_01",
 					"explorer_generic_interact_story_apocalypse_02",
 					"explorer_generic_intract_new_camp_10_01",
@@ -10585,6 +10669,7 @@
 					"explorer_generic_ability_stat_rumours_outside_02",
 					"explorer_generic_human_outside_01",
 					"explorer_generic_human_outside_02",
+					"explorer_generic_interact_directions_home_02",
 					"explorer_generic_interact_directions_explore_01",
 					"explorer_generic_interact_directions_passage_01",
 					"explorer_generic_interact_directions_safety_01",
@@ -10594,6 +10679,8 @@
 					"explorer_generic_interact_injured_outside_04",
 					"explorer_generic_interact_injured_party_04",
 					"explorer_generic_interact_injured_recovering_04",
+					"explorer_generic_interact_low_food_01",
+					"explorer_generic_interact_low_water_01",
 					"explorer_generic_interact_story_apocalypse_01",
 					"explorer_generic_interact_story_apocalypse_02",
 					"explorer_generic_intract_new_camp_10_01",
@@ -10669,6 +10756,8 @@
 					"explorer_generic_interact_injured_outside_04",
 					"explorer_generic_interact_injured_party_04",
 					"explorer_generic_interact_injured_recovering_04",
+					"explorer_generic_interact_low_food_01",
+					"explorer_generic_interact_low_water_01",
 					"explorer_generic_intract_new_camp_10_01",
 					"explorer_generic_intract_new_camp_12_01",
 					"explorer_generic_intract_new_camp_14_01",
@@ -10713,6 +10802,7 @@
 					"explorer_generic_human_outside_05",
 					"explorer_generic_interact_directions_center_01",
 					"explorer_generic_interact_directions_explore_01",
+					"explorer_generic_interact_directions_home_01",
 					"explorer_generic_interact_directions_passage_01",
 					"explorer_generic_interact_directions_safety_01",
 					"explorer_generic_interact_directions_safety_02",
@@ -10720,6 +10810,8 @@
 					"explorer_generic_interact_injured_outside_02",
 					"explorer_generic_interact_injured_party_02",
 					"explorer_generic_interact_injured_recovering_02",
+					"explorer_generic_interact_low_food_01",
+					"explorer_generic_interact_low_water_01",
 					"explorer_generic_intract_new_camp_10_01",
 					"explorer_generic_intract_new_camp_13_01",
 					"explorer_generic_intract_new_camp_14_01",
@@ -10777,6 +10869,8 @@
 					"explorer_generic_interact_injured_outside_02",
 					"explorer_generic_interact_injured_party_02",
 					"explorer_generic_interact_injured_recovering_02",
+					"explorer_generic_interact_low_food_01",
+					"explorer_generic_interact_low_water_01",
 					"explorer_generic_intract_new_camp_10_01",
 					"explorer_generic_intract_new_camp_14_01",
 					"explorer_generic_intract_new_camp_15_01",
@@ -10819,9 +10913,12 @@
 				"interact": [
 					"explorer_generic_interact_directions_scouted_01",
 					"explorer_generic_interact_directions_unscouted_01",
+					"explorer_generic_interact_directions_home_02",
 					"explorer_generic_interact_injured_outside_04",
 					"explorer_generic_interact_injured_party_04",
 					"explorer_generic_interact_injured_recovering_04",
+					"explorer_generic_interact_low_food_01",
+					"explorer_generic_interact_low_water_01",
 					"explorer_generic_intract_new_camp_12_01",
 					"explorer_generic_intract_new_camp_14_01",
 					"explorer_generic_intract_new_camp_6_01",
@@ -10870,10 +10967,13 @@
 					"explorer_generic_fighter_outside_02",
 					"explorer_generic_human_outside_04",
 					"explorer_generic_human_outside_05",
+					"explorer_generic_interact_directions_home_01",
 					"explorer_generic_interact_directions_none_01",
 					"explorer_generic_interact_injured_outside_02",
 					"explorer_generic_interact_injured_party_02",
 					"explorer_generic_interact_injured_recovering_02",
+					"explorer_generic_interact_low_food_01",
+					"explorer_generic_interact_low_water_01",
 					"explorer_generic_intract_new_camp_10_01",
 					"explorer_generic_intract_new_camp_13_01",
 					"explorer_generic_intract_new_camp_14_01",
@@ -10924,6 +11024,7 @@
 					"explorer_generic_human_outside_01",
 					"explorer_generic_human_outside_02",
 					"explorer_generic_human_outside_05",
+					"explorer_generic_interact_directions_home_01",
 					"explorer_generic_interact_directions_passage_01",
 					"explorer_generic_interact_directions_safety_01",
 					"explorer_generic_interact_directions_safety_02",
@@ -10931,6 +11032,8 @@
 					"explorer_generic_interact_injured_outside_04",
 					"explorer_generic_interact_injured_party_04",
 					"explorer_generic_interact_injured_recovering_04",
+					"explorer_generic_interact_low_food_01",
+					"explorer_generic_interact_low_water_01",
 					"explorer_generic_intract_new_camp_11_01",
 					"explorer_generic_intract_new_camp_9_01",
 					"explorer_generic_story_fall_exodus_01",
@@ -10976,9 +11079,12 @@
 					"explorer_generic_human_outside_03",
 					"explorer_generic_human_outside_05",
 					"explorer_generic_interact_directions_center_01",
+					"explorer_generic_interact_directions_home_01",
 					"explorer_generic_interact_injured_outside_02",
 					"explorer_generic_interact_injured_party_02",
 					"explorer_generic_interact_injured_recovering_02",
+					"explorer_generic_interact_low_food_01",
+					"explorer_generic_interact_low_water_01",
 					"explorer_generic_intract_new_camp_10_01",
 					"explorer_generic_intract_new_camp_13_01",
 					"explorer_generic_intract_new_camp_14_01",
@@ -11032,11 +11138,14 @@
 					"explorer_generic_human_outside_02",
 					"explorer_generic_human_outside_03",
 					"explorer_generic_human_outside_05",
+					"explorer_generic_interact_directions_home_01",
 					"explorer_generic_interact_directions_scouted_01",
 					"explorer_generic_interact_directions_unscouted_01",
 					"explorer_generic_interact_injured_outside_03",
 					"explorer_generic_interact_injured_party_03",
 					"explorer_generic_interact_injured_recovering_03",
+					"explorer_generic_interact_low_food_01",
+					"explorer_generic_interact_low_water_01",
 					"explorer_generic_intract_new_camp_10_01",
 					"explorer_generic_intract_new_camp_13_01",
 					"explorer_generic_intract_new_camp_14_01",
@@ -11128,6 +11237,7 @@
 				],
 				"interact": [
 					"character_workerGeneric_interact_hint_upgrade_unlock_building_apothecary_01",
+					"explorer_generic_interact_directions_home_01",
 					"explorer_generic_interact_directions_passage_01",
 					"explorer_generic_interact_directions_safety_01",
 					"explorer_generic_interact_directions_safety_02",
@@ -11135,6 +11245,8 @@
 					"explorer_generic_interact_injured_outside_02",
 					"explorer_generic_interact_injured_party_02",
 					"explorer_generic_interact_injured_recovering_02",
+					"explorer_generic_interact_low_food_01",
+					"explorer_generic_interact_low_water_01",
 					"explorer_generic_intract_new_camp_10_01",
 					"explorer_generic_intract_new_camp_11_01",
 					"explorer_generic_intract_new_camp_12_01",
@@ -11199,9 +11311,12 @@
 				"interact": [
 					"explorer_generic_ability_handler_outside_01",
 					"explorer_generic_ability_handler_outside_02",
+					"explorer_generic_interact_directions_home_02",
 					"explorer_generic_interact_injured_outside_04",
 					"explorer_generic_interact_injured_party_04",
 					"explorer_generic_interact_injured_recovering_04",
+					"explorer_generic_interact_low_food_01",
+					"explorer_generic_interact_low_water_01",
 					"explorer_generic_intract_new_camp_12_01",
 					"explorer_generic_intract_new_camp_15_01",
 					"explorer_generic_intract_new_camp_6_01",
@@ -11249,10 +11364,13 @@
 				],
 				"interact": [
 					"explorer_generic_interact_directions_center_01",
+					"explorer_generic_interact_directions_home_02",
 					"explorer_generic_interact_directions_scouted_01",
 					"explorer_generic_interact_injured_outside_01",
 					"explorer_generic_interact_injured_party_01",
 					"explorer_generic_interact_injured_recovering_01",
+					"explorer_generic_interact_low_food_01",
+					"explorer_generic_interact_low_water_01",
 					"explorer_generic_intract_new_camp_13_01",
 					"explorer_generic_intract_new_camp_14_01",
 					"explorer_template_darkdweller_interact_directions_safety_01",
@@ -11303,6 +11421,8 @@
 					"explorer_generic_interact_injured_outside_01",
 					"explorer_generic_interact_injured_party_01",
 					"explorer_generic_interact_injured_recovering_01",
+					"explorer_generic_interact_low_food_01",
+					"explorer_generic_interact_low_water_01",
 					"explorer_generic_intract_new_camp_10_01",
 					"explorer_generic_intract_new_camp_15_01",
 					"explorer_generic_intract_new_camp_5_01",
@@ -11372,6 +11492,7 @@
 					"explorer_generic_human_outside_04",
 					"explorer_generic_human_outside_05",
 					"explorer_generic_interact_directions_center_01",
+					"explorer_generic_interact_directions_home_01",
 					"explorer_generic_interact_directions_passage_01",
 					"explorer_generic_interact_directions_safety_01",
 					"explorer_generic_interact_directions_safety_02",
@@ -11380,6 +11501,8 @@
 					"explorer_generic_interact_injured_outside_01",
 					"explorer_generic_interact_injured_party_01",
 					"explorer_generic_interact_injured_recovering_01",
+					"explorer_generic_interact_low_food_01",
+					"explorer_generic_interact_low_water_01",
 					"explorer_generic_intract_new_camp_12_01",
 					"explorer_generic_intract_new_camp_13_01",
 					"explorer_generic_intract_new_camp_14_01",

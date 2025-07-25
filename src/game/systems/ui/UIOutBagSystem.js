@@ -424,7 +424,11 @@ define([
 				
 				let equippedItems = itemsComponent.getEquipped(item.type);
 				let comparison = itemsComponent.getEquipmentComparison(item);
-				let isEquipped = equippedItems.length > 0 && equippedItems[0].id == item.id && equippedItems[0].broken == item.broken;
+				let isEquipped = 
+					equippedItems.length > 0 && 
+					equippedItems[0].id == item.id && 
+					equippedItems[0].broken == item.broken && 
+					ItemConstants.getItemQuality(equippedItems[0]) == ItemConstants.getItemQuality(item);
 				
 				$(indicator).toggleClass("indicator-equipped", isEquipped);
 				$(indicator).toggleClass("indicator-increase", !isEquipped && comparison > 0);
@@ -465,8 +469,10 @@ define([
 				let displayID = getDisplayItemID(itemVO);
 				let count = displayItemCounts[displayID];
 
-				let canDiscard = itemsComponent.isItemDiscardable(itemVO, inCamp);
+				// ingredients can generally be discarded, but there is no point in showing the discard button for them since discarding them one by one is not useful
+				let canDiscard = itemsComponent.isItemDiscardable(itemVO, inCamp) && itemVO.type !== ItemConstants.itemTypes.ingredient;
 				let canRepair = this.isRepairable(itemVO);
+
 				let options = { canEquip: false, isEquipped: false, canUnequip: false, canDiscard: canDiscard, canUse: itemVO.useable, canRepair: canRepair };
 
 				switch (itemVO.type) {

@@ -1829,7 +1829,7 @@
     },
     "document_story_apocalypse_severity_01": {
         "configData": {
-            "noteText": "Official report regarding increasing earthquakes. According to experts, the City can only withstand them for some years. They sey urgent actions are needed.",
+            "noteText": "Official report regarding increasing earthquakes. According to experts, the City can only withstand them for some years. They say urgent actions are needed.",
             "storyFlag": "APOCALYPSE_KNOWN"
         },
         "icon": "img/items/document.png",
@@ -1936,7 +1936,7 @@
     },
     "document_story_fall_launch_schedule_01": {
         "configData": {
-            "noteText": "Detailed launch schedule for a space craft, part of the so called Exodus project. The final launch date coincides with The Fall.",
+            "noteText": "Detailed launch schedule for a space craft, part of the so called Exodus project. The final launch date coincides with the Fall.",
             "storyFlag": "FALL_LINKED_EXODUS_TO_FALL"
         },
         "icon": "img/items/document.png",

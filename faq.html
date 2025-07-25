@@ -51,6 +51,11 @@
 			<p class="collapsible-content">The plan is to complete the web version first.</p>
 			</div>
 			
+			<div class="collapsible-container">
+			<h3 class="collapsible-header">What data does the game collect?</h3>
+			<p class="collapsible-content">Your progress is saved locally. To support development, two privacy-friendly services are used to collect some data. <a href='https://www.goatcounter.com/'>GoatCounter</a> is used to count visitors, and collects basic information such as pages visited, browser type, and referrer. <a href='https://glitchtip.com/'>GlitchTip</a> is used to track errors, and collects technical details related to any errors that occur while you play. Both services anonymize all data, store no personal information, and respect ad blockers.</p>
+			</div>
+			
 			</div>
 			
 			<div class="textbox faq-category">
@@ -155,6 +160,16 @@
 			
 			<p><a href="#top">Back to top</a></p>
 	</div>
+
+	<!-- GoatCounter (visitor counter) -->
+	 <script>
+		window.goatcounter = {
+			path: (location.hostname || "unknown") + "" + (location.pathname || "/"),
+		}
+	</script>
+	<script data-goatcounter="https://level13.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+
+	<!-- RequireJS -->
 	<script data-main="src/config-meta" src="lib/requirejs/require.min.js"></script>
 <!--客服 开始-->
 <script src="//g8hh.github.io/static/js/jquery.min.js"></script>

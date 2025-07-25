@@ -190,7 +190,7 @@ define(['ash',
 				}
 
 				if (bagOptions.canDiscard) {
-					var action = "discard_" + item.id;
+					var action = "discard_" + item.itemID;
 					options += makeButton(action, "Discard");
 				}
 
@@ -338,7 +338,7 @@ define(['ash',
 			}
 
 			if (GameConstants.isCheatsEnabled) {
-				result += "<br/>" + this.meta("Trust: " + explorer.trust);
+				result += "<br/>" + "<span class='debug-info'>" + this.meta("Trust: " + explorer.trust) + "</span>";;
 			}
 			
 			if (isRecruited && isInCamp && !hideButtons) {
@@ -1142,6 +1142,14 @@ define(['ash',
 
 			if (name == "silver") {
 				return Text.t("game.resources.currency_name");
+			}
+
+			if (name == "rumours") {
+				return Text.t("game.stats.rumours_name");
+			}
+
+			if (name == "evidence") {
+				return Text.t("game.stats.evidence_name");
 			}
 
 			log.w("no cost display name defined for cost [" + name + "]");

@@ -446,7 +446,7 @@ define([
 					false,
 					false,
 					name === resourceNames.food || name === resourceNames.water,
-					Math.abs(change) > 0.001,
+					Math.abs(change) > 0.0001,
 					false
 				);
 				UIConstants.updateResourceIndicatorCallout("#" + rowID + "-" + name, name, resourceAcc.getSources(name));
@@ -519,8 +519,7 @@ define([
 					let caravansComponent = campNode.entity.get(OutgoingCaravansComponent);
 					if (!caravansComponent || caravansComponent.outgoingCaravans.length < 1) return null;
 					let caravan = caravansComponent.outgoingCaravans[0];
-					let duration = caravan.returnDuration * 1000;
-					let timeLeft = (caravan.returnTimeStamp - new Date().getTime()) / 1000;
+					let timeLeft = GameGlobals.tribeHelper.getTimeLeftForOutgoingCaravan(caravan);
 					options.timeUntil = UIConstants.getTimeToNum(timeLeft, true);
 					return { key: "ui.tribe.status_outgoing_caravan_message", options: options };
 					

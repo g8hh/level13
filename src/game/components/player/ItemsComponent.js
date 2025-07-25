@@ -87,7 +87,7 @@ function (Ash, ItemVO, ItemConstants) {
 			if (!ItemConstants.isUnselectable(item)) {
 				log.w("Trying to discard non unselectable item.");
 				return;
-			}	
+			}
 
 			this.removeItem(item, autoEquip);
 		},
@@ -100,9 +100,9 @@ function (Ash, ItemVO, ItemConstants) {
 					if (this.getStrongestByType(item.type).id === item.id && this.getCountById(item.id, isInCamp) === 1) return false;
 					return true;
 
+					
 				case ItemConstants.itemTypes.voucher:
 				case ItemConstants.itemTypes.note:
-				case ItemConstants.itemTypes.ingredient:
 				case ItemConstants.itemTypes.uniqueEquipment:
 					return false;
 			}
@@ -237,9 +237,17 @@ function (Ash, ItemVO, ItemConstants) {
 		},
 
 		unequip: function (item) {
-			if (this.isItemUnequippable(item)) {
-				item.equipped = false;
+			if (!item) {
+				log.w("trying to unequip null item");
+				return;
 			}
+
+			if (!this.isItemUnequippable(item)) {
+				log.w("trying to unequip an unequippable item");
+				return;	
+			}
+
+			item.equipped = false;
 		},
 
 		getEquipped: function (type) {

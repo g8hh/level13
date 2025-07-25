@@ -135,8 +135,9 @@ define(['ash',
 				return;
 			}
 			
-			var otherSector = this.getActionSector(action, param);
-			if (!GameGlobals.playerActionsHelper.checkAvailability(action, true, otherSector)) {
+			let sector = this.getActionSectorOrCurrent(param);
+
+			if (!GameGlobals.playerActionsHelper.checkAvailability(action, true, sector)) {
 				log.w("Tried to start action but it's not available: " + action);
 				return false;
 			}
@@ -146,41 +147,40 @@ define(['ash',
 			}
 			
 			GlobalSignals.actionStartingSignal.dispatch(action, param);
-			var deductedCosts = GameGlobals.playerActionsHelper.deductCosts(action);
+			let deductedCosts = GameGlobals.playerActionsHelper.deductCosts(action);
 
-			var baseId = GameGlobals.playerActionsHelper.getBaseActionID(action);
-			var duration = PlayerActionConstants.getDuration(action, baseId);
+			let baseId = GameGlobals.playerActionsHelper.getBaseActionID(action);
+			let duration = PlayerActionConstants.getDuration(action, baseId);
+
 			if (duration > 0) {
-				this.startBusy(action, param, deductedCosts);
+				this.startBusy(action, param, sector, deductedCosts);
 			} else {
-				this.performAction(action, param, deductedCosts);
+				this.performAction(action, param, sector, deductedCosts);
 			}
 			GlobalSignals.actionStartedSignal.dispatch(action, param);
 			return true;
 		},
 
-		startBusy: function (action, param, deductedCosts) {
+		startBusy: function (action, param, sector, deductedCosts) {
 			let baseId = GameGlobals.playerActionsHelper.getBaseActionID(action);
 			let duration = PlayerActionConstants.getDuration(action, baseId);
+
 			if (duration > 0) {
-				let playerPos = this.playerPositionNodes.head.position;
 				let isBusy = PlayerActionConstants.isBusyAction(baseId);
-				let sector = this.getActionSectorOrCurrent(param);
-				let sectorPos = sector.get(PositionComponent);
+				let sectorPos = sector.get(PositionComponent).getPosition();
 				
-				let endTimeStamp = this.playerStatsNodes.head.entity.get(PlayerActionComponent).addAction(action, duration, sectorPos.level, param, deductedCosts, isBusy);
+				let actionComponent = this.playerStatsNodes.head.entity.get(PlayerActionComponent);
+				
+				actionComponent.addAction(action, duration, sectorPos, param, deductedCosts, isBusy);
 
 				switch (baseId) {
 					case "send_caravan":
-						var tradePartnerOrdinal = parseInt(param);
-						var caravansComponent = this.playerLocationNodes.head.entity.get(OutgoingCaravansComponent);
+						let caravansComponent = this.playerLocationNodes.head.entity.get(OutgoingCaravansComponent);
 						if (!caravansComponent.pendingCaravan) {
 							log.w("Can't start caravan. No valid pending caravan found.");
 							return;
 						}
 						
-						// TODO fix the time so it responds to time cheat
-						caravansComponent.pendingCaravan.returnTimeStamp = endTimeStamp;
 						caravansComponent.pendingCaravan.returnDuration = duration;
 						caravansComponent.outgoingCaravans.push(caravansComponent.pendingCaravan);
 						caravansComponent.pendingCaravan = null;
@@ -194,12 +194,14 @@ define(['ash',
 						this.handlePerksOnStartRest();
 						break;
 				}
+			} else {
+				log.w("could not start busy action: " + action + " (duration was 0)");
 			}
 		},
 
-		performAction: function (action, param, deductedCosts) {
-			var baseId = GameGlobals.playerActionsHelper.getBaseActionID(action);
-			
+		performAction: function (action, param, sector, deductedCosts) {
+			let baseId = GameGlobals.playerActionsHelper.getBaseActionID(action);
+
 			switch (baseId) {
 				// Out improvements
 				case "build_out_collector_water": this.buildBucket(param); break;
@@ -260,7 +262,7 @@ define(['ash',
 				case "use_in_library": this.useLibrary(param); break;
 				case "use_in_temple": this.useTemple(param); break;
 				case "use_in_shrine": this.useShrine(param); break;
-				case "improve_in": this.improveBuilding(param); break;
+				case "improve_in": this.improveBuilding(param, sector); break;
 				case "repair_in": this.repairBuilding(param); break;
 				case "dismantle": this.dismantleBuilding(param); break;
 				// Item actions
@@ -436,7 +438,6 @@ define(['ash',
 		
 		getActionSectorOrCurrent: function (sectorPos) {
 			let current = this.playerLocationNodes.head.entity;
-			let position = this.getPositionVO(sectorPos);
 			return this.getActionSector("", sectorPos) || current;
 		},
 
@@ -1966,10 +1967,6 @@ define(['ash',
 			improvementsComponent.add(improvementNames.home);
 
 			GameGlobals.playerActionFunctions.unlockFeature("camp");
-			
-			gtag('event', 'build_camp', { event_category: 'progression', event_label: campOrdinal });
-			gtag('event', 'build_camp_time', { event_category: 'game_time', event_label: campOrdinal, value: GameGlobals.gameState.playTime });
-			gtag('set', { 'max_camp': GameGlobals.gameState.numCamps });
 
 			GameGlobals.playerHelper.addLogMessage(LogConstants.MSG_ID_BUILT_CAMP, "ui.log.built_camp_message", { visibility: LogConstants.MGS_VISIBILITY_LEVEL });
 			if (position.level == 15) {
@@ -2281,17 +2278,17 @@ define(['ash',
 			}
 		},
 		
-		improveBuilding: function (param) {
+		improveBuilding: function (param, sector) {
 			// TODO define sector so that the action can have a duration
 			let actionName = "improve_in_" + param;
-			let improvementID = param;
 			let improvementName = GameGlobals.playerActionsHelper.getImprovementNameForAction(actionName);
 			
-			this.improveImprovement(actionName, improvementName);
+			this.improveImprovement(actionName, improvementName, sector);
 		},
 		
-		improveImprovement: function (actionName, improvementName, otherSector) {
-			let sector = otherSector ? otherSector : this.playerLocationNodes.head.entity;
+		improveImprovement: function (actionName, improvementName, sector) {
+			sector = sector || this.playerLocationNodes.head.entity;
+			
 			let improvementsComponent = sector.get(SectorImprovementsComponent);
 			let improvementID = ImprovementConstants.getImprovementID(improvementName);
 			improvementsComponent.improve(improvementName);
@@ -2577,10 +2574,10 @@ define(['ash',
 			GlobalSignals.equipmentChangedSignal.dispatch();
 		},
 
-		discardItem: function (itemID) {
-			var playerPos = this.playerPositionNodes.head.position;
-			var itemsComponent = this.playerPositionNodes.head.entity.get(ItemsComponent);
-			var item = itemsComponent.getItem(itemID, null, playerPos.inCamp, false) || itemsComponent.getItem(itemID, null, playerPos.inCamp, true);
+		discardItem: function (itemInstanceId) {
+			let playerPos = this.playerPositionNodes.head.position;
+			let itemsComponent = this.playerPositionNodes.head.entity.get(ItemsComponent);
+			let item = itemsComponent.getItem(null, itemInstanceId, playerPos.inCamp, false);
 			GameGlobals.uiFunctions.showConfirmation(
 				"Are you sure you want to discard this item?",
 				function () {
@@ -2726,7 +2723,7 @@ define(['ash',
 						resultVO
 					);
 					this.playerStatsNodes.head.entity.get(HopeComponent).hope += hope;
-					GameGlobals.playerHelper.addLogMessage(LogConstants.MSG_ID_USE_SEED, "Donated seeds. Gained " + hope + " favour.");
+					GameGlobals.playerHelper.addLogMessage(LogConstants.MSG_ID_USE_SEED, "Donated seeds. Gained " + hope + " hope.");
 					break;
 				
 				case "cache_insight":
@@ -2787,6 +2784,7 @@ define(['ash',
 					break;
 					
 				case "consumable_map":
+				case "consumable_map_explorer":
 					let sectorsToReveal = GameGlobals.playerActionResultsHelper.getSectorsRevealedByMap(foundPosition);
 					let revealedSomething = false;
 					for (let i = 0; i < sectorsToReveal.length; i++) {
@@ -2809,7 +2807,7 @@ define(['ash',
 					break;
 
 				default:
-					log.w("Item not mapped for useItem: " + itemId);
+					log.e("Item not mapped for useItem: " + itemId);
 					break;
 			}
 			
@@ -2899,11 +2897,10 @@ define(['ash',
 			this.tribeUpgradesNodes.head.upgrades.addUpgrade(upgradeID);
 			GlobalSignals.upgradeUnlockedSignal.dispatch(upgradeID);
 			this.save();
-			gtag('event', 'upgrade_bought', { event_category: 'progression', event_label: upgradeID });
 
 			let unlockedResearchIDs = GameGlobals.upgradeEffectsHelper.getUnlockedResearchIDs(upgradeID);
 			
-			let title = "Researched complete ";
+			let title = "Research complete";
 			let upgradeName = Text.t(UpgradeConstants.getDisplayNameTextKey(upgradeID));
 			let message = "<p>You've researched <span class='hl-functionality'>" + upgradeName + "</span>.</p>";
 			message += "<p class='p-meta'>" + GameGlobals.upgradeEffectsHelper.getEffectDescription(upgradeID, true) + "</p>";
@@ -3111,7 +3108,6 @@ define(['ash',
 			if (GameGlobals.gameState.unlockedFeatures[featureSaveKey]) return;
 			
 			log.i("unlocked feature: " + featureID);
-			gtag('event', 'unlock_feature', { event_category: 'progression', event_label: featureID });
 			
 			GameGlobals.gameState.unlockedFeatures[featureSaveKey] = true;
 			GlobalSignals.featureUnlockedSignal.dispatch(featureID);
@@ -3133,7 +3129,6 @@ define(['ash',
 			if (GameGlobals.gameState.usedFeatures[featureSaveKey]) return;
 			
 			log.i("used feature: " + featureID);
-			gtag('event', 'use_feature', { event_category: 'progression', event_label: featureID });
 			
 			GameGlobals.gameState.usedFeatures[featureSaveKey] = true;
 			GlobalSignals.featureUsedSignal.dispatch(featureID);
